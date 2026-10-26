@@ -1,0 +1,288 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use super::{ArchivedFileNode, FileNode};
+use crate::DestroyArchive;
+use common::{
+    Server,
+    auth::ChangedBy,
+    storage::{batch::MAX_BATCH_DOCUMENTS, index::ObjectIndexBuilder, metadata::ContainerCleanup},
+};
+use store::write::{Archive, BatchBuilder, PendingId, Slot, now};
+use trc::AddContext;
+use types::collection::{Collection, VanishedCollection};
+
+impl FileNode {
+    pub fn stamp_insert(&mut self, set_created: bool, set_modified: bool, set_accessed: bool) {
+        let now = now() as i64;
+        if set_created {
+            self.created = now;
+        }
+        if set_modified {
+            self.modified = now;
+        }
+        if set_accessed {
+            self.accessed = now;
+        }
+        self.changed = now;
+    }
+
+    pub fn stamp_update(&mut self, set_modified: bool) {
+        let now = now() as i64;
+        if set_modified {
+            self.modified = now;
+        }
+        self.changed = now;
+    }
+
+    pub fn insert(
+        self,
+        changed_by: ChangedBy,
+        account_id: u32,
+        document_id: impl Into<PendingId>,
+        set_created: bool,
+        set_modified: bool,
+        batch: &mut BatchBuilder,
+    ) -> trc::Result<&mut BatchBuilder> {
+        let mut node = self;
+        let set_accessed = node.accessed == 0;
+        node.stamp_insert(set_created, set_modified, set_accessed);
+
+        // Prepare write batch
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode)
+            .with_pending_document(document_id.into())
+            .custom(
+                ObjectIndexBuilder::<(), _>::new()
+                    .with_changes(node)
+                    .with_changed_by(changed_by),
+            )
+            .map(|b| b.commit_point())
+    }
+
+    pub fn insert_stamped(
+        self,
+        changed_by: ChangedBy,
+        account_id: u32,
+        document_id: Slot,
+        parent_id: Option<Slot>,
+        batch: &mut BatchBuilder,
+    ) -> trc::Result<&mut BatchBuilder> {
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode)
+            .create_document(document_id)
+            .custom(
+                ObjectIndexBuilder::<(), _>::new()
+                    .with_changes(self)
+                    .with_changed_by(changed_by)
+                    .with_pending_id_opt(parent_id),
+            )
+            .map(|b| b.commit_point())
+    }
+
+    pub fn update<'x>(
+        self,
+        changed_by: ChangedBy,
+        node: Archive<&ArchivedFileNode>,
+        account_id: u32,
+        document_id: u32,
+        set_modified: bool,
+        batch: &'x mut BatchBuilder,
+    ) -> trc::Result<&'x mut BatchBuilder> {
+        let mut new_node = self;
+        new_node.stamp_update(set_modified);
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode)
+            .with_document(document_id)
+            .custom(
+                ObjectIndexBuilder::new()
+                    .with_current(node)
+                    .with_changes(new_node)
+                    .with_changed_by(changed_by),
+            )
+            .map(|b| b.commit_point())
+    }
+
+    pub fn update_stamped<'x>(
+        self,
+        changed_by: ChangedBy,
+        node: Archive<&ArchivedFileNode>,
+        account_id: u32,
+        document_id: u32,
+        parent_id: Option<Slot>,
+        batch: &'x mut BatchBuilder,
+    ) -> trc::Result<&'x mut BatchBuilder> {
+        let builder = ObjectIndexBuilder::new()
+            .with_current(node)
+            .with_changes(self)
+            .with_changed_by(changed_by);
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode)
+            .with_document(document_id)
+            .custom(builder.with_pending_id_opt(parent_id))
+            .map(|b| b.commit_point())
+    }
+}
+
+impl DestroyArchive<Archive<&ArchivedFileNode>> {
+    pub async fn delete(
+        self,
+        server: &Server,
+        changed_by: ChangedBy,
+        account_id: u32,
+        document_id: u32,
+        batch: &mut BatchBuilder,
+        path: String,
+    ) -> trc::Result<()> {
+        self.delete_with_cleanup(
+            server,
+            changed_by,
+            account_id,
+            document_id,
+            batch,
+            path,
+            &ContainerCleanup::empty(Collection::FileNode),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn delete_with_cleanup(
+        self,
+        server: &Server,
+        changed_by: ChangedBy,
+        account_id: u32,
+        document_id: u32,
+        batch: &mut BatchBuilder,
+        path: String,
+        cleanup: &ContainerCleanup,
+    ) -> trc::Result<()> {
+        server
+            .release_or_read(
+                cleanup,
+                batch,
+                changed_by,
+                account_id,
+                document_id,
+                self.0.inner.metadata_kinds(),
+            )
+            .await?;
+
+        // Prepare write batch
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode)
+            .with_document(document_id)
+            .custom(
+                ObjectIndexBuilder::<_, ()>::new()
+                    .with_current(self.0)
+                    .with_changed_by(changed_by),
+            )?
+            .log_vanished_item(VanishedCollection::FileNode, path)
+            .commit_point();
+        Ok(())
+    }
+}
+
+impl DestroyArchive<Vec<u32>> {
+    pub async fn delete(
+        self,
+        server: &Server,
+        changed_by: ChangedBy,
+        account_id: u32,
+        cleanup: &ContainerCleanup,
+        delete_path: Option<String>,
+    ) -> trc::Result<()> {
+        // Process deletions
+        let mut batch = BatchBuilder::new();
+        self.delete_batch(
+            server,
+            changed_by,
+            account_id,
+            cleanup,
+            delete_path,
+            &mut batch,
+        )
+        .await?;
+        // Write changes
+        if !batch.is_empty() {
+            server
+                .commit_batch(batch)
+                .await
+                .caused_by(trc::location!())?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_batch(
+        self,
+        server: &Server,
+        changed_by: ChangedBy,
+        account_id: u32,
+        cleanup: &ContainerCleanup,
+        delete_path: Option<String>,
+        batch: &mut BatchBuilder,
+    ) -> trc::Result<()> {
+        // Process deletions
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode);
+        let mut document_ids = self.0;
+        document_ids.sort_unstable();
+        document_ids.dedup();
+        for chunk in document_ids.chunks(MAX_BATCH_DOCUMENTS) {
+            let mut archives = server
+                .archive_chunk(account_id, Collection::FileNode, chunk, None)
+                .await
+                .caused_by(trc::location!())?;
+            for &document_id in chunk {
+                let Some(node_) = archives.take_archive(document_id) else {
+                    continue;
+                };
+                let node = node_
+                    .to_unarchived::<FileNode>()
+                    .caused_by(trc::location!())?;
+                server
+                    .release_or_read(
+                        cleanup,
+                        batch,
+                        changed_by,
+                        account_id,
+                        document_id,
+                        node.inner.metadata_kinds(),
+                    )
+                    .await?;
+
+                // Delete record
+                batch
+                    .with_document(document_id)
+                    .custom(
+                        ObjectIndexBuilder::<_, ()>::new()
+                            .with_changed_by(changed_by)
+                            .with_current(node),
+                    )
+                    .caused_by(trc::location!())?
+                    .commit_point();
+            }
+        }
+        batch
+            .with_account_id(account_id)
+            .with_collection(Collection::FileNode);
+
+        if !batch.is_empty()
+            && let Some(delete_path) = delete_path
+        {
+            batch.log_vanished_item(VanishedCollection::FileNode, delete_path);
+        }
+
+        Ok(())
+    }
+}

@@ -1,0 +1,45 @@
+{
+ "objects": [
+  {
+   "key": "x:Account/b",
+   "value": {
+    "@type": "User",
+    "name": "member",
+    "emailAddress": "member@example.com",
+    "memberGroupIds": {
+     "c": true
+    },
+    "domainId": "e"
+   }
+  },
+  {
+   "key": "x:Account/c",
+   "value": {
+    "@type": "User",
+    "name": "alice",
+    "emailAddress": "alice@example.com",
+    "encryptionAtRest": {
+     "@type": "Aes256",
+     "publicKey": "d",
+     "encryptOnAppend": true,
+     "allowSpamTraining": false
+    },
+    "domainId": "e"
+   }
+  },
+  {
+   "key": "x:PublicKey/d",
+   "value": {
+    "accountId": "c",
+    "description": "alice",
+    "key": "-----BEGIN PGP-----"
+   }
+  },
+  {
+   "key": "x:Domain/e",
+   "value": {
+    "name": "example.com"
+   }
+  }
+ ]
+}

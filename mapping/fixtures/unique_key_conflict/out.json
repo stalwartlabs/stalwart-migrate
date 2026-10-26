@@ -1,0 +1,41 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/c",
+      "level": "warning",
+      "path": "",
+      "reason": "merged into x:EventTracingLevel/b, which has the same unique key event \"arc.chain-invalid\" in the target version; it was event \"arc.invalid-cv\" at level trace"
+    },
+    {
+      "change": "transformed",
+      "key": "x:EventTracingLevel/b",
+      "level": "info",
+      "path": "level"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:EventTracingLevel/c"
+  ],
+  "objects": [
+    {
+      "key": "x:EventTracingLevel/b",
+      "source": "x:EventTracingLevel/b",
+      "value": {
+        "event": "arc.chain-invalid",
+        "level": "trace"
+      }
+    },
+    {
+      "key": "x:EventTracingLevel/d",
+      "source": "x:EventTracingLevel/d",
+      "value": {
+        "event": "arc.signature-invalid",
+        "level": "warn"
+      }
+    }
+  ],
+  "questions": []
+}

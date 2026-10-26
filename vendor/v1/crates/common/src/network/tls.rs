@@ -1,0 +1,228 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use super::{
+    ServerInstance, SessionStream, TcpAcceptor, TcpAcceptorResult,
+    acme::resolver::{IsTlsAlpnChallenge, build_acme_static_resolver},
+};
+use crate::{Inner, Server};
+use ahash::AHashMap;
+use compact_str::{CompactString, ToCompactString};
+use rustls::{
+    SupportedProtocolVersion,
+    server::{ClientHello, ResolvesServerCert},
+    sign::CertifiedKey,
+    version::{TLS12, TLS13},
+};
+use std::{
+    cmp::Ordering,
+    fmt::{self, Formatter},
+    sync::Arc,
+};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio_rustls::{Accept, LazyConfigAcceptor};
+
+pub static TLS13_VERSION: &[&SupportedProtocolVersion] = &[&TLS13];
+pub static TLS12_VERSION: &[&SupportedProtocolVersion] = &[&TLS12];
+
+const MAX_HOSTNAME_LEN: usize = 253;
+const WILDCARD_PREFIX: &[u8] = b"*.";
+
+pub(crate) fn lookup_certificate<'x>(
+    certs: &'x AHashMap<Box<str>, Arc<CertifiedKey>>,
+    name: &str,
+) -> Option<&'x Arc<CertifiedKey>> {
+    certs.get(name).or_else(|| lookup_wildcard(certs, name))
+}
+
+fn lookup_wildcard<'x>(
+    certs: &'x AHashMap<Box<str>, Arc<CertifiedKey>>,
+    name: &str,
+) -> Option<&'x Arc<CertifiedKey>> {
+    let (_, parent) = name.split_once('.')?;
+    let mut buf = [0u8; MAX_HOSTNAME_LEN];
+    let key = buf.get_mut(..WILDCARD_PREFIX.len() + parent.len())?;
+    let (prefix, rest) = key.split_at_mut(WILDCARD_PREFIX.len());
+    prefix.copy_from_slice(WILDCARD_PREFIX);
+    rest.copy_from_slice(parent.as_bytes());
+    certs.get(str::from_utf8(key).ok()?)
+}
+
+#[derive(Clone)]
+pub struct CertificateResolver {
+    pub inner: Arc<Inner>,
+}
+
+impl CertificateResolver {
+    pub fn new(inner: Arc<Inner>) -> Self {
+        Self { inner }
+    }
+}
+
+impl ResolvesServerCert for CertificateResolver {
+    fn resolve(&self, hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
+        self.resolve_certificate(hello.server_name())
+    }
+}
+
+impl Server {
+    pub fn resolve_certificate(&self, name: &str) -> Option<Arc<CertifiedKey>> {
+        lookup_certificate(&self.inner.data.tls_certificates.load(), name).cloned()
+    }
+}
+
+impl CertificateResolver {
+    pub(crate) fn resolve_certificate(&self, name: Option<&str>) -> Option<Arc<CertifiedKey>> {
+        let certs = self.inner.data.tls_certificates.load();
+
+        name.map_or_else(
+            || certs.get("*"),
+            |name| {
+                lookup_certificate(&certs, name).or_else(|| {
+                    trc::event!(
+                        Tls(trc::TlsEvent::CertificateNotFound),
+                        Hostname = CompactString::from(name),
+                    );
+                    certs.get("*")
+                })
+            },
+        )
+        .or_else(|| match certs.len().cmp(&1) {
+            Ordering::Equal => certs.values().next(),
+            Ordering::Greater => {
+                trc::event!(
+                    Tls(trc::TlsEvent::MultipleCertificatesAvailable),
+                    Total = certs.len(),
+                );
+                certs.values().next()
+            }
+            Ordering::Less => {
+                trc::event!(
+                    Tls(trc::TlsEvent::NoCertificatesAvailable),
+                    Total = certs.len(),
+                );
+                self.inner.data.tls_self_signed_cert.as_ref()
+            }
+        })
+        .cloned()
+    }
+}
+
+impl TcpAcceptor {
+    pub async fn accept<IO>(
+        &self,
+        stream: IO,
+        enable_acme: Option<Server>,
+        instance: &ServerInstance,
+    ) -> TcpAcceptorResult<IO>
+    where
+        IO: SessionStream,
+    {
+        match self {
+            TcpAcceptor::Tls {
+                config,
+                acceptor,
+                implicit,
+            } if *implicit => match enable_acme {
+                None => TcpAcceptorResult::Tls(acceptor.accept(stream)),
+                Some(core) => {
+                    match LazyConfigAcceptor::new(Default::default(), stream).await {
+                        Ok(start_handshake) => {
+                            if core.has_acme_tls_providers()
+                                && start_handshake.client_hello().is_tls_alpn_challenge()
+                            {
+                                let key = match start_handshake.client_hello().server_name() {
+                                    Some(domain) => {
+                                        let key = core.build_acme_certificate(domain).await;
+
+                                        trc::event!(
+                                            Acme(trc::AcmeEvent::ClientSuppliedSni),
+                                            ListenerId = instance.id.clone(),
+                                            Domain = CompactString::from(domain),
+                                            Result = key.is_some(),
+                                        );
+
+                                        key
+                                    }
+                                    None => {
+                                        trc::event!(
+                                            Acme(trc::AcmeEvent::ClientMissingSni),
+                                            ListenerId = instance.id.clone(),
+                                        );
+
+                                        None
+                                    }
+                                };
+
+                                match start_handshake
+                                    .into_stream(build_acme_static_resolver(key))
+                                    .await
+                                {
+                                    Ok(mut tls) => {
+                                        trc::event!(
+                                            Acme(trc::AcmeEvent::TlsAlpnReceived),
+                                            ListenerId = instance.id.clone(),
+                                        );
+
+                                        let _ = tls.shutdown().await;
+                                    }
+                                    Err(err) => {
+                                        trc::event!(
+                                            Acme(trc::AcmeEvent::TlsAlpnError),
+                                            ListenerId = instance.id.clone(),
+                                            Reason = err.to_compact_string(),
+                                        );
+                                    }
+                                }
+                            } else {
+                                return TcpAcceptorResult::Tls(
+                                    start_handshake.into_stream(config.clone()),
+                                );
+                            }
+                        }
+                        Err(err) => {
+                            trc::event!(
+                                Tls(trc::TlsEvent::HandshakeError),
+                                ListenerId = instance.id.clone(),
+                                Reason = err.to_compact_string(),
+                            );
+                        }
+                    }
+
+                    TcpAcceptorResult::Close
+                }
+            },
+            _ => TcpAcceptorResult::Plain(stream),
+        }
+    }
+
+    pub fn is_tls(&self) -> bool {
+        matches!(self, TcpAcceptor::Tls { .. })
+    }
+}
+
+impl<IO> TcpAcceptorResult<IO>
+where
+    IO: AsyncRead + AsyncWrite + Unpin,
+{
+    pub fn unwrap_tls(self) -> Accept<IO> {
+        match self {
+            TcpAcceptorResult::Tls(accept) => accept,
+            _ => panic!("unwrap_tls called on non-TLS acceptor"),
+        }
+    }
+}
+
+impl std::fmt::Debug for CertificateResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CertificateResolver").finish()
+    }
+}
+
+#[cfg(all(test, stalwart_tests))]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/common/src/network/tls/tests.rs"]
+mod tests;

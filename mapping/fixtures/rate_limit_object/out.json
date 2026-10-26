@@ -1,0 +1,21 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Imap",
+      "source": "x:Imap",
+      "value": {
+        "idleTimeout": 1800000,
+        "maxConcurrentConnections": 8,
+        "rateLimit": {
+          "count": 2000,
+          "period": 60000
+        }
+      }
+    }
+  ],
+  "questions": []
+}

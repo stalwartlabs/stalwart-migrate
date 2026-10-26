@@ -1,0 +1,61 @@
+{
+  "options": {
+    "normalize": true
+  },
+  "objects": [
+    {
+      "key": "x:Domain/c",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:Account/b",
+      "value": {
+        "@type": "User",
+        "name": "a",
+        "domainId": "c",
+        "emailAddress": "a@example.com",
+        "locale": "de_DE@euro"
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "b",
+        "domainId": "c",
+        "emailAddress": "b@example.com",
+        "locale": "en_US"
+      }
+    },
+    {
+      "key": "x:DnsServer/d",
+      "value": {
+        "@type": "Sig0"
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "bucket": "b",
+        "region": {
+          "@type": "UsEast1"
+        },
+        "accessKey": "AKIA",
+        "secretKey": {
+          "@type": "Value",
+          "secret": "x"
+        },
+        "securityToken": {
+          "@type": "None"
+        },
+        "sessionToken": {
+          "@type": "None"
+        }
+      }
+    }
+  ]
+}

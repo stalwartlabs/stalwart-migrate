@@ -1,0 +1,18 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:SpamTrainingSample/d",
+      "level": "warning",
+      "path": "",
+      "reason": "its owner x:Account/c is not listed by the source"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:SpamTrainingSample/d"
+  ],
+  "objects": [],
+  "questions": []
+}

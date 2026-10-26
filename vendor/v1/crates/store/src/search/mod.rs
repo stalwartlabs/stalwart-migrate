@@ -1,0 +1,421 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+pub(crate) mod codec;
+pub mod document;
+pub mod fields;
+pub mod index;
+pub(crate) mod leaf;
+pub mod local;
+pub mod query;
+#[cfg(stalwart_tests)]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/store/src/search/reference.rs"]
+pub mod reference;
+pub mod split;
+pub(crate) mod term;
+pub mod tokenize;
+
+use crate::write::SearchIndex;
+use ahash::AHashMap;
+use nlp::language::Language;
+use roaring::{RoaringBitmap, RoaringTreemap};
+use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
+use utils::map::vec_map::VecMap;
+
+pub const MAX_PLANNED_TOKENS: usize = 64;
+pub const MAX_QUERY_PLANNED_TOKENS: usize = 4_096;
+pub const MAX_QUERY_LEAVES: usize = 1_024;
+
+pub(crate) const GLOBAL_BUCKET_BITS: u32 = 16;
+pub(crate) const GLOBAL_BUCKET_SHIFT: u32 = u64::BITS - GLOBAL_BUCKET_BITS;
+pub(crate) const ACCOUNT_BLOCK_SHIFT: u32 = 16;
+pub(crate) const MAX_DOCUMENT_SIZE: usize = 1024 * 1024;
+pub(crate) const MAX_STORED_DOCUMENT_SIZE: usize = MAX_DOCUMENT_SIZE * 8;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SearchField {
+    AccountId,
+    DocumentId,
+    Id,
+    Email(EmailSearchField),
+    Calendar(CalendarSearchField),
+    Contact(ContactSearchField),
+    File(FileSearchField),
+    Tracing(TracingSearchField),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum EmailSearchField {
+    From,
+    To,
+    Cc,
+    Bcc,
+    Subject,
+    Body,
+    Attachment,
+    Headers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CalendarSearchField {
+    Title,
+    Description,
+    Location,
+    Owner,
+    Attendee,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ContactSearchField {
+    Member,
+    Kind,
+    Name,
+    Nickname,
+    Organization,
+    Email,
+    Phone,
+    OnlineService,
+    Address,
+    Note,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileSearchField {
+    Content,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TracingSearchField {
+    EventType,
+    QueueId,
+    Keywords,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchValue {
+    Text { value: String, language: Language },
+    KeyValues(VecMap<String, String>),
+    Int(i64),
+    Uint(u64),
+    Boolean(bool),
+}
+
+pub trait SearchResults: Sized + Default {
+    fn insert(&mut self, id: u64);
+    fn field() -> SearchField;
+}
+
+#[derive(Debug)]
+pub struct SearchQuery {
+    pub(crate) index: SearchIndex,
+    pub(crate) filters: Vec<SearchFilter>,
+    pub(crate) comparators: Vec<SearchComparator>,
+    pub(crate) mask: RoaringBitmap,
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub enum SearchFilter {
+    Text {
+        field: SearchField,
+        op: TextMatch,
+        value: String,
+        language: Language,
+    },
+    Integer {
+        field: SearchField,
+        op: Ordering,
+        value: u64,
+    },
+    KeyValue {
+        field: SearchField,
+        key: String,
+        op: KeyValueMatch,
+    },
+    DocumentSet(RoaringBitmap),
+    And,
+    Or,
+    Not,
+    #[default]
+    End,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum TextMatch {
+    Exact,
+    Standard,
+    Prefix,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum KeyValueMatch {
+    Equals(String),
+    Contains(String),
+    Exists,
+}
+
+#[derive(Debug)]
+pub enum SearchComparator {
+    DocumentSet {
+        set: RoaringBitmap,
+        ascending: bool,
+    },
+    SortedSet {
+        set: AHashMap<u32, u32>,
+        ascending: bool,
+    },
+}
+
+#[derive(Debug)]
+pub struct IndexDocument {
+    pub(crate) index: SearchIndex,
+    pub(crate) fields: AHashMap<SearchField, SearchValue>,
+}
+
+#[derive(Debug)]
+pub struct QueryResults {
+    results: RoaringBitmap,
+    comparators: Vec<SearchComparator>,
+}
+
+impl From<EmailSearchField> for SearchField {
+    fn from(field: EmailSearchField) -> Self {
+        SearchField::Email(field)
+    }
+}
+
+impl From<CalendarSearchField> for SearchField {
+    fn from(field: CalendarSearchField) -> Self {
+        SearchField::Calendar(field)
+    }
+}
+
+impl From<ContactSearchField> for SearchField {
+    fn from(field: ContactSearchField) -> Self {
+        SearchField::Contact(field)
+    }
+}
+
+impl From<FileSearchField> for SearchField {
+    fn from(field: FileSearchField) -> Self {
+        SearchField::File(field)
+    }
+}
+
+impl From<TracingSearchField> for SearchField {
+    fn from(field: TracingSearchField) -> Self {
+        SearchField::Tracing(field)
+    }
+}
+
+impl From<u64> for SearchValue {
+    fn from(value: u64) -> Self {
+        SearchValue::Uint(value)
+    }
+}
+
+impl From<i64> for SearchValue {
+    fn from(value: i64) -> Self {
+        SearchValue::Int(value)
+    }
+}
+
+impl From<u32> for SearchValue {
+    fn from(value: u32) -> Self {
+        SearchValue::Uint(value as u64)
+    }
+}
+
+impl From<i32> for SearchValue {
+    fn from(value: i32) -> Self {
+        SearchValue::Int(value as i64)
+    }
+}
+
+impl From<usize> for SearchValue {
+    fn from(value: usize) -> Self {
+        SearchValue::Uint(value as u64)
+    }
+}
+
+impl From<bool> for SearchValue {
+    fn from(value: bool) -> Self {
+        SearchValue::Boolean(value)
+    }
+}
+
+impl From<String> for SearchValue {
+    fn from(value: String) -> Self {
+        SearchValue::Text {
+            value,
+            language: Language::None,
+        }
+    }
+}
+
+impl SearchResults for RoaringBitmap {
+    fn field() -> SearchField {
+        SearchField::DocumentId
+    }
+
+    fn insert(&mut self, id: u64) {
+        self.insert(id as u32);
+    }
+}
+
+impl SearchResults for RoaringTreemap {
+    fn field() -> SearchField {
+        SearchField::Id
+    }
+
+    fn insert(&mut self, id: u64) {
+        self.insert(id);
+    }
+}
+
+pub trait SearchableField: Sized {
+    fn index() -> SearchIndex;
+    fn primary_keys() -> &'static [SearchField];
+    fn all_fields() -> &'static [SearchField];
+    fn is_indexed(&self) -> bool;
+    fn is_text(&self) -> bool;
+}
+
+impl Eq for SearchFilter {}
+
+pub(crate) const TERM_GROUP_TEXT: u8 = 0;
+pub(crate) const TERM_GROUP_KEY_VALUE: u8 = 1;
+
+impl SearchIndex {
+    pub(crate) const fn term_group(&self, field: u8) -> u8 {
+        match self {
+            SearchIndex::Email
+                if field == SearchField::Email(EmailSearchField::Headers).u8_id() =>
+            {
+                TERM_GROUP_KEY_VALUE
+            }
+            _ => TERM_GROUP_TEXT,
+        }
+    }
+
+    pub(crate) fn group_fields(&self, group: u8) -> u32 {
+        if matches!(self, SearchIndex::InMemory) {
+            return 0;
+        }
+        self.all_fields()
+            .iter()
+            .map(SearchField::u8_id)
+            .filter(|field| self.term_group(*field) == group)
+            .fold(0, |fields, field| fields | (1 << field))
+    }
+
+    pub fn index_name(&self) -> &'static str {
+        match self {
+            SearchIndex::Email => "st_email",
+            SearchIndex::Calendar => "st_calendar",
+            SearchIndex::Contacts => "st_contact",
+            SearchIndex::File => "st_file",
+            SearchIndex::Tracing => "st_tracing",
+            SearchIndex::InMemory => unreachable!(),
+        }
+    }
+}
+
+impl SearchField {
+    pub(crate) const fn u8_id(&self) -> u8 {
+        match self {
+            SearchField::AccountId => 0,
+            SearchField::DocumentId => 1,
+            SearchField::Id => 2,
+            SearchField::Email(field) => match field {
+                EmailSearchField::From => 3,
+                EmailSearchField::To => 4,
+                EmailSearchField::Cc => 5,
+                EmailSearchField::Bcc => 6,
+                EmailSearchField::Subject => 7,
+                EmailSearchField::Body => 8,
+                EmailSearchField::Attachment => 9,
+                EmailSearchField::Headers => 10,
+            },
+            SearchField::Calendar(field) => match field {
+                CalendarSearchField::Title => 3,
+                CalendarSearchField::Description => 4,
+                CalendarSearchField::Location => 5,
+                CalendarSearchField::Owner => 6,
+                CalendarSearchField::Attendee => 7,
+            },
+            SearchField::Contact(field) => match field {
+                ContactSearchField::Member => 3,
+                ContactSearchField::Kind => 4,
+                ContactSearchField::Name => 5,
+                ContactSearchField::Nickname => 6,
+                ContactSearchField::Organization => 7,
+                ContactSearchField::Email => 8,
+                ContactSearchField::Phone => 9,
+                ContactSearchField::OnlineService => 10,
+                ContactSearchField::Address => 11,
+                ContactSearchField::Note => 12,
+            },
+            SearchField::File(field) => match field {
+                FileSearchField::Content => 4,
+            },
+            SearchField::Tracing(field) => match field {
+                TracingSearchField::EventType => 3,
+                TracingSearchField::QueueId => 4,
+                TracingSearchField::Keywords => 5,
+            },
+        }
+    }
+}
+
+impl SearchField {
+    pub fn field_name(&self) -> &'static str {
+        match self {
+            SearchField::AccountId => "acc_id",
+            SearchField::DocumentId => "doc_id",
+            SearchField::Id => "id",
+            SearchField::Email(field) => match field {
+                EmailSearchField::From => "from",
+                EmailSearchField::To => "to",
+                EmailSearchField::Cc => "cc",
+                EmailSearchField::Bcc => "bcc",
+                EmailSearchField::Subject => "subj",
+                EmailSearchField::Body => "body",
+                EmailSearchField::Attachment => "attach",
+                EmailSearchField::Headers => "headers",
+            },
+            SearchField::Calendar(field) => match field {
+                CalendarSearchField::Title => "title",
+                CalendarSearchField::Description => "desc",
+                CalendarSearchField::Location => "loc",
+                CalendarSearchField::Owner => "owner",
+                CalendarSearchField::Attendee => "attendee",
+            },
+            SearchField::Contact(field) => match field {
+                ContactSearchField::Member => "member",
+                ContactSearchField::Kind => "kind",
+                ContactSearchField::Name => "name",
+                ContactSearchField::Nickname => "nick",
+                ContactSearchField::Organization => "org",
+                ContactSearchField::Email => "email",
+                ContactSearchField::Phone => "phone",
+                ContactSearchField::OnlineService => "online",
+                ContactSearchField::Address => "addr",
+                ContactSearchField::Note => "note",
+            },
+            SearchField::File(field) => match field {
+                FileSearchField::Content => "content",
+            },
+            SearchField::Tracing(field) => match field {
+                TracingSearchField::EventType => "ev_type",
+                TracingSearchField::QueueId => "queue_id",
+                TracingSearchField::Keywords => "keywords",
+            },
+        }
+    }
+}

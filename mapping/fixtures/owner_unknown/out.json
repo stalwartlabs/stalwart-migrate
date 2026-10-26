@@ -1,0 +1,32 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dangling",
+      "key": "x:PublicKey/d",
+      "level": "error",
+      "path": "accountId"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Role/e",
+      "source": "x:Role/e",
+      "value": {
+        "description": "unrelated"
+      }
+    },
+    {
+      "key": "x:PublicKey/d",
+      "source": "x:PublicKey/d",
+      "value": {
+        "accountId": "c",
+        "description": "key of a deleted account",
+        "key": "-----BEGIN PGP-----"
+      }
+    }
+  ],
+  "questions": []
+}

@@ -1,0 +1,7 @@
+{
+  "global": {
+    "new_permissions": {
+      "action": "grant"
+    }
+  }
+}

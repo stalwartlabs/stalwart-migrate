@@ -1,0 +1,28 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:DnsServer/b",
+      "source": "x:DnsServer/b",
+      "value": {
+        "@type": "Infoblox",
+        "description": "ib",
+        "pollInterval": 15000,
+        "port": 8443
+      }
+    },
+    {
+      "key": "x:DnsServer/c",
+      "source": "x:DnsServer/c",
+      "value": {
+        "@type": "Infoblox",
+        "description": "ib2",
+        "port": null
+      }
+    }
+  ],
+  "questions": []
+}

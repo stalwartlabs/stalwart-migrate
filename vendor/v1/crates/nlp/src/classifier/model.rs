@@ -1,0 +1,166 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::classifier::{
+    feature::{CcfhFeature, CcfhFeatureBuilder, FhFeature, FhFeatureBuilder},
+    sigmoid,
+};
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Score {
+    z: f32,
+    squares: f64,
+}
+
+impl Score {
+    pub fn combine(self, other: Score) -> Score {
+        Score {
+            z: self.z + other.z,
+            squares: self.squares + other.squares,
+        }
+    }
+
+    fn scaled(self, l2_normalize: bool) -> f32 {
+        if l2_normalize && self.squares > 0.0 {
+            self.z / self.squares.sqrt() as f32
+        } else {
+            self.z
+        }
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default)]
+pub struct FhClassifier {
+    pub(crate) parameters: Vec<f32>,
+    pub(crate) bias: f32,
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default)]
+pub struct CcfhClassifier {
+    pub(crate) parameters: Vec<f32>,
+    pub(crate) indicators: Vec<f32>,
+    pub(crate) bias: f32,
+}
+
+impl FhClassifier {
+    pub fn predict_proba_sample(&self, features: &[FhFeature]) -> f32 {
+        let mut z: f32 = 0.0;
+
+        for f in features {
+            z += self.parameters[f.idx] * f.weight;
+        }
+
+        sigmoid(z + self.bias)
+    }
+
+    pub fn score(&self, features: &[FhFeature]) -> Score {
+        let mut score = Score::default();
+        for f in features {
+            score.z += self.parameters[f.idx] * f.weight;
+            score.squares += f64::from(f.weight) * f64::from(f.weight);
+        }
+        score
+    }
+
+    pub fn predict_proba_score(&self, score: Score, l2_normalize: bool) -> f32 {
+        sigmoid(score.scaled(l2_normalize) + self.bias)
+    }
+
+    pub fn predict(&self, features: &[FhFeature]) -> f32 {
+        if self.predict_proba_sample(features) > 0.7 {
+            1.0
+        } else {
+            0.0
+        }
+    }
+
+    pub fn predict_batch<I>(&self, test: I) -> Vec<f32>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Vec<FhFeature>>,
+    {
+        test.into_iter()
+            .map(|features| self.predict(features.as_ref()))
+            .collect()
+    }
+
+    pub fn feature_builder(&self) -> FhFeatureBuilder {
+        FhFeatureBuilder {
+            weight_mask: (self.parameters.len() - 1) as u64,
+        }
+    }
+
+    pub fn parameters(&self) -> &[f32] {
+        &self.parameters
+    }
+
+    pub fn bias(&self) -> f32 {
+        self.bias
+    }
+}
+
+impl CcfhClassifier {
+    pub fn predict_proba_sample(&self, features: &[CcfhFeature]) -> f32 {
+        let mut z: f32 = 0.0;
+        for f in features {
+            let q = self.indicators[f.idx_i];
+            let v1 = self.parameters[f.idx_w1];
+            let v2 = self.parameters[f.idx_w2];
+            z += (q * v1 + (1.0 - q) * v2) * f.weight;
+        }
+        sigmoid(z + self.bias)
+    }
+
+    pub fn score(&self, features: &[CcfhFeature]) -> Score {
+        let mut score = Score::default();
+        for f in features {
+            let q = self.indicators[f.idx_i];
+            let v1 = self.parameters[f.idx_w1];
+            let v2 = self.parameters[f.idx_w2];
+            score.z += (q * v1 + (1.0 - q) * v2) * f.weight;
+            score.squares += f64::from(f.weight) * f64::from(f.weight);
+        }
+        score
+    }
+
+    pub fn predict_proba_score(&self, score: Score, l2_normalize: bool) -> f32 {
+        sigmoid(score.scaled(l2_normalize) + self.bias)
+    }
+
+    pub fn predict(&self, features: &[CcfhFeature]) -> f32 {
+        if self.predict_proba_sample(features) >= 0.5 {
+            1.0
+        } else {
+            0.0
+        }
+    }
+
+    pub fn predict_batch<I>(&self, test: I) -> Vec<f32>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Vec<CcfhFeature>>,
+    {
+        test.into_iter()
+            .map(|features| self.predict(features.as_ref()))
+            .collect()
+    }
+
+    pub fn feature_builder(&self) -> CcfhFeatureBuilder {
+        CcfhFeatureBuilder {
+            weight_mask: (self.parameters.len() - 1) as u64,
+            indicator_mask: (self.indicators.len() - 1) as u64,
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        !self.parameters.is_empty()
+    }
+}
+
+#[cfg(all(test, stalwart_tests))]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/nlp/src/classifier/model/tests.rs"]
+mod tests;

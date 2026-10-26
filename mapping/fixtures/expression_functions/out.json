@@ -1,0 +1,41 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:SpamRule/b",
+      "level": "warning",
+      "path": "condition"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:SpamRule/b",
+      "source": "x:SpamRule/b",
+      "value": {
+        "@type": "Any",
+        "condition": {
+          "else": "key_incr('redis', 'k:' + sender, 1) > 10",
+          "match": {
+            "0": {
+              "if": "key_incr('redis', 'k:' + sender, 0) > 5",
+              "then": "true"
+            }
+          }
+        },
+        "enable": true,
+        "name": "rate",
+        "priority": 10
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:SpamRule/b",
+      "prompt": "counter_read"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:InMemoryStore",
+      "level": "warning",
+      "path": "password",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:InMemoryStore",
+      "level": "warning",
+      "path": "url",
+      "reason": "not part of the target schema"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Default"
+      }
+    }
+  ],
+  "questions": []
+}

@@ -1,0 +1,46 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_pinned",
+      "key": "x:Coordinator",
+      "level": "info",
+      "path": "addresses"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "source": "x:Coordinator",
+      "value": {
+        "@type": "Nats",
+        "clientCapacity": 2048,
+        "connectTimeout": 5000,
+        "hosts": {
+          "127.0.0.1:4444": true
+        }
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Default"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:InMemoryStore",
+      "prompt": "in_memory_cluster"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

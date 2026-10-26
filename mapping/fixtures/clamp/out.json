@@ -1,0 +1,55 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:AcmeProvider/b",
+      "level": "warning",
+      "path": "maxRetries",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AcmeProvider/c",
+      "level": "warning",
+      "path": "maxRetries",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AcmeProvider/b",
+      "level": "info",
+      "path": "description"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AcmeProvider/c",
+      "level": "info",
+      "path": "description"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:AcmeProvider/b",
+      "source": "x:AcmeProvider/b",
+      "value": {
+        "contact": {
+          "a@example.com": true
+        },
+        "description": "https://acme.example/dir",
+        "directory": "https://acme.example/dir"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/c",
+      "source": "x:AcmeProvider/c",
+      "value": {
+        "description": "https://acme.example/dir",
+        "directory": "https://acme.example/dir"
+      }
+    }
+  ],
+  "questions": []
+}

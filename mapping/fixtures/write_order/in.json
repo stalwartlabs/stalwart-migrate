@@ -1,0 +1,61 @@
+{
+  "objects": [
+    {
+      "key": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "name": "bob",
+        "domainId": "c",
+        "emailAddress": "bob@example.com",
+        "memberGroupIds": {
+          "d": true
+        }
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "value": {
+        "@type": "Group",
+        "name": "staff",
+        "domainId": "c",
+        "emailAddress": "staff@example.com"
+      }
+    },
+    {
+      "key": "x:Role/g",
+      "value": {
+        "description": "child",
+        "roleIds": {
+          "f": true
+        }
+      }
+    },
+    {
+      "key": "x:Role/f",
+      "value": {
+        "description": "parent",
+        "roleIds": {}
+      }
+    },
+    {
+      "key": "x:Domain/c",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true,
+        "memberTenantId": "b"
+      }
+    },
+    {
+      "key": "x:Tenant/b",
+      "value": {
+        "name": "acme"
+      }
+    },
+    {
+      "key": "x:Http",
+      "value": {
+        "useXForwarded": false
+      }
+    }
+  ]
+}

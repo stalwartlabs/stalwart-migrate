@@ -1,0 +1,43 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:Role/b",
+      "value": {
+        "description": "ops",
+        "enabledPermissions": {
+          "sysSpamLlmGet": true,
+          "imapSelect": true,
+          "taskIndexDocument": true,
+          "sysOAuthClientGet": true
+        },
+        "disabledPermissions": {
+          "jmapPrincipalCreate": true
+        },
+        "roleIds": {}
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "alice",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "permissions": {
+          "@type": "Merge",
+          "enabledPermissions": {
+            "sysSpamLlmUpdate": true
+          },
+          "disabledPermissions": {}
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "objects": [
+    {
+      "key": "x:Directory/b",
+      "value": {
+        "@type": "Oidc",
+        "description": "sso",
+        "issuerUrl": "https://sso.example.com",
+        "requireAudience": "stalwart",
+        "requireScopes": {
+          "openid": true,
+          "email": true
+        },
+        "claimUsername": "preferred_username",
+        "claimName": "name"
+      }
+    },
+    {
+      "key": "x:Directory/c",
+      "value": {
+        "@type": "Oidc",
+        "description": "other",
+        "issuerUrl": "https://idp.example.com",
+        "requireAudience": null,
+        "requireScopes": {},
+        "claimUsername": "email",
+        "claimName": null
+      }
+    }
+  ]
+}

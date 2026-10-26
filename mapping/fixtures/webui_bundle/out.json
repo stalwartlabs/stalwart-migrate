@@ -1,0 +1,89 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:Application/a",
+      "level": "info",
+      "path": "resourceUrl"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Application/b",
+      "level": "warning",
+      "path": "resourceUrl"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Application/e",
+      "level": "warning",
+      "path": "resourceUrl"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Application/a",
+      "source": "x:Application/a",
+      "value": {
+        "description": "Stalwart Web Interface",
+        "enable": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/download/v2/webui.zip",
+        "urlPrefix": {
+          "/account": true,
+          "/admin": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/b",
+      "source": "x:Application/b",
+      "value": {
+        "description": "Custom bundle",
+        "enable": true,
+        "resourceUrl": "https://cdn.example.com/webui.zip",
+        "urlPrefix": {
+          "/custom": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/c",
+      "source": "x:Application/c",
+      "value": {
+        "description": "Already v2",
+        "enable": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/download/v2.0.1/webui.zip",
+        "urlPrefix": {
+          "/v2": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/d",
+      "source": "x:Application/d",
+      "value": {
+        "description": "Latest release",
+        "enable": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/latest/download/webui.zip",
+        "urlPrefix": {
+          "/latest": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/e",
+      "source": "x:Application/e",
+      "value": {
+        "description": "Other repository",
+        "enable": true,
+        "resourceUrl": "https://github.com/example/webui/releases/latest/download/webui.zip",
+        "urlPrefix": {
+          "/other": true
+        }
+      }
+    }
+  ],
+  "questions": []
+}

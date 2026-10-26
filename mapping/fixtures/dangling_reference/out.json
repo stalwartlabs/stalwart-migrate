@@ -1,0 +1,29 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dangling",
+      "key": "x:Account/e",
+      "level": "error",
+      "path": "domainId"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Account/e",
+      "source": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "domainId": "c",
+        "emailAddress": "bob@example.com",
+        "memberGroupIds": {
+          "z": true
+        },
+        "name": "bob"
+      }
+    }
+  ],
+  "questions": []
+}

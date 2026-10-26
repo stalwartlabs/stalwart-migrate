@@ -1,0 +1,35 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "source": "x:Coordinator",
+      "value": {
+        "@type": "Kafka",
+        "hosts": {
+          "k1:9092": true,
+          "k2:9092": true
+        },
+        "messageTimeout": 30000,
+        "sessionTimeout": 45000
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Default"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:InMemoryStore",
+      "prompt": "in_memory_cluster"
+    }
+  ]
+}

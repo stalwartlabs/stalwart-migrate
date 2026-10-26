@@ -1,0 +1,343 @@
+# Question catalogue shared by `stalwart-migrate prepare` (crates/mapping) and
+# `cli-plan/convert_plan.py prepare`.
+#
+# Each prompt has a scope: `global` prompts are asked once, `instance` prompts
+# once per object they apply to (answers keyed by object and id, or by object
+# and client id in CLI plans). Whether a prompt applies is decided by the
+# transform or engine step named in `trigger`; the text is shown to the
+# operator. Field kinds: choice, multi_choice, bool, number, string, secret,
+# list (of strings), object (JSON validated against `schema` in the v1
+# vocabulary), policy_map (property path to "pin" or "inherit"). policy_map
+# fields are never asked interactively; they are set by editing the answers.
+#
+# `default` is the recommended answer. Transforms may compute a better default
+# per instance (for example the audience of an OIDC directory); `run` still
+# refuses to start until every applicable question has an answer on file.
+# A field with `when` is only asked when another field has the given value.
+
+version = 1
+
+[[sections]]
+id = "target"
+title = "Target"
+
+[[sections]]
+id = "categories"
+title = "Data categories"
+
+[[sections]]
+id = "authentication"
+title = "Authentication"
+
+[[sections]]
+id = "network"
+title = "Network"
+
+[[sections]]
+id = "ai_spam"
+title = "AI and spam filtering"
+
+[[sections]]
+id = "other"
+title = "Other settings"
+
+[prompt.blob_store]
+section = "target"
+scope = "global"
+trigger = "the source keeps its blobs in an external blob store; blobs kept in the data store are always copied"
+title = "Blob store"
+v016 = "Message bodies, attachments and files are stored in the configured blob store, which may be the data store itself or an external store (S3, Azure, filesystem)."
+v1 = "v1 reads blobs with the same keys, so the external blob store can be shared between both versions and blobs are not copied."
+fields = [
+  { name = "mode", label = "External blob store", kind = "choice", default = "reuse", options = [
+    { value = "reuse", label = "Reuse the external blob store (recommended, no copy)" },
+    { value = "copy", label = "Copy every blob into the target" },
+  ] },
+]
+
+[prompt.edition]
+section = "target"
+scope = "global"
+trigger = "never asked: the edition is the one of this tool; an answer written by an earlier version must name it"
+title = "v1 edition"
+v016 = "The source may contain enterprise-only objects (tenants, AI models, masked email, alerts, sharded stores)."
+v1 = "The edition of the v1 server that will open the target must match the edition of this tool. On an open source build, enterprise-only objects, variants and fields cannot be stored."
+fields = [
+  { name = "edition", label = "Edition of the v1 server", kind = "choice", default = "enterprise", options = [
+    { value = "enterprise", label = "Enterprise" },
+    { value = "oss", label = "Open source (AGPL)" },
+  ] },
+]
+
+[prompt.categories]
+section = "categories"
+scope = "global"
+trigger = "always"
+title = "Data categories to migrate"
+v016 = "Every category below exists in the source."
+v1 = "Every category is selected by default. Categories can also be changed per run with --include and --exclude. The MTA queue and scheduled tasks are only copied by the final run, once v0.16 is stopped, so nothing is delivered or run twice."
+fields = [
+  { name = "include", label = "Categories", kind = "multi_choice", default = ["settings", "principals", "mail", "calendars", "contacts", "files", "sieve", "identities", "push_subscriptions", "spam_samples", "reports", "archive", "spam_model", "queue", "tasks", "telemetry"], options = [
+    { value = "settings", label = "Settings" },
+    { value = "principals", label = "Accounts, groups, domains and other principals" },
+    { value = "mail", label = "Mailboxes, emails and submissions" },
+    { value = "calendars", label = "Calendars and events" },
+    { value = "contacts", label = "Address books and contacts" },
+    { value = "files", label = "Files" },
+    { value = "sieve", label = "Sieve scripts" },
+    { value = "identities", label = "Identities" },
+    { value = "push_subscriptions", label = "Push subscriptions" },
+    { value = "spam_samples", label = "Spam training samples" },
+    { value = "reports", label = "Received DMARC, TLS and ARF reports" },
+    { value = "archive", label = "Archived items (enterprise)" },
+    { value = "spam_model", label = "Learned spam filter models" },
+    { value = "queue", label = "MTA queue" },
+    { value = "tasks", label = "Scheduled tasks" },
+    { value = "telemetry", label = "Metrics and tracing history" },
+  ] },
+]
+
+[prompt.oidc_directory]
+section = "authentication"
+scope = "instance"
+trigger = "every OIDC directory (transform oidc_directory)"
+objects = ["x:Directory"]
+title = "OpenID Connect directory"
+v016 = "v0.16 accepted any validly signed JWT whose audience matched `requireAudience` (any audience when it was empty) and which carried the scopes in `requireScopes` (default openid and email). Opaque tokens were validated through the UserInfo endpoint."
+v1 = "v1 checks the token audience against this server's resource identifiers and `acceptedAudiences` unless audience validation is skipped, requires the Stalwart scopes (mail, contacts, calendars, files) or applies the unscoped token policy, and rejects opaque tokens unless UserInfo or introspection validation is enabled. `requireScopes` no longer exists."
+recommendation = "Keep the audience you configured. If tokens from your provider carry no Stalwart scopes, choose `interoperable` (IMAP, SMTP, DAV and JMAP mail access) rather than `full`, which grants everything the token holder could do in v0.16."
+fields = [
+  { name = "accepted_audiences", label = "Accepted audiences", kind = "list", default = [] },
+  { name = "skip_audience_validation", label = "Accept tokens for any audience (v0.16 behaviour without requireAudience)", kind = "bool", default = false },
+  { name = "opaque_token_validation", label = "Opaque (non-JWT) tokens", kind = "choice", default = "userInfo", options = [
+    { value = "none", label = "Reject" },
+    { value = "userInfo", label = "Validate with the UserInfo endpoint (v0.16 behaviour)" },
+    { value = "introspection", label = "Validate with token introspection (RFC 7662)" },
+  ] },
+  { name = "introspection_client_id", label = "Introspection client id", kind = "string", required = true, when = { field = "opaque_token_validation", equals = "introspection" } },
+  { name = "introspection_client_secret", label = "Introspection client secret", kind = "secret", required = true, when = { field = "opaque_token_validation", equals = "introspection" } },
+  { name = "introspection_auth_method", label = "Introspection authentication", kind = "choice", default = "clientSecretBasic", when = { field = "opaque_token_validation", equals = "introspection" }, options = [
+    { value = "clientSecretBasic", label = "HTTP Basic" },
+    { value = "clientSecretPost", label = "Form parameters" },
+    { value = "none", label = "None" },
+  ] },
+  { name = "unscoped_tokens", label = "Tokens without Stalwart scopes", kind = "choice", default = "interoperable", options = [
+    { value = "reject", label = "Reject (OAuth profile)" },
+    { value = "interoperable", label = "Allow interoperable services only" },
+    { value = "full", label = "Full access (closest to v0.16, unsafe)" },
+  ] },
+  { name = "allow_id_token_claims", label = "Accept access tokens that are copies of the ID token", kind = "bool", default = false },
+  { name = "lenient_issuer_match", label = "Ignore a trailing slash difference in the issuer", kind = "bool", default = false },
+  { name = "allow_invalid_certs", label = "Accept invalid TLS certificates from the provider", kind = "bool", default = false },
+  { name = "claim_name", label = "Display name claim (empty to disable)", kind = "string", default = "name" },
+]
+
+[prompt.oidc_token_lifetimes]
+section = "authentication"
+scope = "instance"
+trigger = "OidcProvider lifetimes below the v1 minimums (transform oidc_token_lifetimes)"
+objects = ["x:OidcProvider"]
+title = "OAuth token lifetimes"
+v016 = "Authorization code, access token and refresh token lifetimes could be set to any duration."
+v1 = "v1 requires at least 10 minutes for authorization codes and access tokens and at least 1 day for refresh tokens, which are now an idle timeout renewed on every refresh. Lower values are rejected."
+fields = [
+  { name = "action", label = "Values below the minimum", kind = "choice", default = "clamp", options = [
+    { value = "clamp", label = "Raise them to the v1 minimum" },
+    { value = "set", label = "Enter new values" },
+  ] },
+  { name = "auth_code_expiry", label = "Authorization code lifetime (ms)", kind = "number", min = 600000, when = { field = "action", equals = "set" } },
+  { name = "access_token_expiry", label = "Access token lifetime (ms)", kind = "number", min = 600000, when = { field = "action", equals = "set" } },
+  { name = "refresh_token_expiry", label = "Refresh token idle timeout (ms)", kind = "number", min = 86400000, when = { field = "action", equals = "set" } },
+]
+
+[prompt.oauth_registration]
+section = "authentication"
+scope = "instance"
+trigger = "every OidcProvider (transform oauth_registration)"
+objects = ["x:OidcProvider"]
+title = "OAuth client registration"
+v016 = "With requireClientRegistration off (the default), v0.16 accepted any client_id at the authorization endpoint without a registration. With it on, only registered clients worked, and anonymousClientRegistration controlled whether anyone could register one."
+v1 = "v1 rejects a client_id that is neither registered, a stateless id issued by its RFC 7591 registration endpoint, nor a Client ID Metadata Document URL. Applications that used an arbitrary unregistered client_id stop working after cutover until they are registered as OAuthClient objects. At the same time, v1 always accepts RFC 7591 registration of public clients under the anonymous HTTP rate limit (confidential clients need sysOAuthClientCreate), so a v0.16 restriction on registration cannot be kept."
+fields = [
+  { name = "action", label = "Client registration", kind = "choice", default = "accept", options = [
+    { value = "accept", label = "Accept the v1 behaviour (register unregistered clients after cutover)" },
+    { value = "abort", label = "Stop the migration" },
+  ] },
+]
+
+[prompt.counter_read]
+section = "other"
+scope = "instance"
+trigger = "an expression calls counter_get (expression function rename counter_get)"
+title = "Counter reads in expressions"
+v016 = "counter_get(store, key) read a counter from an in-memory store without changing it."
+v1 = "v1 has no side-effect-free counter read: key_get returns nothing for a counter. The closest equivalent, key_incr(store, key, 0), returns the current value but creates a never-expiring zero counter when the key is missing (a persistent key on Redis), and replaces a plain value stored under the key with a counter (an error on Redis). An expression that reads one counter per sender or domain would make the store grow without bound."
+recommendation = "Use the rewrite only when the keys read are a small, fixed set or are always written by counter_incr first; otherwise let the v1 default apply and rewrite the rule by hand."
+fields = [
+  { name = "action", label = "Expressions that call counter_get", kind = "choice", default = "default", options = [
+    { value = "default", label = "Drop the expression so the v1 default applies" },
+    { value = "rewrite", label = "Rewrite to key_incr(store, key, 0) and accept the side effects" },
+    { value = "abort", label = "Stop the migration" },
+  ] },
+]
+
+[prompt.http_forwarded]
+section = "network"
+scope = "instance"
+trigger = "Http.useXForwarded is true (transform client_ip_source)"
+objects = ["x:Http"]
+title = "Client address behind a reverse proxy"
+v016 = "With `useXForwarded`, v0.16 took the client address from the Forwarded header, or else from the leftmost X-Forwarded-For entry, which the client controls."
+v1 = "v1 reads one header and counts trusted proxy hops from the right, so a client cannot choose its own address. The header and the number of proxies in front of Stalwart must be known."
+fields = [
+  { name = "source", label = "Header set by the reverse proxy", kind = "choice", default = "xForwardedFor", options = [
+    { value = "xForwardedFor", label = "X-Forwarded-For" },
+    { value = "forwarded", label = "Forwarded (RFC 7239)" },
+    { value = "peer", label = "None, use the TCP peer address" },
+  ] },
+  { name = "hops", label = "Number of trusted proxies in front of Stalwart", kind = "number", default = 1, min = 1, max = 16, when = { field = "source", not_equals = "peer" } },
+]
+
+[prompt.spam_ai]
+section = "ai_spam"
+scope = "instance"
+trigger = "SpamLlm is enabled (transform spam_llm_to_ai)"
+objects = ["x:SpamLlm"]
+title = "AI spam classifier"
+v016 = "The LLM classifier sent a free-form prompt to one model and parsed a delimited reply (category, confidence, explanation)."
+v1 = "The AI classifier uses structured categories and signals, scoring buckets and one or more model tiers. None of the old prompt settings carry over; the old prompt is listed in the report so it can be reused as instructions."
+fields = [
+  { name = "action", label = "AI classifier in v1", kind = "choice", default = "defaults", options = [
+    { value = "disable", label = "Leave it disabled" },
+    { value = "defaults", label = "Enable with the v1 defaults and the same model" },
+    { value = "custom", label = "Enable with custom instructions" },
+  ] },
+  { name = "instructions", label = "Instructions", kind = "string", required = true, when = { field = "action", equals = "custom" } },
+]
+
+[prompt.ai_model_provider]
+section = "ai_spam"
+scope = "instance"
+trigger = "every AiModel (transform ai_model_union)"
+objects = ["x:AiModel"]
+title = "AI model provider"
+v016 = "AI models were a single OpenAI-compatible definition with a full endpoint URL, a chat or text completion type and optional HTTP authentication."
+v1 = "AI models are typed by provider. The URL is a base URL; an OpenAI URL that already ends in /chat/completions is used as is, and the v0.16 URL is only kept as the default for OpenAI compatible models. Text completion models are no longer supported. Bearer authentication becomes the API key. Basic authentication has no secret field in v1: it can only be kept as a plaintext header, which the management API shows to administrators."
+fields = [
+  { name = "provider", label = "Provider", kind = "choice", default = "OpenAi", options = [
+    { value = "OpenAi", label = "OpenAI compatible" },
+    { value = "Anthropic", label = "Anthropic" },
+    { value = "Gemini", label = "Google Gemini" },
+    { value = "Ollama", label = "Ollama" },
+    { value = "drop", label = "Do not migrate this model" },
+  ] },
+  { name = "profile", label = "OpenAI compatible server", kind = "choice", default = "Generic", when = { field = "provider", equals = "OpenAi" }, options = [
+    { value = "OpenAi", label = "OpenAI" },
+    { value = "Azure", label = "Azure OpenAI" },
+    { value = "Vllm", label = "vLLM" },
+    { value = "LlamaCpp", label = "llama.cpp" },
+    { value = "Generic", label = "Other" },
+  ] },
+  { name = "url", label = "Base URL (empty for the provider default)", kind = "string", when = { field = "provider", not_equals = "drop" } },
+  { name = "basic_auth", label = "Basic authentication credentials (only used when the model had basic authentication)", kind = "choice", default = "drop", when = { field = "provider", not_equals = "drop" }, options = [
+    { value = "drop", label = "Drop them; set an API key after the migration" },
+    { value = "header", label = "Keep them as a plaintext Authorization header" },
+  ] },
+]
+
+[prompt.dns_sig0]
+section = "network"
+scope = "instance"
+trigger = "DnsServer of type Deprecated1 (RFC 2136 with SIG(0)), transform dns_sig0"
+objects = ["x:DnsServer"]
+title = "RFC 2136 DNS server with SIG(0)"
+v016 = "This DNS server used RFC 2136 dynamic updates signed with SIG(0); the type was already deprecated in v0.16."
+v1 = "SIG(0) is not supported. Domains that use this server for automatic DNS management fall back to manual DNS management unless a replacement is given."
+fields = [
+  { name = "action", label = "What to do", kind = "choice", default = "drop", options = [
+    { value = "drop", label = "Drop it (domains switch to manual DNS management)" },
+    { value = "replace", label = "Replace it with another DNS server definition" },
+  ] },
+  { name = "replacement", label = "Replacement DNS server", kind = "object", schema = "x:DnsServer", when = { field = "action", equals = "replace" } },
+]
+
+[prompt.azure_auth]
+section = "other"
+scope = "instance"
+trigger = "AzureStore with neither accessKey nor sasToken (transform azure_auth)"
+objects = ["x:BlobStore"]
+title = "Azure blob store authentication"
+v016 = "No access key or SAS token was configured for this Azure store."
+v1 = "v1 requires an explicit authentication mode."
+fields = [
+  { name = "mode", label = "Authentication", kind = "choice", default = "ManagedIdentity", options = [
+    { value = "ManagedIdentity", label = "Managed identity" },
+    { value = "WorkloadIdentity", label = "Workload identity" },
+    { value = "ClientSecret", label = "Service principal with a client secret" },
+  ] },
+  { name = "tenant_id", label = "Tenant id", kind = "string", required = true, when = { field = "mode", not_equals = "ManagedIdentity" } },
+  { name = "client_id", label = "Client id (optional for managed identity)", kind = "string", required = { field = "mode", not_equals = "ManagedIdentity" } },
+  { name = "client_secret", label = "Client secret", kind = "secret", required = true, when = { field = "mode", equals = "ClientSecret" } },
+  { name = "token_file", label = "Federated token file", kind = "string", required = true, when = { field = "mode", equals = "WorkloadIdentity" } },
+]
+
+[prompt.in_memory_cluster]
+section = "other"
+scope = "instance"
+trigger = "InMemoryStore is Default, or not set, and a cluster coordinator is enabled (transform in_memory_cluster)"
+objects = ["x:InMemoryStore"]
+title = "In-memory store in a cluster"
+v016 = "The default in-memory store used the data store, which every node shares, also with a cluster coordinator enabled."
+v1 = "The default in-memory store is local to each process. While a cluster coordinator is enabled, v1 refuses it and reports an error at startup, so the in-memory store must be Redis, Redis Cluster, Redis Sentinel or a sharded Redis store."
+fields = [
+  { name = "action", label = "In-memory store", kind = "choice", default = "replace", options = [
+    { value = "replace", label = "Use a Redis store (recommended)" },
+    { value = "keep", label = "Keep the default; the coordinator or the in-memory store must be changed before v1 starts" },
+  ] },
+  { name = "store", label = "Redis in-memory store", kind = "object", schema = "x:InMemoryStore", required = true, when = { field = "action", equals = "replace" } },
+]
+
+[prompt.enterprise_on_oss]
+section = "target"
+scope = "global"
+trigger = "enterprise-only objects, variants or fields present and the target is the open source edition (an open source build of stalwart-migrate)"
+title = "Enterprise features on an open source target"
+v016 = "The source contains enterprise-only settings."
+v1 = "The open source edition cannot store them."
+fields = [
+  { name = "action", label = "Enterprise-only settings", kind = "choice", default = "drop", options = [
+    { value = "drop", label = "Drop them and list them in the report" },
+    { value = "abort", label = "Stop; I will use the enterprise edition" },
+  ] },
+]
+
+[prompt.new_permissions]
+section = "authentication"
+scope = "global"
+trigger = "a role or permission list grants a permission that has a new v1 counterpart (transform permissions)"
+title = "New permissions"
+v016 = "Roles listed the permissions they grant; 37 permissions no longer exist in v1 and are removed."
+v1 = "v1 adds permissions for IMAP and JMAP metadata, the metadata settings, connected OAuth applications, the search index queue and share cleanup tasks. Custom roles do not get them automatically."
+fields = [
+  { name = "action", label = "New permissions", kind = "choice", default = "grant", options = [
+    { value = "grant", label = "Grant each new permission to roles that had the matching old one" },
+    { value = "none", label = "Do not grant them" },
+  ] },
+]
+
+[prompt.changed_defaults]
+section = "other"
+scope = "global"
+trigger = "a stored value equals a v0.16 default that changed in v1"
+title = "Changed defaults"
+v016 = "Some settings still have their v0.16 default value."
+v1 = "v1 changed these defaults (cache sizes, report domain expressions, Pyzor, the SQL login query, the NATS port, connection pool sizes and others). Pinning keeps the v0.16 behaviour; inheriting adopts the v1 default."
+recommendation = "The recommended policy pins defaults whose change would alter behaviour (Pyzor, SQL login query, Redis user name, NATS port, log file prefix, OIDC display name claim) and inherits the rest."
+fields = [
+  { name = "policy", label = "Policy", kind = "choice", default = "recommended", options = [
+    { value = "recommended", label = "Recommended per setting" },
+    { value = "pin", label = "Keep every v0.16 default" },
+    { value = "inherit", label = "Adopt every v1 default" },
+  ] },
+  { name = "overrides", label = "Per setting overrides", kind = "policy_map", default = {} },
+]

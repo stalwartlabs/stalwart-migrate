@@ -1,0 +1,14 @@
+{
+  "instance": {
+    "ai_model_provider": {
+      "x:AiModel/b": {
+        "provider": "drop"
+      }
+    },
+    "spam_ai": {
+      "x:SpamLlm": {
+        "action": "defaults"
+      }
+    }
+  }
+}

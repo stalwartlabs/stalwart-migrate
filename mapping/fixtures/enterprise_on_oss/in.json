@@ -1,0 +1,26 @@
+{
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "value": {
+        "name": "acme"
+      }
+    },
+    {
+      "key": "x:Domain/c",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true,
+        "memberTenantId": "b",
+        "logo": null
+      }
+    },
+    {
+      "key": "x:Cache",
+      "value": {
+        "tenants": 5242880,
+        "accounts": 1
+      }
+    }
+  ]
+}

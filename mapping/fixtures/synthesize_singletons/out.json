@@ -1,0 +1,36 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_pinned",
+      "key": "x:SpamPyzor",
+      "level": "info",
+      "path": "enable"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "clientIpSource": "peer"
+      }
+    },
+    {
+      "key": "x:SpamPyzor",
+      "source": "x:SpamPyzor",
+      "value": {
+        "enable": true
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

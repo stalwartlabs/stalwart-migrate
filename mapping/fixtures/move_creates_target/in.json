@@ -1,0 +1,13 @@
+{
+  "objects": [
+    {
+      "key": "x:SenderAuth",
+      "value": {
+        "dkimSignDomain": {
+          "match": {},
+          "else": "'signing.example.com'"
+        }
+      }
+    }
+  ]
+}

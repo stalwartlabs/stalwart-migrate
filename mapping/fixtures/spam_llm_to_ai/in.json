@@ -1,0 +1,40 @@
+{
+  "objects": [
+    {
+      "key": "x:AiModel/b",
+      "value": {
+        "name": "gpt",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "model": "gpt-4o",
+        "timeout": 120000,
+        "allowInvalidCerts": false,
+        "temperature": 0.7,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "httpHeaders": {}
+      }
+    },
+    {
+      "key": "x:SpamLlm",
+      "value": {
+        "@type": "Enable",
+        "modelId": "b",
+        "prompt": "Classify this email",
+        "categories": {
+          "Spam": true,
+          "Ham": true
+        },
+        "confidence": {
+          "High": true
+        },
+        "separator": ",",
+        "responsePosCategory": 0,
+        "responsePosConfidence": 1,
+        "responsePosExplanation": 2,
+        "temperature": 0.5
+      }
+    }
+  ]
+}

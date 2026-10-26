@@ -1,0 +1,14 @@
+{
+  "instance": {
+    "oidc_directory": {
+      "x:Directory/b": {
+        "unscoped_tokens": "full"
+      },
+      "x:Directory/c": {
+        "opaque_token_validation": "introspection",
+        "introspection_client_id": "stalwart",
+        "introspection_client_secret": "s3cr3t"
+      }
+    }
+  }
+}

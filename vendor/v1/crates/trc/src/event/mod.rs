@@ -1,0 +1,824 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+pub mod conv;
+pub mod level;
+
+pub mod enums;
+#[allow(clippy::match_like_matches_macro)]
+pub mod enums_impl;
+
+use compact_str::ToCompactString;
+use std::{fmt::Display, mem};
+
+use crate::{
+    ipc::{USIZE_BITS, USIZE_BITS_MASK, bitset::Bitset},
+    *,
+};
+
+impl<T> Event<T> {
+    pub fn with_capacity(inner: T, capacity: usize) -> Self {
+        Self {
+            inner,
+            keys: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn with_keys(inner: T, keys: Vec<(Key, Value)>) -> Self {
+        Self { inner, keys }
+    }
+
+    pub fn new(inner: T) -> Self {
+        Self {
+            inner,
+            keys: Vec::new(),
+        }
+    }
+
+    pub fn value(&self, key: Key) -> Option<&Value> {
+        self.keys
+            .iter()
+            .find_map(|(k, v)| if *k == key { Some(v) } else { None })
+    }
+
+    pub fn value_as_str(&self, key: Key) -> Option<&str> {
+        self.value(key).and_then(|v| v.as_str())
+    }
+
+    pub fn value_as_uint(&self, key: Key) -> Option<u64> {
+        self.value(key).and_then(|v| v.to_uint())
+    }
+
+    pub fn take_value(&mut self, key: Key) -> Option<Value> {
+        self.keys
+            .iter_mut()
+            .find_map(|(k, v)| if *k == key { Some(mem::take(v)) } else { None })
+    }
+
+    pub fn into_boxed(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
+
+const ERROR_KEYS_CAPACITY: usize = 5;
+
+#[inline(never)]
+fn push_key_at_capacity(keys: &mut Vec<(Key, Value)>, key: Key, value: Value) {
+    if keys.capacity() == 0 {
+        let mut first = Vec::with_capacity(ERROR_KEYS_CAPACITY);
+        first.push((key, value));
+        mem::forget(mem::replace(keys, first));
+    } else {
+        push_key_slow(keys, key, value);
+    }
+}
+
+#[cold]
+#[inline(never)]
+fn push_key_slow(keys: &mut Vec<(Key, Value)>, key: Key, value: Value) {
+    keys.reserve(ERROR_KEYS_CAPACITY);
+    keys.push((key, value));
+}
+
+impl Error {
+    #[inline(always)]
+    pub fn new(inner: EventType) -> Self {
+        Error(Box::new(Event::new(inner)))
+    }
+
+    #[inline(always)]
+    fn push_key(&mut self, key: Key, value: Value) {
+        let keys = &mut self.0.keys;
+        if keys.len() == keys.capacity() {
+            push_key_at_capacity(keys, key, value);
+        } else {
+            keys.push((key, value));
+        }
+    }
+
+    #[inline(always)]
+    pub fn set_ctx(&mut self, key: Key, value: impl Into<Value>) {
+        self.push_key(key, value.into());
+    }
+
+    #[inline(always)]
+    pub fn ctx(mut self, key: Key, value: impl Into<Value>) -> Self {
+        self.push_key(key, value.into());
+        self
+    }
+
+    #[inline(always)]
+    pub fn ctx_unique(mut self, key: Key, value: impl Into<Value>) -> Self {
+        if self.0.keys.iter().all(|(k, _)| *k != key) {
+            self.push_key(key, value.into());
+        }
+        self
+    }
+
+    #[inline(always)]
+    pub fn ctx_opt(self, key: Key, value: Option<impl Into<Value>>) -> Self {
+        match value {
+            Some(value) => self.ctx(key, value),
+            None => self,
+        }
+    }
+
+    #[inline(always)]
+    pub fn matches(&self, inner: EventType) -> bool {
+        self.0.inner == inner
+    }
+
+    #[inline(always)]
+    pub fn event_type(&self) -> EventType {
+        self.0.inner
+    }
+
+    #[inline(always)]
+    pub fn span_id(self, session_id: u64) -> Self {
+        self.ctx(Key::SpanId, session_id)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Self {
+        self.ctx(Key::CausedBy, error)
+    }
+
+    #[inline(always)]
+    pub fn details(self, error: impl Into<Value>) -> Self {
+        self.ctx(Key::Details, error)
+    }
+
+    pub fn details_to_reason(mut self) -> Self {
+        for (key, _) in &mut self.0.keys {
+            if *key == Key::Details {
+                *key = Key::Reason;
+            }
+        }
+        self
+    }
+
+    #[inline(always)]
+    pub fn code(self, error: impl Into<Value>) -> Self {
+        self.ctx(Key::Code, error)
+    }
+
+    #[inline(always)]
+    pub fn id(self, error: impl Into<Value>) -> Self {
+        self.ctx(Key::Id, error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Self {
+        self.ctx(Key::Reason, error.to_compact_string())
+    }
+
+    #[inline(always)]
+    pub fn document_id(self, id: u32) -> Self {
+        self.ctx(Key::DocumentId, id)
+    }
+
+    #[inline(always)]
+    pub fn account_id(self, id: u32) -> Self {
+        self.ctx(Key::AccountId, id)
+    }
+
+    #[inline(always)]
+    pub fn collection(self, id: impl Into<u8>) -> Self {
+        self.ctx(Key::Collection, id.into() as u64)
+    }
+
+    #[inline(always)]
+    pub fn wrap(self, cause: EventType) -> Self {
+        Error::new(cause).caused_by(self)
+    }
+
+    #[inline(always)]
+    pub fn keys(&self) -> &[(Key, Value)] {
+        &self.0.keys
+    }
+
+    #[inline(always)]
+    pub fn value(&self, key: Key) -> Option<&Value> {
+        self.0.value(key)
+    }
+
+    #[inline(always)]
+    pub fn value_as_str(&self, key: Key) -> Option<&str> {
+        self.0.value_as_str(key)
+    }
+
+    #[inline(always)]
+    pub fn value_as_uint(&self, key: Key) -> Option<u64> {
+        self.0.value_as_uint(key)
+    }
+
+    #[inline(always)]
+    pub fn take_value(&mut self, key: Key) -> Option<Value> {
+        self.0.take_value(key)
+    }
+
+    #[inline(always)]
+    pub fn is_assertion_failure(&self) -> bool {
+        self.0.inner == EventType::Store(StoreEvent::AssertValueFailed)
+    }
+
+    pub fn key(&self, key: Key) -> Option<&Value> {
+        self.0
+            .keys
+            .iter()
+            .find_map(|(k, v)| if *k == key { Some(v) } else { None })
+    }
+
+    #[inline(always)]
+    pub fn is_jmap_method_error(&self) -> bool {
+        !matches!(
+            self.0.inner,
+            EventType::Jmap(
+                JmapEvent::UnknownCapability | JmapEvent::NotJson | JmapEvent::NotRequest
+            )
+        )
+    }
+
+    #[inline(always)]
+    pub fn must_disconnect(&self) -> bool {
+        matches!(
+            self.0.inner,
+            EventType::Network(_)
+                | EventType::Auth(AuthEvent::TooManyAttempts)
+                | EventType::Limit(LimitEvent::ConcurrentRequest | LimitEvent::TooManyRequests)
+                | EventType::Security(_)
+        )
+    }
+
+    #[inline(always)]
+    pub fn should_write_err(&self) -> bool {
+        !matches!(self.0.inner, EventType::Network(_) | EventType::Security(_))
+    }
+
+    pub fn corrupted_key(key: &[u8], value: Option<&[u8]>, caused_by: &'static str) -> Error {
+        EventType::Store(StoreEvent::DataCorruption)
+            .ctx(Key::Key, key)
+            .ctx_opt(Key::Value, value)
+            .ctx(Key::CausedBy, caused_by)
+    }
+}
+
+impl Event<EventDetails> {
+    pub fn span_id(&self) -> Option<u64> {
+        for (key, value) in &self.keys {
+            match (key, value) {
+                (Key::SpanId, Value::UInt(value)) => return Some(*value),
+                (Key::SpanId, Value::Int(value)) => return Some(*value as u64),
+                _ => {}
+            }
+        }
+
+        None
+    }
+}
+
+const KEY_SET_WORDS: usize = 4;
+
+#[derive(Default, Clone, Copy)]
+pub struct KeySet([u64; KEY_SET_WORDS]);
+
+impl KeySet {
+    #[inline(always)]
+    pub fn insert(&mut self, key: Key) -> bool {
+        let id = key as usize;
+        match self.0.get_mut(id >> 6) {
+            Some(word) => {
+                let bit = 1u64 << (id & 63);
+                let is_new = *word & bit == 0;
+                *word |= bit;
+                is_new
+            }
+            None => true,
+        }
+    }
+
+    #[inline(always)]
+    pub fn contains(&self, key: Key) -> bool {
+        let id = key as usize;
+        self.0
+            .get(id >> 6)
+            .is_some_and(|word| word & (1u64 << (id & 63)) != 0)
+    }
+}
+
+pub(crate) type EventSet = Bitset<{ TOTAL_EVENT_COUNT.div_ceil(USIZE_BITS) }>;
+
+pub(crate) static SPAN_START_EVENTS: EventSet = EventClass::SpanStart.events();
+pub(crate) static SPAN_END_EVENTS: EventSet = EventClass::SpanEnd.events();
+pub(crate) static SPAN_EVENTS: EventSet = EventClass::Span.events();
+pub(crate) static UNCOUNTED_EVENTS: EventSet = EventClass::Uncounted.events();
+static RAW_IO_EVENTS: EventSet = EventClass::RawIo.events();
+
+#[derive(Clone, Copy)]
+enum EventClass {
+    SpanStart,
+    SpanEnd,
+    Span,
+    RawIo,
+    Uncounted,
+}
+
+impl EventClass {
+    const fn contains(self, event: EventType) -> bool {
+        match self {
+            EventClass::SpanStart => matches!(
+                event,
+                EventType::Smtp(SmtpEvent::ConnectionStart)
+                    | EventType::Imap(ImapEvent::ConnectionStart)
+                    | EventType::ManageSieve(ManageSieveEvent::ConnectionStart)
+                    | EventType::Pop3(Pop3Event::ConnectionStart)
+                    | EventType::Http(HttpEvent::ConnectionStart)
+                    | EventType::Delivery(DeliveryEvent::AttemptStart)
+            ),
+            EventClass::SpanEnd => matches!(
+                event,
+                EventType::Smtp(SmtpEvent::ConnectionEnd)
+                    | EventType::Imap(ImapEvent::ConnectionEnd)
+                    | EventType::ManageSieve(ManageSieveEvent::ConnectionEnd)
+                    | EventType::Pop3(Pop3Event::ConnectionEnd)
+                    | EventType::Http(HttpEvent::ConnectionEnd)
+                    | EventType::Delivery(DeliveryEvent::AttemptEnd)
+            ),
+            EventClass::RawIo => matches!(
+                event,
+                EventType::Imap(ImapEvent::RawInput | ImapEvent::RawOutput)
+                    | EventType::Smtp(SmtpEvent::RawInput | SmtpEvent::RawOutput)
+                    | EventType::Pop3(Pop3Event::RawInput | Pop3Event::RawOutput)
+                    | EventType::ManageSieve(
+                        ManageSieveEvent::RawInput | ManageSieveEvent::RawOutput
+                    )
+                    | EventType::Delivery(DeliveryEvent::RawInput | DeliveryEvent::RawOutput)
+                    | EventType::Milter(MilterEvent::Read | MilterEvent::Write)
+            ),
+            EventClass::Span => {
+                EventClass::SpanStart.contains(event) || EventClass::SpanEnd.contains(event)
+            }
+            EventClass::Uncounted => {
+                EventClass::SpanEnd.contains(event) || EventClass::RawIo.contains(event)
+            }
+        }
+    }
+
+    const fn events(self) -> EventSet {
+        let mut set = [0usize; TOTAL_EVENT_COUNT.div_ceil(USIZE_BITS)];
+        let variants = EventType::variants();
+        let mut idx = 0;
+        while idx < variants.len() {
+            if self.contains(variants[idx]) {
+                let id = variants[idx].to_id() as usize;
+                set[id / USIZE_BITS] |= 1 << (id & USIZE_BITS_MASK);
+            }
+            idx += 1;
+        }
+        Bitset(set)
+    }
+}
+
+impl EventType {
+    #[inline(always)]
+    pub fn is_span_start(&self) -> bool {
+        SPAN_START_EVENTS.get(self.to_id() as usize)
+    }
+
+    #[inline(always)]
+    pub fn is_span_end(&self) -> bool {
+        SPAN_END_EVENTS.get(self.to_id() as usize)
+    }
+
+    pub const fn span_end(&self) -> Option<EventType> {
+        match self {
+            EventType::Smtp(SmtpEvent::ConnectionStart) => {
+                Some(EventType::Smtp(SmtpEvent::ConnectionEnd))
+            }
+            EventType::Imap(ImapEvent::ConnectionStart) => {
+                Some(EventType::Imap(ImapEvent::ConnectionEnd))
+            }
+            EventType::ManageSieve(ManageSieveEvent::ConnectionStart) => {
+                Some(EventType::ManageSieve(ManageSieveEvent::ConnectionEnd))
+            }
+            EventType::Pop3(Pop3Event::ConnectionStart) => {
+                Some(EventType::Pop3(Pop3Event::ConnectionEnd))
+            }
+            EventType::Http(HttpEvent::ConnectionStart) => {
+                Some(EventType::Http(HttpEvent::ConnectionEnd))
+            }
+            EventType::Delivery(DeliveryEvent::AttemptStart) => {
+                Some(EventType::Delivery(DeliveryEvent::AttemptEnd))
+            }
+            _ => None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_raw_io(&self) -> bool {
+        RAW_IO_EVENTS.get(self.to_id() as usize)
+    }
+
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(self)
+    }
+}
+
+impl StoreEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Store(self))
+    }
+}
+
+impl DnsEvent {
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Dns(self))
+    }
+}
+
+impl AcmeEvent {
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Acme(self))
+    }
+}
+
+impl DkimEvent {
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Dkim(self))
+    }
+}
+
+impl SecurityEvent {
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Security(self))
+    }
+}
+
+impl AuthEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Auth(self))
+    }
+}
+
+impl JmapEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Jmap(self))
+    }
+}
+
+impl LimitEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Limit(self))
+    }
+}
+
+impl ResourceEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Resource(self))
+    }
+}
+
+impl SmtpEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Smtp(self))
+    }
+}
+
+impl SieveEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Sieve(self))
+    }
+}
+
+impl SpamEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Spam(self))
+    }
+}
+
+impl ImapEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Imap(self))
+    }
+
+    #[inline(always)]
+    pub fn caused_by(self, error: impl Into<Value>) -> Error {
+        self.into_err().caused_by(error)
+    }
+
+    #[inline(always)]
+    pub fn reason(self, error: impl Display) -> Error {
+        self.into_err().reason(error)
+    }
+}
+
+impl Pop3Event {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Pop3(self))
+    }
+}
+
+impl ManageSieveEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::ManageSieve(self))
+    }
+}
+
+impl NetworkEvent {
+    #[inline(always)]
+    pub fn ctx(self, key: Key, value: impl Into<Value>) -> Error {
+        self.into_err().ctx(key, value)
+    }
+
+    #[inline(always)]
+    pub fn into_err(self) -> Error {
+        Error::new(EventType::Network(self))
+    }
+}
+
+impl Value {
+    pub fn from_maybe_string(value: &[u8]) -> Self {
+        if let Ok(value) = std::str::from_utf8(value) {
+            Self::String(value.into())
+        } else {
+            Self::Bytes(value.to_vec())
+        }
+    }
+
+    pub fn to_uint(&self) -> Option<u64> {
+        match self {
+            Self::UInt(value) => Some(*value),
+            Self::Int(value) => Some(*value as u64),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    }
+
+    pub fn into_string(self) -> Option<CompactString> {
+        match self {
+            Self::String(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
+impl<T> AddContext<T> for Result<T> {
+    #[inline(always)]
+    fn caused_by(self, location: &'static str) -> Result<T> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(mut err) => {
+                err.set_ctx(Key::CausedBy, location);
+                Err(err)
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn add_context<F>(self, f: F) -> Result<T>
+    where
+        F: FnOnce(Error) -> Error,
+    {
+        match self {
+            Ok(value) => Ok(value),
+            Err(err) => Err(f(err)),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+impl Eq for Error {}
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.inner == other.0.inner && self.0.keys.len() == other.0.keys.len() {
+            for kv in self.0.keys.iter() {
+                if !other.0.keys.iter().any(|okv| kv == okv) {
+                    return false;
+                }
+            }
+
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::UInt(l0), Self::UInt(r0)) => l0 == r0,
+            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
+            (Self::Float(l0), Self::Float(r0)) => l0 == r0,
+            (Self::Bytes(l0), Self::Bytes(r0)) => l0 == r0,
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            (Self::Ipv4(l0), Self::Ipv4(r0)) => l0 == r0,
+            (Self::Ipv6(l0), Self::Ipv6(r0)) => l0 == r0,
+            (Self::Event(l0), Self::Event(r0)) => l0 == r0,
+            (Self::Array(l0), Self::Array(r0)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
+
+impl From<EventType> for usize {
+    fn from(value: EventType) -> Self {
+        value.to_id() as usize
+    }
+}
+
+impl AsRef<Event<EventDetails>> for Event<EventDetails> {
+    fn as_ref(&self) -> &Event<EventDetails> {
+        self
+    }
+}

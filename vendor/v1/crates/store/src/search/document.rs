@@ -1,0 +1,327 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+#[cfg(feature = "postgres")]
+use crate::backend::MAX_TOKEN_LENGTH;
+use crate::search::*;
+#[cfg(feature = "postgres")]
+use nlp::tokenizers::space::SpaceTokenizer;
+
+impl IndexDocument {
+    pub fn new(index: SearchIndex) -> Self {
+        Self {
+            fields: Default::default(),
+            index,
+        }
+    }
+
+    pub fn with_account_id(mut self, account_id: u32) -> Self {
+        self.fields
+            .insert(SearchField::AccountId, SearchValue::Uint(account_id as u64));
+        self
+    }
+
+    pub fn with_document_id(mut self, document_id: u32) -> Self {
+        self.fields.insert(
+            SearchField::DocumentId,
+            SearchValue::Uint(document_id as u64),
+        );
+        self
+    }
+
+    #[cfg(feature = "postgres")]
+    pub(crate) fn split_identifiers(&mut self, buffer: &mut String) {
+        for (field, value) in self.fields.iter_mut() {
+            if let SearchValue::Text { value, .. } = value
+                && field.is_identifier()
+            {
+                buffer.clear();
+                buffer.reserve(2 * value.len() + 1);
+                for word in SpaceTokenizer::new(value, MAX_TOKEN_LENGTH) {
+                    buffer.push_str(&word);
+                    buffer.push(' ');
+                }
+                if !buffer.is_empty() {
+                    buffer.push_str(value);
+                    std::mem::swap(value, buffer);
+                }
+            }
+        }
+    }
+
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.fields.insert(SearchField::Id, SearchValue::Uint(id));
+        self
+    }
+
+    pub fn index_text(&mut self, field: impl Into<SearchField>, value: &str, language: Language) {
+        match self.fields.entry(field.into()) {
+            Entry::Occupied(mut entry) => {
+                if let SearchValue::Text {
+                    value: existing_value,
+                    ..
+                } = entry.get_mut()
+                {
+                    existing_value.push(' ');
+                    sanitize_text_to_buf(existing_value, value);
+                }
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(SearchValue::Text {
+                    value: sanitize_text(value),
+                    language,
+                });
+            }
+        }
+    }
+
+    pub fn index_bool(&mut self, field: impl Into<SearchField>, value: bool) {
+        self.fields
+            .insert(field.into(), SearchValue::Boolean(value));
+    }
+
+    pub fn index_integer<N: Into<i64>>(&mut self, field: impl Into<SearchField>, value: N) {
+        self.fields
+            .insert(field.into(), SearchValue::Int(value.into()));
+    }
+
+    pub fn index_unsigned<N: Into<u64>>(&mut self, field: impl Into<SearchField>, value: N) {
+        self.fields
+            .insert(field.into(), SearchValue::Uint(value.into()));
+    }
+
+    pub fn index_keyword(&mut self, field: impl Into<SearchField>, value: impl AsRef<str>) {
+        self.fields.insert(
+            field.into(),
+            SearchValue::Text {
+                value: sanitize_text(value.as_ref()),
+                language: Language::None,
+            },
+        );
+    }
+
+    pub fn insert_key_value(
+        &mut self,
+        field: impl Into<SearchField>,
+        key: impl AsRef<str>,
+        value: impl AsRef<str>,
+    ) {
+        let search_field = field.into();
+        let key = key
+            .as_ref()
+            .chars()
+            .filter(|ch| !ch.is_control())
+            .map(|ch| ch.to_ascii_lowercase())
+            .collect::<String>();
+        let value = value.as_ref();
+
+        match self.fields.entry(search_field) {
+            Entry::Occupied(mut entry) => {
+                if let SearchValue::KeyValues(existing_key_values) = entry.get_mut() {
+                    if let Some(existing_value) = existing_key_values.get_mut(&key) {
+                        existing_value.push(' ');
+                        sanitize_text_to_buf(existing_value, value);
+                    } else {
+                        existing_key_values.append(key, sanitize_text(value));
+                    }
+                }
+            }
+            Entry::Vacant(entry) => {
+                let mut new_key_values = VecMap::new();
+                new_key_values.append(key, sanitize_text(value));
+                entry.insert(SearchValue::KeyValues(new_key_values));
+            }
+        }
+    }
+
+    pub fn index(&self) -> SearchIndex {
+        self.index
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    pub fn text_len(&self) -> usize {
+        self.fields
+            .values()
+            .map(|value| match value {
+                SearchValue::Text { value, .. } => value.len(),
+                SearchValue::KeyValues(map) => {
+                    map.iter().map(|(key, value)| key.len() + value.len()).sum()
+                }
+                SearchValue::Int(_) | SearchValue::Uint(_) | SearchValue::Boolean(_) => 0,
+            })
+            .sum()
+    }
+
+    pub fn has_field(&self, field: &SearchField) -> bool {
+        self.fields.contains_key(field)
+    }
+
+    pub fn fields(&self) -> impl Iterator<Item = (&SearchField, &SearchValue)> {
+        self.fields.iter()
+    }
+
+    pub fn set_unknown_language(&mut self, lang: Language) {
+        for value in self.fields.values_mut() {
+            if let SearchValue::Text { language, .. } = value
+                && language.is_unknown()
+            {
+                *language = lang;
+            }
+        }
+    }
+}
+
+impl SearchFilter {
+    pub fn text_eq(field: impl Into<SearchField>, value: impl Into<String>) -> Self {
+        SearchFilter::Text {
+            field: field.into(),
+            op: TextMatch::Exact,
+            value: value.into(),
+            language: Language::None,
+        }
+    }
+
+    pub fn text_prefix(field: impl Into<SearchField>, value: impl Into<String>) -> Self {
+        SearchFilter::Text {
+            field: field.into(),
+            op: TextMatch::Prefix,
+            value: value.into(),
+            language: Language::None,
+        }
+    }
+
+    pub fn integer_lt(field: impl Into<SearchField>, value: impl Into<u64>) -> Self {
+        SearchFilter::Integer {
+            field: field.into(),
+            op: Ordering::Less,
+            value: value.into(),
+        }
+    }
+
+    pub fn integer_eq(field: impl Into<SearchField>, value: impl Into<u64>) -> Self {
+        SearchFilter::Integer {
+            field: field.into(),
+            op: Ordering::Equal,
+            value: value.into(),
+        }
+    }
+
+    pub fn signed_eq(field: impl Into<SearchField>, value: impl Into<i64>) -> Self {
+        SearchFilter::Integer {
+            field: field.into(),
+            op: Ordering::Equal,
+            value: crate::search::tokenize::zigzag(value.into()),
+        }
+    }
+
+    pub fn integer_gt(field: impl Into<SearchField>, value: impl Into<u64>) -> Self {
+        SearchFilter::Integer {
+            field: field.into(),
+            op: Ordering::Greater,
+            value: value.into(),
+        }
+    }
+
+    pub fn has_text_detect(
+        field: impl Into<SearchField>,
+        text: impl Into<String>,
+        default_language: Language,
+    ) -> Self {
+        let (text, language) = Language::detect(text.into(), default_language);
+        Self::has_text(field, text, language)
+    }
+
+    pub fn has_text(
+        field: impl Into<SearchField>,
+        text: impl Into<String>,
+        language: Language,
+    ) -> Self {
+        let text = text.into();
+        let (op, text) = if let Some(text) = text
+            .strip_prefix('"')
+            .and_then(|t| t.strip_suffix('"'))
+            .or_else(|| text.strip_prefix('\'').and_then(|t| t.strip_suffix('\'')))
+        {
+            (TextMatch::Exact, text.to_string())
+        } else if let Some(text) = text.strip_suffix('*') {
+            (TextMatch::Prefix, text.trim().to_string())
+        } else {
+            (TextMatch::Standard, text)
+        };
+
+        SearchFilter::Text {
+            field: field.into(),
+            op,
+            value: text,
+            language,
+        }
+    }
+
+    #[inline(always)]
+    pub fn has_english_text(field: impl Into<SearchField>, text: impl Into<String>) -> Self {
+        Self::has_text(field, text, Language::English)
+    }
+
+    #[inline(always)]
+    pub fn has_keyword(field: impl Into<SearchField>, text: impl Into<String>) -> Self {
+        Self::has_text(field, text, Language::None)
+    }
+
+    pub fn is_in_set(set: RoaringBitmap) -> Self {
+        SearchFilter::DocumentSet(set)
+    }
+}
+
+impl SearchComparator {
+    pub fn set(set: RoaringBitmap, ascending: bool) -> Self {
+        Self::DocumentSet { set, ascending }
+    }
+
+    pub fn sorted_set(set: AHashMap<u32, u32>, ascending: bool) -> Self {
+        Self::SortedSet { set, ascending }
+    }
+}
+
+#[inline(always)]
+fn write_sanitized(out: &mut String, text: &str) {
+    let mut last_is_space = true;
+    for ch in text.chars() {
+        match ch {
+            ' ' | '\x09'..='\x0d' => {
+                if !last_is_space {
+                    out.push(' ');
+                    last_is_space = true;
+                }
+            }
+            '\0'..='\x1f' | '\x7f'..='\u{9f}' => {}
+            ch => {
+                out.push(ch);
+                last_is_space = false;
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn sanitize_text_to_buf(out: &mut String, text: &str) {
+    out.reserve_exact(text.len());
+    write_sanitized(out, text);
+}
+
+#[inline(always)]
+fn sanitize_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    write_sanitized(&mut out, text);
+    out
+}
+
+#[cfg(all(test, stalwart_tests, feature = "postgres"))]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/store/src/search/document/tests.rs"]
+mod tests;

@@ -1,0 +1,21 @@
+{
+  "objects": [
+    {
+      "key": "x:DnsServer/b",
+      "value": {
+        "@type": "Infoblox",
+        "description": "ib",
+        "port": "8443",
+        "pollingInterval": 15000
+      }
+    },
+    {
+      "key": "x:DnsServer/c",
+      "value": {
+        "@type": "Infoblox",
+        "description": "ib2",
+        "port": null
+      }
+    }
+  ]
+}

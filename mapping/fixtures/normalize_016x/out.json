@@ -1,0 +1,101 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:DnsServer/d",
+      "level": "warning",
+      "path": "",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:BlobStore",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:DnsServer/d",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:DnsServer/d"
+  ],
+  "objects": [
+    {
+      "key": "x:Domain/c",
+      "source": "x:Domain/c",
+      "value": {
+        "enable": true,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Account/b",
+      "source": "x:Account/b",
+      "value": {
+        "@type": "User",
+        "domainId": "c",
+        "emailAddress": "a@example.com",
+        "locale": "de-DE",
+        "name": "a"
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "c",
+        "emailAddress": "b@example.com",
+        "locale": "en-US",
+        "name": "b"
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "accessKeyId": {
+          "@type": "Value",
+          "value": "AKIA"
+        },
+        "bucket": "b",
+        "region": {
+          "@type": "UsEast1"
+        },
+        "secretKey": {
+          "@type": "Value",
+          "secret": "x"
+        },
+        "sessionToken": {
+          "@type": "None"
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:DnsServer/d",
+      "prompt": "dns_sig0"
+    }
+  ]
+}

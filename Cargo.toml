@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["vendor"]
+
+[workspace.package]
+edition = "2024"
+version = "1.0.0"
+license = "AGPL-3.0-only OR LicenseRef-SEL"
+
+[workspace.dependencies]
+source-v016 = { path = "crates/source-v016" }
+source-v1 = { path = "crates/source-v1" }
+target-v016 = { path = "crates/target-v016" }
+target-v1 = { path = "crates/target-v1" }
+
+[workspace.lints.clippy]
+result_unit_err = "allow"
+
+[profile.dev]
+opt-level = 0
+debug = 1
+lto = false
+incremental = true
+panic = 'unwind'
+debug-assertions = true
+overflow-checks = false
+rpath = false
+
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+debug = false
+codegen-units = 1
+lto = true
+incremental = false
+panic = 'unwind'
+debug-assertions = false
+overflow-checks = false
+rpath = false
+strip = true
+
+[profile.test]
+opt-level = 0
+debug = 1
+lto = false
+incremental = true
+debug-assertions = true
+overflow-checks = true
+rpath = false
+
+[patch.crates-io]
+hickory-proto = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
+hickory-net = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
+hickory-resolver = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }

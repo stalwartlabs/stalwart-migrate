@@ -1,0 +1,75 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:DnsServer/b",
+      "level": "warning",
+      "path": "email",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:DnsServer/c",
+      "level": "warning",
+      "path": "secret",
+      "reason": "no equivalent in the target version"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "accessKeyId": {
+          "@type": "Value",
+          "value": "AKIA"
+        },
+        "bucket": "mail",
+        "region": {
+          "@type": "Custom",
+          "region": "eu",
+          "url": "https://minio:9000"
+        },
+        "secretKey": {
+          "@type": "Value",
+          "secret": "s3secret"
+        },
+        "sessionToken": {
+          "@type": "None"
+        }
+      }
+    },
+    {
+      "key": "x:DnsServer/b",
+      "source": "x:DnsServer/b",
+      "value": {
+        "@type": "Cloudflare",
+        "description": "cf",
+        "pollInterval": 15000,
+        "secret": {
+          "@type": "Value",
+          "secret": "cf-token"
+        }
+      }
+    },
+    {
+      "key": "x:DnsServer/c",
+      "source": "x:DnsServer/c",
+      "value": {
+        "@type": "Porkbun",
+        "apiKeyId": "pk1",
+        "description": "pb",
+        "pollInterval": 30000,
+        "secret": {
+          "@type": "Value",
+          "secret": "sk1"
+        }
+      }
+    }
+  ],
+  "questions": []
+}

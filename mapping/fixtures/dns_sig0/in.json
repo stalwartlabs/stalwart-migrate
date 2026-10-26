@@ -1,0 +1,23 @@
+{
+  "objects": [
+    {
+      "key": "x:DnsServer/b",
+      "value": {
+        "@type": "Deprecated1"
+      }
+    },
+    {
+      "key": "x:Domain/c",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true,
+        "dnsManagement": {
+          "@type": "Automatic",
+          "dnsServerId": "b",
+          "origin": null,
+          "publishRecords": {}
+        }
+      }
+    }
+  ]
+}

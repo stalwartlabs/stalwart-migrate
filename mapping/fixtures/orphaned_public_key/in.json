@@ -1,0 +1,24 @@
+{
+ "objects": [
+  {
+   "key": "x:PublicKey/d",
+   "value": {
+    "accountId": "c",
+    "description": "key of a deleted account",
+    "key": "-----BEGIN PGP-----"
+   }
+  },
+  {
+   "key": "x:Role/e",
+   "value": {
+    "description": "unrelated"
+   }
+  }
+ ],
+ "owners": {
+  "accounts": [
+   "b"
+  ],
+  "principals": "migrated"
+ }
+}

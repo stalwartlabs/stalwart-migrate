@@ -1,0 +1,180 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    mailbox::{JUNK_ID, TRASH_ID},
+    message::{
+        messagedata::{MessageData, PendingMessageData},
+        metadata::ExtraHeaders,
+    },
+};
+use common::storage::index::{
+    CurrentObject, IndexItem, IndexValue, IndexableObject, SerializableObject,
+};
+use registry::schema::enums::StorageQuota;
+use store::{
+    Serialize, U64_LEN,
+    write::{
+        BatchBuilder, Patch, PatchSource, PendingId, Slot, SlotRange, assert::AssertValue,
+        metadata::MetadataClass, now,
+    },
+};
+use types::{
+    blob_hash::BlobHash,
+    collection::SyncCollection,
+    field::{EmailField, Field},
+    metadata::MetadataKinds,
+};
+
+pub mod attachment;
+pub mod extractors;
+pub mod metadata;
+pub mod search;
+pub mod subject;
+
+pub(super) const MAX_MESSAGE_PARTS: usize = 1000;
+pub const PREVIEW_LENGTH: usize = 256;
+
+impl CurrentObject for MessageData {
+    fn assert(&self, batch: &mut BatchBuilder) {
+        batch.assert_value(Field::ARCHIVE, AssertValue::U64(self.change_id));
+    }
+
+    fn index_values(&self) -> impl Iterator<Item = IndexValue<'_>> {
+        IndexableObject::index_values(self)
+    }
+
+    fn clear(&self, batch: &mut BatchBuilder) {
+        batch.clear(Field::ARCHIVE);
+        if !IndexableObject::metadata_kinds(self).is_empty() {
+            batch.clear(MetadataClass::Shared);
+        }
+    }
+}
+
+impl SerializableObject for MessageData {
+    fn serialize_into(self, batch: &mut BatchBuilder, pending_id: Option<Slot>) -> trc::Result<()> {
+        debug_assert!(pending_id.is_none(), "message data carries no pending id");
+        let payload = self.serialize()?;
+        let offset = (payload.len() - U64_LEN) as u32;
+        batch.set(
+            Field::ARCHIVE,
+            (
+                payload,
+                vec![Patch {
+                    offset,
+                    source: PatchSource::ChangeIdBe,
+                }],
+            ),
+        );
+        Ok(())
+    }
+}
+
+impl IndexableObject for MessageData {
+    fn index_values(&self) -> impl Iterator<Item = IndexValue<'_>> {
+        self.index_values_in_thread(PendingId::Assigned(self.thread_id))
+    }
+
+    fn metadata_kinds(&self) -> MetadataKinds {
+        MessageData::metadata_kinds(self)
+    }
+}
+
+impl MessageData {
+    fn index_values_in_thread(&self, thread_id: PendingId) -> impl Iterator<Item = IndexValue<'_>> {
+        let mut mailboxes = Vec::with_capacity(self.mailboxes.len());
+        let mut is_in_trash = false;
+
+        for mailbox in &self.mailboxes {
+            mailboxes.push(PendingId::Assigned(mailbox.mailbox_id));
+            is_in_trash |= mailbox.mailbox_id == TRASH_ID || mailbox.mailbox_id == JUNK_ID;
+        }
+
+        [
+            IndexValue::Property {
+                field: EmailField::DeletedAt.into(),
+                value: if is_in_trash {
+                    IndexItem::from(now())
+                } else {
+                    IndexItem::None
+                },
+            },
+            IndexValue::Quota { used: self.size },
+            IndexValue::ObjectCount(StorageQuota::MaxEmails),
+            IndexValue::LogItem {
+                sync_collection: SyncCollection::Email,
+                prefix: Some(thread_id),
+            },
+            IndexValue::LogContainerProperty {
+                sync_collection: SyncCollection::Thread,
+                ids: vec![thread_id],
+            },
+            IndexValue::LogContainerProperty {
+                sync_collection: SyncCollection::Email,
+                ids: mailboxes,
+            },
+        ]
+        .into_iter()
+    }
+}
+
+impl PendingMessageData {
+    pub fn new(data: MessageData) -> Self {
+        PendingMessageData {
+            data,
+            uid_slots: SlotRange::default(),
+            thread_slot: None,
+            change_id: None,
+        }
+    }
+
+    pub fn thread_id(&self) -> PendingId {
+        match self.thread_slot {
+            Some(thread_slot) => PendingId::Slot(thread_slot),
+            None => PendingId::Assigned(self.data.thread_id),
+        }
+    }
+}
+
+impl IndexableObject for PendingMessageData {
+    fn index_values(&self) -> impl Iterator<Item = IndexValue<'_>> {
+        self.data.index_values_in_thread(self.thread_id())
+    }
+}
+
+impl SerializableObject for PendingMessageData {
+    fn serialize_into(self, batch: &mut BatchBuilder, pending_id: Option<Slot>) -> trc::Result<()> {
+        debug_assert!(pending_id.is_none(), "message data carries no pending id");
+        debug_assert_eq!(
+            self.uid_slots.len(),
+            self.data.pending_uids(),
+            "unassigned uids and reserved uid slots disagree"
+        );
+        batch.set(Field::ARCHIVE, self);
+        Ok(())
+    }
+}
+
+pub(super) trait IndexMessage {
+    fn index_message(
+        &mut self,
+        // SPDX-SnippetBegin
+        // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+        // SPDX-License-Identifier: LicenseRef-SEL
+        #[cfg(feature = "enterprise")] tenant_id: Option<u32>,
+        // SPDX-SnippetEnd
+        message: &mail_parser::Message<'_>,
+        extra_headers: &ExtraHeaders,
+        blob_hash: BlobHash,
+        data: PendingMessageData,
+    ) -> trc::Result<&mut Self>;
+}
+
+#[cfg(all(test, stalwart_tests))]
+#[rustfmt::skip]
+#[path = "../../../../../../stalwart-tests/unit/email/src/message/index/tests.rs"]
+mod tests;

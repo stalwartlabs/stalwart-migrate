@@ -1,0 +1,8 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {"key": "x:EventTracingLevel/b", "value": {"event": "cache.invalidate", "level": "debug"}},
+    {"key": "x:EventTracingLevel/c", "value": {"event": "cache.swap-hit", "level": "info"}},
+    {"key": "x:EventTracingLevel/d", "value": {"event": "cache.miss", "level": "warn"}}
+  ]
+}

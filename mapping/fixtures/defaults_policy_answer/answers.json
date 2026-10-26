@@ -1,0 +1,10 @@
+{
+  "global": {
+    "changed_defaults": {
+      "policy": "pin",
+      "overrides": {
+        "x:SpamPyzor.enable": "inherit"
+      }
+    }
+  }
+}

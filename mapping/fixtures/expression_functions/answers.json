@@ -1,0 +1,9 @@
+{
+  "instance": {
+    "counter_read": {
+      "x:SpamRule/b": {
+        "action": "rewrite"
+      }
+    }
+  }
+}

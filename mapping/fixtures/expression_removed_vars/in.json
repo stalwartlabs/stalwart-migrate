@@ -1,0 +1,70 @@
+{
+  "objects": [
+    {
+      "key": "x:DmarcReportSettings",
+      "value": {
+        "aggregateDkimSignDomain": {
+          "match": {
+            "0": {
+              "if": "rcpt_domain == 'a.com'",
+              "then": "'a.com'"
+            }
+          },
+          "else": "'b.com'"
+        },
+        "aggregateSubject": {
+          "match": {},
+          "else": "'Report'"
+        }
+      }
+    },
+    {
+      "key": "x:DsnReportSettings",
+      "value": {
+        "fromName": {
+          "match": {
+            "0": {
+              "if": "retry_num > 2",
+              "then": "'Mailer'"
+            }
+          },
+          "else": "'Daemon'"
+        },
+        "fromAddress": {
+          "match": {},
+          "else": "'postmaster@example.com'"
+        }
+      }
+    },
+    {
+      "key": "x:SieveUserInterpreter",
+      "value": {
+        "dkimSignDomain": {
+          "match": {
+            "0": {
+              "if": "retry_num > 1",
+              "then": "'a'"
+            }
+          },
+          "else": "'b'"
+        }
+      }
+    },
+    {
+      "key": "x:SpamDnsblServer/b",
+      "value": {
+        "@type": "Ip",
+        "name": "rbl",
+        "enable": true,
+        "zone": {
+          "match": {},
+          "else": "reverse_ip + '.zen.example'"
+        },
+        "tag": {
+          "match": {},
+          "else": "'RBL'"
+        }
+      }
+    }
+  ]
+}

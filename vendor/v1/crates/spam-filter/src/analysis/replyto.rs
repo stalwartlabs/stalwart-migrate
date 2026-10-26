@@ -1,0 +1,119 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    SpamFilterContext,
+    analysis::{ExcessEncoding, excess_encoding},
+};
+use common::Server;
+use mail_parser::HeaderName;
+use std::future::Future;
+
+pub trait SpamFilterAnalyzeReplyTo: Sync + Send {
+    fn spam_filter_analyze_reply_to(
+        &self,
+        ctx: &mut SpamFilterContext<'_>,
+    ) -> impl Future<Output = ()> + Send;
+}
+
+impl SpamFilterAnalyzeReplyTo for Server {
+    async fn spam_filter_analyze_reply_to(&self, ctx: &mut SpamFilterContext<'_>) {
+        let mut reply_to_raw = b"".as_slice();
+        let mut is_from_list = false;
+
+        for header in ctx.input.message.headers() {
+            match header.name() {
+                HeaderName::ReplyTo => {
+                    reply_to_raw = header.raw_value();
+                }
+                HeaderName::ListUnsubscribe | HeaderName::ListId => {
+                    is_from_list = true;
+                }
+
+                HeaderName::AutoSubmitted => {
+                    is_from_list = true;
+                }
+                HeaderName::Other(name) if !is_from_list => {
+                    is_from_list = name.eq_ignore_ascii_case("X-To-Get-Off-This-List")
+                        || name.eq_ignore_ascii_case("X-List");
+                }
+                _ => {}
+            }
+        }
+
+        if reply_to_raw.is_empty() {
+            return;
+        }
+
+        if let Some(reply_to) = &ctx.output.reply_to {
+            let reply_to_name = reply_to.name.as_deref().unwrap_or_default();
+            ctx.result.add_tag("HAS_REPLYTO");
+
+            if reply_to.email == ctx.output.from.email {
+                ctx.result.add_tag("REPLYTO_EQ_FROM");
+            } else {
+                if reply_to.email.domain_part.sld == ctx.output.from.email.domain_part.sld {
+                    ctx.result.add_tag("REPLYTO_DOM_EQ_FROM_DOM");
+                } else {
+                    if !is_from_list
+                        && ctx
+                            .output
+                            .all_recipients()
+                            .any(|r| r.email == reply_to.email)
+                    {
+                        ctx.result.add_tag("REPLYTO_EQ_TO_ADDR");
+                    } else {
+                        ctx.result.add_tag("REPLYTO_DOM_NEQ_FROM_DOM");
+                    }
+
+                    if !(is_from_list
+                        || ctx
+                            .output
+                            .recipients_to
+                            .iter()
+                            .any(|r| r.email == ctx.output.from.email)
+                        || ctx
+                            .output
+                            .env_to_orig_addr
+                            .iter()
+                            .any(|r| r.domain_part.sld == ctx.output.from.email.domain_part.sld)
+                        || ctx.output.env_to_orig_addr.len() == 1
+                            && ctx.output.env_to_orig_addr.contains(&ctx.output.from.email))
+                    {
+                        ctx.result.add_tag("SPOOF_REPLYTO");
+                    }
+                }
+
+                if !reply_to_name.is_empty()
+                    && reply_to_name == ctx.output.from.name.as_deref().unwrap_or_default()
+                {
+                    ctx.result.add_tag("REPLYTO_DN_EQ_FROM_DN");
+                }
+            }
+
+            if reply_to.email == ctx.output.env_from_addr {
+                ctx.result.add_tag("REPLYTO_ADDR_EQ_FROM");
+            }
+
+            // Validate unnecessary encoding
+            if reply_to.email.address.is_ascii() && reply_to_name.is_ascii() {
+                match excess_encoding(std::str::from_utf8(reply_to_raw).unwrap_or_default()) {
+                    ExcessEncoding::QuotedPrintable => {
+                        // Reply-To header is unnecessarily encoded in quoted-printable
+                        ctx.result.add_tag("REPLYTO_EXCESS_QP");
+                    }
+                    ExcessEncoding::Base64 => {
+                        // Reply-To header is unnecessarily encoded in base64
+                        ctx.result.add_tag("REPLYTO_EXCESS_BASE64");
+                    }
+                    ExcessEncoding::None | ExcessEncoding::Other => {}
+                }
+            }
+        } else {
+            ctx.result.add_tag("REPLYTO_UNPARSABLE");
+        }
+    }
+}

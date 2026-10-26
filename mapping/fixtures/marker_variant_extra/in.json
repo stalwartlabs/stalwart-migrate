@@ -1,0 +1,12 @@
+{
+  "objects": [
+    {
+      "key": "x:InMemoryStore",
+      "value": {
+        "@type": "Default",
+        "url": "redis://leftover",
+        "password": "hunter2"
+      }
+    }
+  ]
+}

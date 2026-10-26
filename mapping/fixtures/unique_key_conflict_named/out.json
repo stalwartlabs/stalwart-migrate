@@ -1,0 +1,27 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:MtaVirtualQueue/c",
+      "level": "warning",
+      "path": "",
+      "reason": "x:MtaVirtualQueue/b has the same unique key name \"q1\" in the target version and is kept"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:MtaVirtualQueue/c"
+  ],
+  "objects": [
+    {
+      "key": "x:MtaVirtualQueue/b",
+      "source": "x:MtaVirtualQueue/b",
+      "value": {
+        "name": "q1",
+        "threadsPerNode": 8
+      }
+    }
+  ],
+  "questions": []
+}

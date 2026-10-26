@@ -1,0 +1,16 @@
+{
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "value": {
+        "@type": "Disabled"
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "value": {
+        "@type": "Default"
+      }
+    }
+  ]
+}

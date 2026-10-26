@@ -1,0 +1,96 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+pub use crate::jmap::IntoValue;
+pub use crate::jmap::JmapValue;
+pub use crate::jmap::MaybeUnpatched;
+pub use crate::jmap::PatchResult;
+pub use crate::jmap::RegistryJsonEnumPatch;
+pub use crate::jmap::{
+    JsonPointerPatch, RegistryJsonPatch, RegistryJsonPropertyPatch, patch::object_type,
+};
+pub use crate::pickle::Pickle;
+pub use crate::schema::enums::*;
+pub use crate::schema::properties::*;
+pub use crate::schema::structs::*;
+pub use crate::types::EnumImpl;
+pub use crate::types::ObjectImpl;
+pub use crate::types::datetime::UTCDateTime;
+pub use crate::types::duration::Duration;
+pub use crate::types::error::*;
+pub use crate::types::float::Float;
+pub use crate::types::index::{IndexBuilder, IndexSchema, IndexSchemaType, IndexSchemaValueType};
+pub use crate::types::ipaddr::IpAddr;
+pub use crate::types::ipmask::IpAddrOrMask;
+pub use crate::types::list::List;
+pub use crate::types::map::Map;
+pub use crate::types::socketaddr::SocketAddr;
+pub use crate::types::string::StringValidator;
+pub use serde::{Deserialize, Serialize};
+pub use std::borrow::Cow;
+pub use std::str::FromStr;
+use std::{cell::Cell, sync::LazyLock};
+pub use types::blob::BlobId;
+pub use types::id::Id;
+pub use utils::map::vec_map::VecMap;
+
+#[derive(Debug, Clone)]
+pub struct Object {
+    pub inner: ObjectInner,
+    pub revision: u64,
+}
+
+#[derive(Debug)]
+pub struct ExpressionContext<'x> {
+    pub expr: &'x Expression,
+    pub default: Option<Expression>,
+    pub property: Property,
+    pub allowed_variables: &'static [ExpressionVariable],
+    pub allowed_constants: &'static [ExpressionConstant],
+}
+
+pub const OBJ_SINGLETON: u64 = 1;
+pub const OBJ_SEQ_ID: u64 = 1 << 1;
+pub const OBJ_FILTER_ACCOUNT: u64 = 1 << 2;
+pub const OBJ_FILTER_TENANT: u64 = 1 << 3;
+
+pub const MASKED_PASSWORD: &str = "****";
+
+// Temporary migration aid, will be removed by v1.
+pub static INCLUDE_SECRETS: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("STALWART_INCLUDE_SECRETS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+});
+
+thread_local! {
+    static SECRETS_IN_SCOPE: Cell<bool> = const { Cell::new(false) };
+}
+
+struct SecretsScope(bool);
+
+impl Drop for SecretsScope {
+    fn drop(&mut self) {
+        SECRETS_IN_SCOPE.with(|scope| scope.set(self.0));
+    }
+}
+
+pub fn with_secrets<R>(f: impl FnOnce() -> R) -> R {
+    let _scope = SecretsScope(SECRETS_IN_SCOPE.with(|scope| scope.replace(true)));
+    f()
+}
+
+impl Object {
+    pub fn into_value_with_secrets(self) -> JmapValue<'static> {
+        with_secrets(|| self.into_value())
+    }
+}
+
+pub fn secret_value(value: impl IntoValue) -> JmapValue<'static> {
+    if *INCLUDE_SECRETS || SECRETS_IN_SCOPE.with(Cell::get) {
+        value.into_value()
+    } else {
+        JmapValue::Str(MASKED_PASSWORD.into())
+    }
+}

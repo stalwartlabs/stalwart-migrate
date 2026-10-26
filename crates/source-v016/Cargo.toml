@@ -1,0 +1,60 @@
+[package]
+name = "source-v016"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+bytes = "1.10"
+calcard = { version = "=0.3.14", features = ["rkyv"] }
+common = { path = "../../vendor/v016/crates/common" }
+directory = { path = "../../vendor/v016/crates/directory" }
+email = { path = "../../vendor/v016/crates/email" }
+groupware = { path = "../../vendor/v016/crates/groupware" }
+jmap = { path = "../../vendor/v016/crates/jmap" }
+jmap_proto = { path = "../../vendor/v016/crates/jmap-proto" }
+model = { path = "../model" }
+nlp = { path = "../../vendor/v016/crates/nlp", optional = true }
+registry = { path = "../../vendor/v016/crates/registry" }
+roaring = "0.11.5"
+rustc-hash = "2.1.3"
+serde_json = "1.0.149"
+smtp = { path = "../../vendor/v016/crates/smtp" }
+smtp-proto = "0.2.3"
+store = { path = "../../vendor/v016/crates/store" }
+tokio = { version = "1.53", features = ["rt", "sync", "time"] }
+trc = { path = "../../vendor/v016/crates/trc" }
+types = { path = "../../vendor/v016/crates/types" }
+utils = { path = "../../vendor/v016/crates/utils" }
+
+[features]
+rocks = ["store/rocks"]
+foundation = ["store/foundation", "common/foundation"]
+postgres = ["store/postgres", "directory/postgres"]
+mysql = ["store/mysql", "directory/mysql"]
+sqlite = ["store/sqlite", "directory/sqlite"]
+s3 = ["store/s3"]
+azure = ["store/azure"]
+redis = ["store/redis"]
+testkit = ["rocks", "dep:nlp"]
+enterprise = [
+    "common/enterprise",
+    "directory/enterprise",
+    "email/enterprise",
+    "groupware/enterprise",
+    "jmap/enterprise",
+    "registry/enterprise",
+    "smtp/enterprise",
+    "store/enterprise",
+    "trc/enterprise",
+]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+nlp = { path = "../../vendor/v016/crates/nlp" }
+spam-filter = { path = "../../vendor/v016/crates/spam-filter" }
+rusqlite = "0.41"
+tempfile = "3.27"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }

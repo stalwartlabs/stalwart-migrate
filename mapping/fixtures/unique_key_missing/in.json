@@ -1,0 +1,16 @@
+{
+ "objects": [
+  {
+   "key": "x:MtaVirtualQueue/c",
+   "value": {
+    "threadsPerNode": 4
+   }
+  },
+  {
+   "key": "x:MtaVirtualQueue/b",
+   "value": {
+    "threadsPerNode": 8
+   }
+  }
+ ]
+}

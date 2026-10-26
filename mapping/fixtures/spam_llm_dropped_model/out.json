@@ -1,0 +1,56 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:AiModel/b",
+      "level": "warning",
+      "path": "",
+      "reason": "dropped as answered"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "prompt",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "tiers/0/modelId"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamLlm",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:AiModel/b"
+  ],
+  "objects": [
+    {
+      "key": "x:SpamAi",
+      "source": "x:SpamLlm",
+      "value": {
+        "@type": "Disable"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:AiModel/b",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:SpamLlm",
+      "prompt": "spam_ai"
+    }
+  ]
+}

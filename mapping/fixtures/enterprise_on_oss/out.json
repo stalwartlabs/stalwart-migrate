@@ -1,0 +1,71 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "accounts"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "tenants"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Domain/c",
+      "level": "warning",
+      "path": "logo",
+      "reason": "enterprise only, target is open source"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Domain/c",
+      "level": "warning",
+      "path": "memberTenantId",
+      "reason": "enterprise only, target is open source"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Tenant/b",
+      "level": "warning",
+      "path": "",
+      "reason": "enterprise only, target is open source"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:Tenant/b"
+  ],
+  "objects": [
+    {
+      "key": "x:Domain/c",
+      "source": "x:Domain/c",
+      "value": {
+        "enable": true,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Cache",
+      "source": "x:Cache",
+      "value": {
+        "accounts": 2048
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    },
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "enterprise_on_oss"
+    }
+  ]
+}

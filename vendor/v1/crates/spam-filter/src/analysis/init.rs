@@ -1,0 +1,250 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use super::url::UrlParts;
+use crate::{
+    ContextToken, Email, Hostname, IpParts, Recipient, SpamFilterContext, SpamFilterInput,
+    SpamFilterOutput, SpamFilterResult, TextPart, modules::html::html_to_tokens,
+};
+use common::{Server, expr::Bump};
+use mail_auth::DmarcResult;
+use mail_parser::{HeaderName, Mailbox, PartKind, thread_name};
+use nlp::tokenizers::types::{TokenType, TypesTokenizer};
+use std::borrow::Cow;
+use store::ahash::AHashSet;
+use sync_wrapper::SyncWrapper;
+
+pub trait SpamFilterInit {
+    fn spam_filter_init<'x>(&self, input: SpamFilterInput<'x>) -> SpamFilterContext<'x>;
+}
+
+const POSTMASTER_ADDRESSES: [&str; 3] = ["postmaster", "mailer-daemon", "root"];
+const BYTES_PER_TOKEN: usize = 3;
+const MAX_RESERVED_TOKENS: usize = 1 << 16;
+const TAG_CAPACITY: usize = 64;
+
+impl SpamFilterInit for Server {
+    fn spam_filter_init<'x>(&self, input: SpamFilterInput<'x>) -> SpamFilterContext<'x> {
+        SpamFilterContext::new(input)
+    }
+}
+
+impl<'x> SpamFilterContext<'x> {
+    pub fn new(mut input: SpamFilterInput<'x>) -> Self {
+        let mut subject = "";
+        let mut from = None;
+        let mut reply_to = None;
+        let mut recipients_to = Vec::new();
+        let mut recipients_cc = Vec::new();
+        let mut recipients_bcc = Vec::new();
+        let mut found_spam_status = false;
+
+        for header in input.message.headers() {
+            let name = header.name();
+            match name {
+                HeaderName::To | HeaderName::Cc | HeaderName::Bcc => {
+                    let recipients = match name {
+                        HeaderName::To => &mut recipients_to,
+                        HeaderName::Cc => &mut recipients_cc,
+                        _ => &mut recipients_bcc,
+                    };
+                    if let Some(addresses) = header.value().as_address() {
+                        recipients.extend(addresses.mailboxes().map(Recipient::from));
+                    }
+                }
+                HeaderName::ReplyTo => {
+                    reply_to = header
+                        .value()
+                        .as_address()
+                        .and_then(|addrs| addrs.first())
+                        .and_then(|addr| {
+                            Some(Recipient {
+                                email: Email::new(addr.address()?),
+                                name: addr.name().and_then(trimmed_name),
+                            })
+                        });
+                }
+                HeaderName::Subject => {
+                    subject = header.value().as_text().unwrap_or_default();
+                }
+                HeaderName::From => {
+                    from = header.value().as_address().and_then(|addrs| addrs.first());
+                }
+                HeaderName::XSpamResult if input.is_train && !found_spam_status => {
+                    for token in header
+                        .value()
+                        .as_text()
+                        .unwrap_or_default()
+                        .split_ascii_whitespace()
+                    {
+                        if let Some(dmarc) = token.strip_prefix("DMARC_") {
+                            input.dmarc_result = if dmarc == "POLICY_ALLOW" {
+                                Some(&DmarcResult::Pass)
+                            } else {
+                                Some(&DmarcResult::None)
+                            };
+                        } else if let Some(asn) = token
+                            .strip_prefix("SOURCE_ASN_")
+                            .and_then(|v| v.parse().ok())
+                        {
+                            input.asn = Some(asn);
+                        }
+                    }
+
+                    found_spam_status = true;
+                }
+                _ => {}
+            }
+        }
+
+        // Tokenize subject
+        let subject_tokens = tokenize(subject);
+
+        // Tokenize and convert text parts
+        let texts = input.texts;
+        let text_parts = input
+            .message
+            .parts()
+            .map(|part| match (part.kind(), texts.get(part.id())) {
+                (PartKind::Text, Some(text)) => TextPart::Plain {
+                    text_body: text,
+                    tokens: tokenize(text),
+                },
+                (PartKind::Html, Some(html)) => {
+                    let html_tokens = html_to_tokens(html);
+                    match texts.html_text(part.id(), &html_tokens) {
+                        Some(text) => TextPart::Html {
+                            tokens: tokenize(&text.visible),
+                            hidden_tokens: tokenize_addresses(&text.hidden),
+                            html_tokens,
+                            text_body: &text.visible,
+                        },
+                        None => TextPart::None,
+                    }
+                }
+                _ => TextPart::None,
+            })
+            .collect();
+
+        let subject_thread = thread_name(subject).to_string();
+        let env_from_addr = Email::new(input.env_from);
+        SpamFilterContext {
+            output: SpamFilterOutput {
+                ehlo_host: Hostname::new(input.ehlo_domain.unwrap_or("unknown")),
+                iprev_ptr: input.iprev_result.and_then(|r| {
+                    r.ptr
+                        .as_ref()
+                        .and_then(|ptr| ptr.first())
+                        .map(|ptr| (ptr.strip_suffix('.').unwrap_or(ptr)).to_lowercase())
+                }),
+                env_from_postmaster: env_from_addr.address.is_empty()
+                    || POSTMASTER_ADDRESSES.contains(&env_from_addr.local_part.as_str()),
+                env_from_addr,
+                env_to_orig_addr: input
+                    .env_rcpt_orig_to
+                    .iter()
+                    .map(|rcpt| Email::new(rcpt))
+                    .collect(),
+                from: Recipient {
+                    email: Email::new(from.and_then(|f| f.address()).unwrap_or_default()),
+                    name: from.and_then(|f| f.name()).map(|name| name.to_lowercase()),
+                },
+                reply_to,
+                subject_thread_lc: subject_thread.trim().to_lowercase(),
+                subject_thread,
+                subject_lc: subject.trim().to_lowercase(),
+                subject: subject.to_string(),
+                subject_tokens,
+                recipients_to,
+                recipients_cc,
+                recipients_bcc,
+                text_parts,
+                ips: Default::default(),
+                emails: Default::default(),
+                urls: Default::default(),
+                domains: Default::default(),
+            },
+            input,
+            result: SpamFilterResult {
+                tags: AHashSet::with_capacity(TAG_CAPACITY),
+                ..Default::default()
+            },
+            arena: SyncWrapper::new(Bump::new()),
+        }
+    }
+}
+
+pub(crate) fn tokenize(text: &str) -> Vec<ContextToken<'_>> {
+    let mut tokens = Vec::with_capacity((text.len() / BYTES_PER_TOKEN).min(MAX_RESERVED_TOKENS));
+    tokens.extend(types_tokenizer(text).map(|token| context_token(token.word)));
+    tokens
+}
+
+fn tokenize_addresses(text: &str) -> Vec<ContextToken<'_>> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    types_tokenizer(text)
+        .filter(|token| {
+            matches!(
+                token.word,
+                TokenType::Url(_)
+                    | TokenType::UrlNoScheme(_)
+                    | TokenType::IpAddr(_)
+                    | TokenType::Email(_)
+            )
+        })
+        .map(|token| context_token(token.word))
+        .collect()
+}
+
+fn types_tokenizer(text: &str) -> TypesTokenizer<'_> {
+    TypesTokenizer::new(text)
+        .tokenize_numbers(false)
+        .tokenize_urls(true)
+        .tokenize_urls_without_scheme(true)
+        .tokenize_emails(true)
+}
+
+fn context_token<'x>(word: TokenType<&'x str, &'x str, &'x str, &'x str>) -> ContextToken<'x> {
+    match word {
+        TokenType::Alphabetic(s) => TokenType::Alphabetic(Cow::Borrowed(s)),
+        TokenType::Alphanumeric(s) => TokenType::Alphanumeric(Cow::Borrowed(s)),
+        TokenType::Integer(s) => TokenType::Integer(Cow::Borrowed(s)),
+        TokenType::Other(s) => TokenType::Other(s),
+        TokenType::Punctuation(s) => TokenType::Punctuation(s),
+        TokenType::Space => TokenType::Space,
+        TokenType::Url(url) => TokenType::Url(Box::new(UrlParts::new(url))),
+        TokenType::UrlNoHost(s) => TokenType::UrlNoHost(Cow::Borrowed(s)),
+        TokenType::UrlNoScheme(s) => TokenType::UrlNoScheme(Box::new(UrlParts::no_scheme(s))),
+        TokenType::IpAddr(i) => TokenType::IpAddr(IpParts::new(i)),
+        TokenType::Email(e) => TokenType::Email(Box::new(Email::new(e))),
+        TokenType::Float(s) => TokenType::Float(Cow::Borrowed(s)),
+    }
+}
+
+impl From<Mailbox<'_>> for Recipient {
+    fn from(addr: Mailbox<'_>) -> Self {
+        Recipient {
+            email: Email::new(addr.address().unwrap_or_default()),
+            name: addr.name().and_then(trimmed_name),
+        }
+    }
+}
+
+fn trimmed_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    if !name.is_empty() {
+        Some(name.to_lowercase())
+    } else {
+        None
+    }
+}
+
+#[cfg(all(test, stalwart_tests))]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/spam-filter/src/analysis/init/tests.rs"]
+mod tests;

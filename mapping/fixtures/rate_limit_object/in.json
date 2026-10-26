@@ -1,0 +1,15 @@
+{
+  "objects": [
+    {
+      "key": "x:Imap",
+      "value": {
+        "maxRequestRate": {
+          "count": 2000,
+          "period": 60000
+        },
+        "maxConcurrent": 8,
+        "timeoutIdle": 1800000
+      }
+    }
+  ]
+}

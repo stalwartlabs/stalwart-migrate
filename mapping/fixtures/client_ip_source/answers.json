@@ -1,0 +1,10 @@
+{
+  "instance": {
+    "http_forwarded": {
+      "x:Http": {
+        "source": "forwarded",
+        "hops": 2
+      }
+    }
+  }
+}

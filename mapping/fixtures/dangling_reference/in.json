@@ -1,0 +1,16 @@
+{
+  "objects": [
+    {
+      "key": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "name": "bob",
+        "domainId": "c",
+        "emailAddress": "bob@example.com",
+        "memberGroupIds": {
+          "z": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use std::borrow::Cow;
+
+use ahash::AHashMap;
+use common::{
+    Server,
+    auth::AccessToken,
+    expr::{Bump, functions::ResolveVariable},
+    scripts::ScriptModification,
+};
+
+use mail_auth::{AuthenticatedMessage, dkim2::Dkim2Output};
+use mail_parser::Message;
+use sieve::{
+    Envelope, SpamStatus,
+    compiler::grammar::actions::action_redirect::{Notify, NotifyItem},
+    runtime::Variable,
+};
+use smtp_proto::{RCPT_NOTIFY_DELAY, RCPT_NOTIFY_FAILURE, RCPT_NOTIFY_NEVER, RCPT_NOTIFY_SUCCESS};
+
+pub mod envelope;
+pub mod event_loop;
+pub mod exec;
+
+#[derive(Debug, serde::Serialize)]
+pub enum ScriptResult {
+    Accept {
+        modifications: Vec<ScriptModification>,
+        redirected: bool,
+    },
+    Replace {
+        message: Vec<u8>,
+        modifications: Vec<ScriptModification>,
+        redirected: bool,
+    },
+    Reject(String),
+    Discard,
+}
+
+pub struct ScriptParameters<'x> {
+    message: Option<&'x Message<'x>>,
+    headers: Option<&'x [u8]>,
+    dkim2_verified: Option<(&'x Dkim2Output<'x>, &'x AuthenticatedMessage<'x>)>,
+    variables: AHashMap<Cow<'static, str>, Variable<'x>>,
+    envelope: Vec<(Envelope, Variable<'x>)>,
+    from_addr: String,
+    from_name: String,
+    return_path: String,
+    sign_domain: Option<String>,
+    access_token: Option<&'x AccessToken>,
+    spam_status: Option<SpamStatus>,
+    session_id: u64,
+}
+
+impl<'x> ScriptParameters<'x> {
+    pub fn new() -> Self {
+        ScriptParameters {
+            variables: AHashMap::with_capacity(24),
+            envelope: Vec::with_capacity(6),
+            message: None,
+            headers: None,
+            dkim2_verified: None,
+            from_addr: Default::default(),
+            from_name: Default::default(),
+            return_path: Default::default(),
+            sign_domain: Default::default(),
+            access_token: None,
+            spam_status: None,
+            session_id: Default::default(),
+        }
+    }
+
+    pub async fn with_envelope(
+        mut self,
+        server: &Server,
+        vars: &impl ResolveVariable,
+        session_id: u64,
+    ) -> Self {
+        let mut arena = Bump::new();
+        for (variable, expr) in [
+            (&mut self.from_addr, &server.core.sieve.from_addr),
+            (&mut self.from_name, &server.core.sieve.from_name),
+            (&mut self.return_path, &server.core.sieve.return_path),
+        ] {
+            if let Some(value) = server.eval_if(expr, vars, &mut arena, session_id).await {
+                *variable = value;
+            }
+        }
+        self.sign_domain = server
+            .eval_if(&server.core.sieve.sign, vars, &mut arena, session_id)
+            .await;
+        self
+    }
+
+    pub fn with_message(self, message: &'x Message<'x>) -> Self {
+        Self {
+            message: message.into(),
+            ..self
+        }
+    }
+
+    pub fn with_auth_headers(self, headers: &'x [u8]) -> Self {
+        Self {
+            headers: headers.into(),
+            ..self
+        }
+    }
+
+    pub fn with_dkim2_verified(
+        self,
+        verified: Option<&'x Dkim2Output<'x>>,
+        verified_message: &'x AuthenticatedMessage<'x>,
+    ) -> Self {
+        Self {
+            dkim2_verified: verified.map(|verified| (verified, verified_message)),
+            ..self
+        }
+    }
+
+    pub fn with_spam_status(self, status: SpamStatus) -> Self {
+        Self {
+            spam_status: status.into(),
+            ..self
+        }
+    }
+
+    pub fn set_variable(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Variable<'x>>,
+    ) -> Self {
+        self.variables.insert(name.into(), value.into());
+        self
+    }
+
+    pub fn set_envelope(mut self, envelope: Envelope, value: impl Into<Variable<'x>>) -> Self {
+        self.envelope.push((envelope, value.into()));
+        self
+    }
+
+    pub fn with_access_token(mut self, access_token: &'x AccessToken) -> Self {
+        self.access_token = Some(access_token);
+        self
+    }
+
+    pub fn with_session_id(mut self, session_id: u64) -> Self {
+        self.session_id = session_id;
+        self
+    }
+}
+
+impl Default for ScriptParameters<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn notify_flags(notify: &Notify) -> u64 {
+    match notify {
+        Notify::Never => RCPT_NOTIFY_NEVER,
+        Notify::Items(items) => items.iter().fold(0, |flags, item| {
+            flags
+                | match item {
+                    NotifyItem::Success => RCPT_NOTIFY_SUCCESS,
+                    NotifyItem::Failure => RCPT_NOTIFY_FAILURE,
+                    NotifyItem::Delay => RCPT_NOTIFY_DELAY,
+                }
+        }),
+        Notify::Default => 0,
+    }
+}

@@ -1,0 +1,31 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:Http",
+      "level": "info",
+      "path": "clientIpSource"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "clientIpSource": "forwarded",
+        "enableHsts": true,
+        "forwardedHops": 2
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:Http",
+      "prompt": "http_forwarded"
+    }
+  ]
+}

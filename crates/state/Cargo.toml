@@ -1,0 +1,17 @@
+[package]
+name = "state"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+hashify = "0.3.1"
+model = { path = "../model" }
+rusqlite = { version = "0.41", features = ["bundled"] }
+tokio = { version = "1.53", features = ["sync"] }
+xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
+zstd = "0.13.3"
+
+[dev-dependencies]
+tempfile = "3.27"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "sync"] }

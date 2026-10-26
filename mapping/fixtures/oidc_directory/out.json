@@ -1,0 +1,95 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_pinned",
+      "key": "x:Directory/b",
+      "level": "info",
+      "path": "claimName"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Directory/b",
+      "level": "warning",
+      "path": "requireScopes",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Directory/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:Directory/c",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Directory/b",
+      "source": "x:Directory/b",
+      "value": {
+        "@type": "Oidc",
+        "acceptedAudiences": {
+          "stalwart": true
+        },
+        "allowIdTokenClaims": false,
+        "allowInvalidCerts": false,
+        "claimName": "name",
+        "claimUsername": "preferred_username",
+        "description": "sso",
+        "issuerUrl": "https://sso.example.com",
+        "lenientIssuerMatch": false,
+        "opaqueTokenValidation": "userInfo",
+        "skipAudienceValidation": false,
+        "unscopedTokens": "full"
+      }
+    },
+    {
+      "key": "x:Directory/c",
+      "source": "x:Directory/c",
+      "value": {
+        "@type": "Oidc",
+        "acceptedAudiences": {},
+        "allowIdTokenClaims": false,
+        "allowInvalidCerts": false,
+        "claimName": null,
+        "claimUsername": "email",
+        "description": "other",
+        "introspectionAuthMethod": "clientSecretBasic",
+        "introspectionClientId": "stalwart",
+        "introspectionClientSecret": {
+          "@type": "Value",
+          "secret": "s3cr3t"
+        },
+        "issuerUrl": "https://idp.example.com",
+        "lenientIssuerMatch": false,
+        "opaqueTokenValidation": "introspection",
+        "skipAudienceValidation": true,
+        "unscopedTokens": "interoperable"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    },
+    {
+      "answered": true,
+      "key": "x:Directory/b",
+      "prompt": "oidc_directory"
+    },
+    {
+      "answered": true,
+      "key": "x:Directory/c",
+      "prompt": "oidc_directory"
+    }
+  ]
+}

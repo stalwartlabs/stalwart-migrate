@@ -1,0 +1,466 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    object::{AnyId, JmapObject, JmapObjectId},
+    request::{
+        MaybeInvalid,
+        deserialize::{CowStr, DeserializeArguments},
+    },
+    types::{date::UTCDate, state::State},
+};
+use calcard::jscalendar::JSCalendar;
+use jmap_tools::{Element, Key, Property};
+use serde::{Serialize, Serializer};
+use std::{borrow::Cow, fmt::Display, str::FromStr};
+use types::{blob::BlobId, id::Id, text::Text};
+
+#[derive(Debug, Clone, Default)]
+pub struct CalendarEventNotification;
+
+#[derive(Debug, Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEventNotificationObject {
+    pub id: Id,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub created: ResponseProperty<UTCDate>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub changed_by: ResponseProperty<PersonObject>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub comment: ResponseProperty<String>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    #[serde(rename = "type")]
+    pub notification_type: ResponseProperty<CalendarEventNotificationType>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub calendar_event_id: ResponseProperty<Id>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub is_draft: ResponseProperty<bool>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub event: ResponseProperty<JSCalendar<'static, Id, BlobId>>,
+
+    #[serde(skip_serializing_if = "ResponseProperty::is_not_requested")]
+    pub event_patch: ResponseProperty<JSCalendar<'static, Id, BlobId>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ResponseProperty<T> {
+    #[default]
+    NotRequested,
+    Requested(Option<T>),
+}
+
+impl<T> ResponseProperty<T> {
+    pub fn is_not_requested(&self) -> bool {
+        matches!(self, ResponseProperty::NotRequested)
+    }
+
+    pub fn value(&self) -> Option<&T> {
+        match self {
+            ResponseProperty::Requested(Some(value)) => Some(value),
+            _ => None,
+        }
+    }
+}
+
+impl<T> From<Option<T>> for ResponseProperty<T> {
+    fn from(value: Option<T>) -> Self {
+        ResponseProperty::Requested(value)
+    }
+}
+
+impl<T: Serialize> Serialize for ResponseProperty<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.value() {
+            Some(value) => value.serialize(serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonObject {
+    pub name: String,
+    pub email: Option<String>,
+    pub principal_id: Option<Id>,
+    pub calendar_address: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CalendarEventNotificationGetResponse {
+    #[serde(rename = "accountId")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<Id>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<State>,
+
+    pub list: Vec<CalendarEventNotificationObject>,
+
+    #[serde(rename = "notFound")]
+    pub not_found: Vec<crate::request::MaybeInvalid<Id>>,
+}
+
+impl CalendarEventNotificationGetResponse {
+    pub fn push_not_found(&mut self, id: Id) {
+        self.not_found.push(crate::request::MaybeInvalid::Value(id));
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CalendarEventNotificationProperty {
+    Id,
+    Created,
+    ChangedBy,
+    Comment,
+    Type,
+    CalendarEventId,
+    IsDraft,
+    Event,
+    EventPatch,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CalendarEventNotificationValue {
+    Id(Id),
+    Date(UTCDate),
+    Type(CalendarEventNotificationType),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CalendarEventNotificationType {
+    Created,
+    Updated,
+    Destroyed,
+}
+
+impl Property for CalendarEventNotificationProperty {
+    fn try_parse(_: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
+        CalendarEventNotificationProperty::parse(value)
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        match self {
+            CalendarEventNotificationProperty::Id => "id",
+            CalendarEventNotificationProperty::Created => "created",
+            CalendarEventNotificationProperty::ChangedBy => "changedBy",
+            CalendarEventNotificationProperty::Comment => "comment",
+            CalendarEventNotificationProperty::Type => "type",
+            CalendarEventNotificationProperty::CalendarEventId => "calendarEventId",
+            CalendarEventNotificationProperty::IsDraft => "isDraft",
+            CalendarEventNotificationProperty::Event => "event",
+            CalendarEventNotificationProperty::EventPatch => "eventPatch",
+        }
+        .into()
+    }
+
+    fn key_eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Element for CalendarEventNotificationValue {
+    type Property = CalendarEventNotificationProperty;
+
+    fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
+        if let Key::Property(prop) = key {
+            match prop {
+                CalendarEventNotificationProperty::Id
+                | CalendarEventNotificationProperty::CalendarEventId => Id::from_str(value)
+                    .ok()
+                    .map(CalendarEventNotificationValue::Id),
+                CalendarEventNotificationProperty::Created => UTCDate::from_str(value)
+                    .ok()
+                    .map(CalendarEventNotificationValue::Date),
+                CalendarEventNotificationProperty::Type => {
+                    CalendarEventNotificationType::parse(value)
+                        .map(CalendarEventNotificationValue::Type)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.text().to_cow()
+    }
+
+    fn serialize_text<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            CalendarEventNotificationValue::Date(date) => date.serialize(serializer),
+            value => value.text().serialize(serializer),
+        }
+    }
+}
+
+impl CalendarEventNotificationValue {
+    pub fn text(&self) -> Text<'_> {
+        match self {
+            CalendarEventNotificationValue::Id(id) => Text::Id(*id),
+            CalendarEventNotificationValue::Date(date) => Text::Display(date),
+            CalendarEventNotificationValue::Type(t) => Text::Static(t.as_str()),
+        }
+    }
+}
+
+impl CalendarEventNotificationType {
+    fn parse(value: &str) -> Option<Self> {
+        hashify::map!(value.as_bytes(), CalendarEventNotificationType,
+            b"created" => CalendarEventNotificationType::Created,
+            b"updated" => CalendarEventNotificationType::Updated,
+            b"destroyed" => CalendarEventNotificationType::Destroyed,
+        )
+        .copied()
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CalendarEventNotificationType::Created => "created",
+            CalendarEventNotificationType::Updated => "updated",
+            CalendarEventNotificationType::Destroyed => "destroyed",
+        }
+    }
+}
+
+impl CalendarEventNotificationProperty {
+    fn parse(value: &str) -> Option<Self> {
+        hashify::fnc_map!(value.as_bytes(),
+            b"id" => Some(CalendarEventNotificationProperty::Id),
+            b"created" => Some(CalendarEventNotificationProperty::Created),
+            b"changedBy" => Some(CalendarEventNotificationProperty::ChangedBy),
+            b"comment" => Some(CalendarEventNotificationProperty::Comment),
+            b"type" => Some(CalendarEventNotificationProperty::Type),
+            b"calendarEventId" => Some(CalendarEventNotificationProperty::CalendarEventId),
+            b"isDraft" => Some(CalendarEventNotificationProperty::IsDraft),
+            b"event" => Some(CalendarEventNotificationProperty::Event),
+            b"eventPatch" => Some(CalendarEventNotificationProperty::EventPatch),
+            _ => None
+        )
+    }
+}
+
+impl FromStr for CalendarEventNotificationProperty {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        CalendarEventNotificationProperty::parse(s).ok_or(())
+    }
+}
+
+impl JmapObject for CalendarEventNotification {
+    type Property = CalendarEventNotificationProperty;
+
+    type Element = CalendarEventNotificationValue;
+
+    type Id = Id;
+
+    type Filter = CalendarEventNotificationFilter;
+
+    type Comparator = CalendarEventNotificationComparator;
+
+    type GetArguments = ();
+
+    type SetArguments<'de> = ();
+
+    type QueryArguments = ();
+
+    type CopyArguments = ();
+
+    type ParseArguments = ();
+
+    const ID_PROPERTY: Self::Property = CalendarEventNotificationProperty::Id;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CalendarEventNotificationFilter {
+    After(UTCDate),
+    Before(UTCDate),
+    Type(CalendarEventNotificationType),
+    CalendarEventIds(Vec<MaybeInvalid<Id>>),
+    _T(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CalendarEventNotificationComparator {
+    Created,
+    _T(String),
+}
+
+impl<'de> DeserializeArguments<'de> for CalendarEventNotificationFilter {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        hashify::fnc_map!(key.as_bytes(),
+            b"after" => {
+                *self = CalendarEventNotificationFilter::After(map.next_value()?);
+            },
+            b"before" => {
+                *self = CalendarEventNotificationFilter::Before(map.next_value()?);
+            },
+            b"type" => {
+                *self = CalendarEventNotificationFilter::Type(map.next_value()?);
+            },
+            b"calendarEventIds" => {
+                *self = CalendarEventNotificationFilter::CalendarEventIds(map.next_value()?);
+            },
+            _ => {
+                *self = CalendarEventNotificationFilter::_T(key.to_string());
+                let _ = map.next_value::<serde::de::IgnoredAny>()?;
+            }
+        );
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeArguments<'de> for CalendarEventNotificationComparator {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        if key == "property" {
+            let value = map.next_value::<CowStr>()?.0;
+            hashify::fnc_map!(value.as_bytes(),
+                b"created" => {
+                    *self = CalendarEventNotificationComparator::Created;
+                },
+                _ => {
+                    *self = CalendarEventNotificationComparator::_T(value.into_owned());
+                }
+            );
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+        Ok(())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CalendarEventNotificationType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        CalendarEventNotificationType::parse(<&str>::deserialize(deserializer)?)
+            .ok_or_else(|| serde::de::Error::custom("invalid CalendarEventNotificationType"))
+    }
+}
+
+impl CalendarEventNotificationFilter {
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            CalendarEventNotificationFilter::After(_) => "after",
+            CalendarEventNotificationFilter::Before(_) => "before",
+            CalendarEventNotificationFilter::Type(_) => "type",
+            CalendarEventNotificationFilter::CalendarEventIds(_) => "calendarEventIds",
+            CalendarEventNotificationFilter::_T(s) => return Cow::Owned(s),
+        }
+        .into()
+    }
+}
+
+impl CalendarEventNotificationComparator {
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            CalendarEventNotificationComparator::Created => "created",
+            CalendarEventNotificationComparator::_T(s) => return Cow::Owned(s),
+        }
+        .into()
+    }
+}
+
+impl Default for CalendarEventNotificationFilter {
+    fn default() -> Self {
+        CalendarEventNotificationFilter::_T(String::new())
+    }
+}
+
+impl Default for CalendarEventNotificationComparator {
+    fn default() -> Self {
+        CalendarEventNotificationComparator::_T(String::new())
+    }
+}
+
+impl TryFrom<CalendarEventNotificationProperty> for Id {
+    type Error = ();
+
+    fn try_from(_: CalendarEventNotificationProperty) -> Result<Self, Self::Error> {
+        Err(())
+    }
+}
+
+impl From<Id> for CalendarEventNotificationValue {
+    fn from(id: Id) -> Self {
+        CalendarEventNotificationValue::Id(id)
+    }
+}
+
+impl JmapObjectId for CalendarEventNotificationValue {
+    fn as_id(&self) -> Option<Id> {
+        if let CalendarEventNotificationValue::Id(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        if let CalendarEventNotificationValue::Id(id) = self {
+            Some(AnyId::Id(*id))
+        } else {
+            None
+        }
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        None
+    }
+
+    fn try_set_id(&mut self, _: AnyId) -> bool {
+        false
+    }
+}
+
+impl JmapObjectId for CalendarEventNotificationProperty {
+    fn as_id(&self) -> Option<Id> {
+        None
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        None
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        None
+    }
+
+    fn try_set_id(&mut self, _: AnyId) -> bool {
+        false
+    }
+}
+
+impl serde::Serialize for CalendarEventNotificationType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl Display for CalendarEventNotificationProperty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_cow())
+    }
+}

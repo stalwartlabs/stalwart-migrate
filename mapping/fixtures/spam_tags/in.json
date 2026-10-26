@@ -1,0 +1,35 @@
+{
+  "objects": [
+    {
+      "key": "x:SpamTag/a",
+      "value": {
+        "@type": "Score",
+        "tag": "DISPOSABLE_REPLYTO",
+        "score": 0.0
+      }
+    },
+    {
+      "key": "x:SpamTag/b",
+      "value": {
+        "@type": "Score",
+        "tag": "LLM_COMMERCIAL_HIGH",
+        "score": 3.0
+      }
+    },
+    {
+      "key": "x:SpamTag/c",
+      "value": {
+        "@type": "Score",
+        "tag": "DBL_SPAM",
+        "score": 6.5
+      }
+    },
+    {
+      "key": "x:SpamTag/d",
+      "value": {
+        "@type": "Reject",
+        "tag": "SPAM_TRAP"
+      }
+    }
+  ]
+}

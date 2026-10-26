@@ -1,0 +1,13 @@
+{
+  "objects": [
+    {
+      "key": "x:OidcProvider",
+      "value": {
+        "authCodeExpiry": 60000,
+        "accessTokenExpiry": 300000,
+        "refreshTokenExpiry": 2592000000,
+        "idTokenExpiry": 900000
+      }
+    }
+  ]
+}

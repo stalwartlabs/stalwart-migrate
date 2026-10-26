@@ -1,0 +1,65 @@
+[package]
+name = "target-v016"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+arc-swap = "1.9.2"
+bytes = "1"
+calcard = { version = "=0.3.14", features = ["rkyv"] }
+futures = "0.3.34"
+foundationdb = { version = "0.11", features = ["embedded-fdb-include", "fdb-7_4"], optional = true }
+hashify = "0.3"
+jmap-tools = "0.1"
+jmap_proto = { path = "../../vendor/v016/crates/jmap-proto" }
+mail-parser = { version = "0.11", features = ["full_encoding"] }
+model = { path = "../model" }
+roaring = "0.11.5"
+serde_json = "1.0"
+services = { path = "../../vendor/v016/crates/services" }
+rusqlite = { version = "0.41", features = ["bundled"], optional = true }
+rustls = { version = "0.23.43", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+common = { path = "../../vendor/v016/crates/common" }
+directory = { path = "../../vendor/v016/crates/directory" }
+email = { path = "../../vendor/v016/crates/email" }
+groupware = { path = "../../vendor/v016/crates/groupware" }
+jmap = { path = "../../vendor/v016/crates/jmap" }
+registry = { path = "../../vendor/v016/crates/registry" }
+smtp = { path = "../../vendor/v016/crates/smtp" }
+store = { path = "../../vendor/v016/crates/store" }
+trc = { path = "../../vendor/v016/crates/trc" }
+types = { path = "../../vendor/v016/crates/types" }
+utils = { path = "../../vendor/v016/crates/utils" }
+
+[features]
+failpoints = []
+rocks = ["store/rocks"]
+foundation = ["store/foundation", "common/foundation", "dep:foundationdb"]
+postgres = ["store/postgres", "directory/postgres"]
+mysql = ["store/mysql", "directory/mysql"]
+sqlite = ["store/sqlite", "directory/sqlite", "dep:rusqlite"]
+s3 = ["store/s3"]
+azure = ["store/azure"]
+redis = ["store/redis"]
+enterprise = [
+    "common/enterprise",
+    "directory/enterprise",
+    "email/enterprise",
+    "groupware/enterprise",
+    "jmap/enterprise",
+    "registry/enterprise",
+    "store/enterprise",
+    "trc/enterprise",
+    "services/enterprise",
+    "smtp/enterprise",
+]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+rusqlite = { version = "0.41", features = ["bundled"] }
+source-v016 = { path = "../source-v016", features = ["testkit"] }
+tempfile = "3.27"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "sync", "time"] }

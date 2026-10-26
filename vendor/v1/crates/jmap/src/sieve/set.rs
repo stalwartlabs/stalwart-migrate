@@ -1,0 +1,805 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    api::metadata::{
+        MetadataAccess, MetadataPatches, MetadataTarget, MetadataType, MetadataWriter,
+        ObjectMetadata, PreparedMetadata, is_empty_update, reject_uncommitted,
+    },
+    blob::download::BlobDownload,
+    changes::state::StateManager,
+};
+use common::{
+    Server,
+    auth::AccessToken,
+    ipc::CacheInvalidation,
+    storage::{
+        index::{ObjectIndexBuilder, PresenceFlags, RewritePresence},
+        quota::DiskQuotaBudget,
+    },
+};
+use email::sieve::{
+    ArchivedSieveScript, SieveScript, delete::SieveScriptDelete, ingest::SieveScriptIngest,
+};
+use http_proto::HttpSessionData;
+use jmap_proto::{
+    error::set::{SetError, SetErrorType},
+    method::set::{SetRequest, SetResponse},
+    object::sieve::{Sieve, SieveProperty, SieveValue},
+    references::resolve::ResolveCreatedReference,
+    request::{MaybeInvalid, capability::CapabilityIds, reference::MaybeIdReference},
+    types::state::State,
+};
+use jmap_tools::{Key, Map, Value};
+use rand::distr::Alphanumeric;
+use registry::schema::enums::StorageQuota;
+use sieve::compiler::ErrorType;
+use std::future::Future;
+use store::{
+    ValueKey,
+    rand::{RngExt, rng},
+    write::{Archive, ArchiveBytes, BatchBuilder, PendingId, Slot},
+};
+use trc::AddContext;
+use types::{
+    blob::{BlobClass, BlobId, BlobSection},
+    blob_hash::BlobHash,
+    collection::{Collection, SyncCollection},
+    field::{PrincipalField, SieveField},
+    id::Id,
+    metadata::MetadataKinds,
+};
+
+#[derive(Debug, Clone, Copy)]
+enum Deactivate {
+    No,
+    Always,
+    IfActive(u32),
+}
+
+struct PendingSieveScript {
+    id: String,
+    slot: Slot,
+    blob_hash: BlobHash,
+    blob_size: usize,
+    is_active: bool,
+}
+
+pub struct SetContext<'x> {
+    account_id: u32,
+    access_token: &'x AccessToken,
+    disk_quota: DiskQuotaBudget,
+    response: SetResponse<Sieve>,
+}
+
+pub trait SieveScriptSet: Sync + Send {
+    fn sieve_script_set(
+        &self,
+        request: SetRequest<'_, Sieve>,
+        access_token: &AccessToken,
+        session: &HttpSessionData,
+        using: CapabilityIds,
+    ) -> impl Future<Output = trc::Result<SetResponse<Sieve>>> + Send;
+
+    #[allow(clippy::type_complexity)]
+    fn sieve_set_item<'x>(
+        &self,
+        changes_: Value<'_, SieveProperty, SieveValue>,
+        update: Option<(u32, Archive<&'x ArchivedSieveScript>)>,
+        ctx: &SetContext,
+        session_id: u64,
+    ) -> impl Future<Output = trc::Result<Result<SetItemResponse<'x>, SetError<SieveProperty>>>> + Send;
+}
+
+impl SieveScriptSet for Server {
+    async fn sieve_script_set(
+        &self,
+        mut request: SetRequest<'_, Sieve>,
+        access_token: &AccessToken,
+        session: &HttpSessionData,
+        using: CapabilityIds,
+    ) -> trc::Result<SetResponse<Sieve>> {
+        let account_id = request.account_id.document_id();
+        let object_metadata =
+            ObjectMetadata::new(self, access_token, using, MetadataType::SieveScript);
+        let sampled = object_metadata.viewer_change_id(self, account_id).await?;
+        let sieve_ids = self
+            .document_ids(account_id, Collection::SieveScript, SieveField::Name)
+            .await?;
+        let account = self.account(account_id).await.caused_by(trc::location!())?;
+        let shared_state = self
+            .get_state(account_id, SyncCollection::SieveScript)
+            .await?;
+        let mut ctx = SetContext {
+            account_id,
+            access_token,
+            disk_quota: if request.has_creates() || request.has_updates() {
+                self.disk_quota_budget(&account)
+                    .await
+                    .caused_by(trc::location!())?
+            } else {
+                DiskQuotaBudget::unlimited()
+            },
+            response: SetResponse::from_request(&request, self.core.jmap.set_max_objects)?
+                .with_state(sampled.assert_state(shared_state.clone(), &request.if_in_state)?),
+        };
+        let mut metadata_writer =
+            MetadataWriter::new(object_metadata, account_id).with_owner(account.clone());
+        metadata_writer
+            .preload_updates(self, request.update.as_ref(), |_| Some(MetadataKinds::JMAP))
+            .await?;
+        let will_destroy = ctx.response.collect_will_destroy(request.unwrap_destroy());
+
+        // Validate active script id
+        if let Some(MaybeIdReference::Id(id)) = &request.arguments.on_success_activate_script
+            && !sieve_ids.contains(id.document_id())
+        {
+            request.arguments.on_success_activate_script = None;
+        }
+
+        // Process creates
+        let mut batch = BatchBuilder::new();
+        let mut activations: Vec<(PendingId, bool)> = Vec::new();
+        let mut activate_script = match &request.arguments.on_success_activate_script {
+            Some(MaybeIdReference::Id(id)) => Some(PendingId::Assigned(id.document_id())),
+            _ => None,
+        };
+        let mut pending_creates: Vec<PendingSieveScript> = Vec::new();
+        'create: for (id, mut object) in request.unwrap_create() {
+            if sieve_ids.len()
+                < self.object_quota(account.object_quotas(), StorageQuota::MaxSieveScripts) as u64
+            {
+                let metadata_patches =
+                    match object_metadata.extract(MetadataPatches::for_create(), &mut object) {
+                        Ok(patches) => patches,
+                        Err(err) => {
+                            ctx.response.not_created.append(id, err);
+                            continue 'create;
+                        }
+                    };
+                match self
+                    .sieve_set_item(object, None, &ctx, session.session_id)
+                    .await?
+                {
+                    Ok(mut result) => {
+                        let metadata_writes = match sieve_metadata_writes(
+                            self,
+                            &mut metadata_writer,
+                            metadata_patches,
+                            result.builder.changes_mut(),
+                            MetadataTarget::Create,
+                        )
+                        .await?
+                        {
+                            Ok(writes) => writes,
+                            Err(err) => {
+                                ctx.response.not_created.append(id, err);
+                                continue 'create;
+                            }
+                        };
+                        // Store blob
+                        let sieve = &mut result.builder.changes_mut().unwrap();
+                        let blob = result.blob_update.as_deref().ok_or_else(|| {
+                            trc::StoreEvent::UnexpectedError
+                                .caused_by(trc::location!())
+                                .ctx(trc::Key::Reason, "Created script carries no blob.")
+                        })?;
+                        let (blob_hash, blob_hold) = self
+                            .hold_blob(account_id, BlobHash::generate(blob), blob, 60)
+                            .await?;
+                        sieve.blob_hash = blob_hash;
+                        let blob_size = sieve.size as usize;
+                        ctx.disk_quota.reserve(blob_size as u64);
+                        let blob_hash = sieve.blob_hash.clone();
+
+                        // Write record
+                        let slot = batch.reserve_document_id(account_id, Collection::SieveScript);
+                        batch
+                            .with_account_id(account_id)
+                            .with_collection(Collection::SieveScript)
+                            .create_document(slot)
+                            .custom(
+                                result
+                                    .builder
+                                    .with_changed_by(ctx.access_token.changed_by()),
+                            )
+                            .caused_by(trc::location!())?;
+                        blob_hold.release(&mut batch);
+                        if let Some(prepared) = metadata_writes {
+                            metadata_writer
+                                .write(prepared, slot, &mut batch)
+                                .caused_by(trc::location!())?;
+                        }
+                        batch.commit_point();
+
+                        // Set isActive if needed
+                        if let Some(set_item) = result.set_item {
+                            activations.push((PendingId::Slot(slot), set_item));
+                        }
+
+                        // Update active script if needed
+                        let is_active = if let Some(MaybeIdReference::Reference(id_ref)) =
+                            &request.arguments.on_success_activate_script
+                            && id_ref == &id
+                        {
+                            activate_script = Some(PendingId::Slot(slot));
+                            true
+                        } else {
+                            false
+                        };
+
+                        pending_creates.push(PendingSieveScript {
+                            id,
+                            slot,
+                            blob_hash,
+                            blob_size,
+                            is_active,
+                        });
+                    }
+                    Err(err) => {
+                        ctx.response.not_created.append(id, err);
+                    }
+                }
+            } else {
+                ctx.response.not_created.append(
+                    id,
+                    SetError::new(SetErrorType::OverQuota).with_description(concat!(
+                        "There are too many sieve scripts, ",
+                        "please delete some before adding a new one."
+                    )),
+                );
+            }
+        }
+
+        // Process updates
+        'update: for (id, mut object) in request.unwrap_update() {
+            let id = match id {
+                MaybeInvalid::Value(id) => id,
+                invalid => {
+                    ctx.response
+                        .not_updated
+                        .append(invalid, SetError::not_found());
+                    continue 'update;
+                }
+            };
+            // Make sure id won't be destroyed
+            if will_destroy.contains(&id) {
+                ctx.response
+                    .not_updated
+                    .append(id, SetError::will_destroy());
+                continue 'update;
+            }
+            let metadata_patches =
+                match object_metadata.extract(MetadataPatches::for_update(), &mut object) {
+                    Ok(patches) => patches,
+                    Err(err) => {
+                        ctx.response.not_updated.append(id, err);
+                        continue 'update;
+                    }
+                };
+
+            // Obtain sieve script
+            let document_id = id.document_id();
+            if let Some(sieve_) = self
+                .store()
+                .get_value::<Archive<ArchiveBytes>>(ValueKey::archive(
+                    account_id,
+                    Collection::SieveScript,
+                    document_id,
+                ))
+                .await?
+            {
+                let sieve = sieve_
+                    .to_unarchived::<SieveScript>()
+                    .caused_by(trc::location!())?;
+                let is_metadata_only = metadata_patches.is_some()
+                    && object
+                        .as_object()
+                        .is_some_and(|object| is_empty_update::<Sieve>(object, id));
+                let is_activated = matches!(
+                    &request.arguments.on_success_activate_script,
+                    Some(MaybeIdReference::Id(active_id)) if active_id.document_id() == document_id
+                );
+
+                if is_metadata_only {
+                    let metadata_writes = match sieve_metadata_writes(
+                        self,
+                        &mut metadata_writer,
+                        metadata_patches,
+                        None,
+                        MetadataTarget::Update { document_id },
+                    )
+                    .await?
+                    {
+                        Ok(writes) => writes,
+                        Err(err) => {
+                            ctx.response.not_updated.append(id, err);
+                            continue 'update;
+                        }
+                    };
+                    if let Some(prepared) = metadata_writes {
+                        if let Some(presence) = metadata_writer
+                            .write(prepared, document_id, &mut batch)
+                            .caused_by(trc::location!())?
+                        {
+                            SieveScript::rewrite_presence(
+                                &sieve,
+                                presence.after,
+                                account_id,
+                                document_id,
+                                &mut batch,
+                            )
+                            .caused_by(trc::location!())?;
+                        }
+                        batch.commit_point();
+                    }
+                    let result = is_activated.then(|| {
+                        Value::Object(
+                            Map::with_capacity(1).with_key_value(SieveProperty::IsActive, true),
+                        )
+                    });
+                    ctx.response.updated.append(id, result);
+                    continue 'update;
+                }
+                if sieve.inner.name.eq_ignore_ascii_case("vacation") {
+                    ctx.response.not_updated.append(id, vacation_forbidden());
+                    continue 'update;
+                }
+
+                match self
+                    .sieve_set_item(
+                        object,
+                        (document_id, sieve).into(),
+                        &ctx,
+                        session.session_id,
+                    )
+                    .await?
+                {
+                    Ok(mut result) => {
+                        let metadata_writes = match sieve_metadata_writes(
+                            self,
+                            &mut metadata_writer,
+                            metadata_patches,
+                            result.builder.changes_mut(),
+                            MetadataTarget::Update { document_id },
+                        )
+                        .await?
+                        {
+                            Ok(writes) => writes,
+                            Err(err) => {
+                                ctx.response.not_updated.append(id, err);
+                                continue 'update;
+                            }
+                        };
+                        // Prepare write batch
+                        batch
+                            .with_account_id(account_id)
+                            .with_collection(Collection::SieveScript)
+                            .with_document(document_id);
+
+                        let blob_id = if let Some(blob) = result.blob_update.take() {
+                            // Store blob
+                            let sieve = &mut result.builder.changes_mut().unwrap();
+                            let (blob_hash, blob_hold) = self
+                                .hold_blob(account_id, BlobHash::generate(&blob), &blob, 60)
+                                .await?;
+                            sieve.blob_hash = blob_hash;
+                            blob_hold.release(&mut batch);
+                            ctx.disk_quota.reserve(blob.len() as u64);
+
+                            BlobId {
+                                hash: sieve.blob_hash.clone(),
+                                class: BlobClass::Linked {
+                                    account_id,
+                                    collection: Collection::SieveScript.into(),
+                                    document_id,
+                                },
+                                section: BlobSection::new(0, sieve.size as usize, 0).into(),
+                            }
+                            .into()
+                        } else {
+                            None
+                        };
+
+                        // Set isActive if needed
+                        if let Some(set_item) = result.set_item {
+                            activations.push((PendingId::Assigned(document_id), set_item));
+                        }
+
+                        // Write record
+                        batch
+                            .custom(
+                                result
+                                    .builder
+                                    .with_changed_by(ctx.access_token.changed_by()),
+                            )
+                            .caused_by(trc::location!())?;
+                        if let Some(prepared) = metadata_writes {
+                            metadata_writer
+                                .write(prepared, document_id, &mut batch)
+                                .caused_by(trc::location!())?;
+                        }
+                        batch.commit_point();
+
+                        // Update blobId property if needed
+                        let mut result = Map::with_capacity(1);
+                        if let Some(blob_id) = blob_id {
+                            result.insert_unchecked(
+                                SieveProperty::BlobId,
+                                SieveValue::BlobId(blob_id),
+                            );
+                        }
+
+                        // Add active script property if needed
+                        if is_activated {
+                            result.insert_unchecked(SieveProperty::IsActive, true);
+                        }
+
+                        // Add result
+                        ctx.response.updated.append(
+                            id,
+                            if !result.is_empty() {
+                                Value::Object(result).into()
+                            } else {
+                                None
+                            },
+                        );
+                    }
+                    Err(err) => {
+                        ctx.response.not_updated.append(id, err);
+                        continue 'update;
+                    }
+                }
+            } else {
+                ctx.response.not_updated.append(id, SetError::not_found());
+            }
+        }
+
+        // Process deletions
+        let active_script_id = self.sieve_script_get_active_id(account_id).await?;
+        for id in will_destroy {
+            let document_id = id.document_id();
+            if sieve_ids.contains(document_id) {
+                if active_script_id != Some(document_id) {
+                    if self
+                        .sieve_script_delete(account_id, document_id, ctx.access_token, &mut batch)
+                        .await?
+                    {
+                        ctx.response.destroyed.push(id);
+                    } else {
+                        ctx.response.not_destroyed.append(id, SetError::not_found());
+                    }
+                } else {
+                    ctx.response.not_destroyed.append(
+                        id,
+                        SetError::new(SetErrorType::ScriptIsActive)
+                            .with_description("Deactivate Sieve script before deletion."),
+                    );
+                }
+            } else {
+                ctx.response.not_destroyed.append(id, SetError::not_found());
+            }
+        }
+
+        // Non-standard script activation handling
+        let mut deactivate = if request
+            .arguments
+            .on_success_deactivate_script
+            .unwrap_or(false)
+        {
+            Deactivate::Always
+        } else {
+            Deactivate::No
+        };
+        if let [(document_id, set_item)] = activations[..] {
+            let active_id = document_id
+                .assigned()
+                .filter(|document_id| active_script_id == Some(*document_id));
+            if set_item {
+                if request.arguments.on_success_activate_script.is_none() && active_id.is_none() {
+                    activate_script = Some(document_id);
+                }
+            } else if let (Deactivate::No, Some(active_id)) = (deactivate, active_id) {
+                deactivate = Deactivate::IfActive(active_id);
+            }
+        }
+
+        // Activate / deactivate scripts
+        let mut active_script_changed = false;
+        if ctx.response.not_created.is_empty()
+            && ctx.response.not_updated.is_empty()
+            && ctx.response.not_destroyed.is_empty()
+        {
+            active_script_changed =
+                activate_script.is_some() || !matches!(deactivate, Deactivate::No);
+            match (activate_script, deactivate) {
+                (Some(document_id), _) => {
+                    batch
+                        .with_account_id(account_id)
+                        .with_collection(Collection::Principal)
+                        .with_document(0)
+                        .set(PrincipalField::ActiveScriptId, document_id);
+                }
+                (None, Deactivate::IfActive(document_id)) => {
+                    batch
+                        .with_account_id(account_id)
+                        .with_collection(Collection::Principal)
+                        .with_document(0)
+                        .clear_if_equals(PrincipalField::ActiveScriptId, document_id);
+                }
+                (None, Deactivate::Always) => {
+                    batch
+                        .with_account_id(account_id)
+                        .with_collection(Collection::Principal)
+                        .with_document(0)
+                        .clear(PrincipalField::ActiveScriptId);
+                }
+                (None, Deactivate::No) => {}
+            }
+        }
+
+        // Write changes
+        let mut shared_change_id = None;
+        if !batch.is_empty() {
+            match metadata_writer.commit(self, batch).await {
+                Ok(assigned_ids) => {
+                    shared_change_id =
+                        assigned_ids.change_id(account_id, SyncCollection::SieveScript);
+                    if active_script_changed {
+                        self.invalidate_caches(
+                            CacheInvalidation::ActiveSieveScript(account_id).into(),
+                        )
+                        .await
+                        .caused_by(trc::location!())?;
+                    }
+
+                    for create in pending_creates {
+                        let document_id = assigned_ids.slot(create.slot);
+                        let mut result = Map::with_capacity(1)
+                            .with_key_value(SieveProperty::Id, SieveValue::Id(document_id.into()))
+                            .with_key_value(
+                                SieveProperty::BlobId,
+                                SieveValue::BlobId(BlobId {
+                                    hash: create.blob_hash,
+                                    class: BlobClass::Linked {
+                                        account_id,
+                                        collection: Collection::SieveScript.into(),
+                                        document_id,
+                                    },
+                                    section: BlobSection::new(0, create.blob_size, 0).into(),
+                                }),
+                            );
+                        if create.is_active {
+                            result.insert_unchecked(SieveProperty::IsActive, true);
+                        }
+                        ctx.response.created.insert(create.id, result.into());
+                    }
+                }
+                Err(err) if err.is_assertion_failure() => {
+                    reject_uncommitted(
+                        &mut ctx.response,
+                        pending_creates.into_iter().map(|create| create.id),
+                        "Another process modified this script, please try again.",
+                    );
+                }
+                Err(err) => {
+                    return Err(err.caused_by(trc::location!()));
+                }
+            }
+        }
+
+        if shared_change_id.is_some() {
+            ctx.response.new_state = object_metadata
+                .viewer_change_id(self, account_id)
+                .await?
+                .state(shared_change_id.map_or(shared_state, State::Exact))
+                .into();
+        }
+
+        Ok(ctx.response)
+    }
+
+    #[allow(clippy::blocks_in_conditions)]
+    async fn sieve_set_item<'x>(
+        &self,
+        changes_: Value<'_, SieveProperty, SieveValue>,
+        update: Option<(u32, Archive<&'x ArchivedSieveScript>)>,
+        ctx: &SetContext<'_>,
+        session_id: u64,
+    ) -> trc::Result<Result<SetItemResponse<'x>, SetError<SieveProperty>>> {
+        // Parse properties
+        let mut set_item = None;
+        let mut changes = update
+            .as_ref()
+            .map(|(_, obj)| obj.deserialize().unwrap_or_default())
+            .unwrap_or_default();
+        let mut blob_id = None;
+        for (property, mut value) in changes_.into_expanded_object() {
+            if let Err(err) = ctx.response.resolve_self_references(&mut value, 0, false) {
+                return Ok(Err(err));
+            };
+            match (&property, value) {
+                (Key::Property(SieveProperty::Name), Value::Str(value)) => {
+                    if value.len() > self.core.email.sieve_max_script_name {
+                        return Ok(Err(SetError::invalid_properties()
+                            .with_property(property.into_owned())
+                            .with_description("Script name is too long.")));
+                    } else if value.eq_ignore_ascii_case("vacation") {
+                        return Ok(Err(SetError::forbidden()
+                            .with_property(property.into_owned())
+                            .with_description(
+                                "The 'vacation' name is reserved, please use a different name.",
+                            )));
+                    } else if update
+                        .as_ref()
+                        .is_none_or(|(_, obj)| obj.inner.name != value.as_ref())
+                        && let Some(id) = self
+                            .document_ids_matching(
+                                ctx.account_id,
+                                Collection::SieveScript,
+                                SieveField::Name,
+                                value.to_lowercase().as_bytes(),
+                            )
+                            .await?
+                            .iter()
+                            .find(|id| {
+                                update
+                                    .as_ref()
+                                    .is_none_or(|(document_id, _)| id != document_id)
+                            })
+                    {
+                        return Ok(Err(SetError::already_exists()
+                            .with_existing_id(id.into())
+                            .with_description(format!(
+                                "A sieve script with name '{}' already exists.",
+                                value
+                            ))));
+                    }
+
+                    changes.name = value.into_owned();
+                }
+                (
+                    Key::Property(SieveProperty::BlobId),
+                    Value::Element(SieveValue::BlobId(value)),
+                ) => {
+                    blob_id = value.into();
+                    continue;
+                }
+                (Key::Property(SieveProperty::Name), Value::Null) => {
+                    continue;
+                }
+                (Key::Property(SieveProperty::IsActive), Value::Bool(value)) => {
+                    set_item = Some(value);
+                    continue;
+                }
+                (Key::Property(SieveProperty::Id), value) => {
+                    if update
+                        .as_ref()
+                        .map(|(document_id, _)| Id::from(*document_id))
+                        .is_none_or(|expected| !crate::matches_id(&value, expected))
+                    {
+                        return Ok(Err(SetError::invalid_properties()
+                            .with_property(SieveProperty::Id)
+                            .with_description("The id property is immutable.".to_string())));
+                    }
+                }
+                _ => {
+                    return Ok(Err(SetError::invalid_properties()
+                        .with_property(property.into_owned())
+                        .with_description("Invalid property or value.".to_string())));
+                }
+            }
+        }
+
+        if update.is_none() {
+            // Add name if missing
+            if changes.name.is_empty() {
+                changes.name = rng()
+                    .sample_iter(Alphanumeric)
+                    .take(15)
+                    .map(char::from)
+                    .collect::<String>();
+            }
+        }
+
+        let blob_update = if let Some(blob_id) = blob_id {
+            if update.as_ref().is_none_or( |(document_id, _)| {
+                !matches!(blob_id.class, BlobClass::Linked { account_id, collection, document_id: d } if account_id == ctx.account_id && collection == u8::from(Collection::SieveScript) && *document_id == d)
+            }) {
+                // Check access
+                if let Some(bytes) = self.blob_download(&blob_id, ctx.access_token).await? {
+                    // Check quota
+                    if let Err(event) = ctx.disk_quota.check(bytes.len() as u64) {
+                        trc::error!(
+                            event
+                                .into_err()
+                                .account_id(ctx.account_id)
+                                .span_id(session_id)
+                        );
+                        return Ok(Err(SetError::over_quota()));
+                    }
+
+                    // Compile script
+                    match self.core.sieve.untrusted_compiler.compile(&bytes) {
+                        Ok(script) => {
+                            changes.size = bytes.len() as u32;
+                            changes.set_script(&script);
+                            Some(bytes.into_bytes())
+                        }
+                        Err(err) => {
+                            return Ok(Err(SetError::new(
+                                if let ErrorType::ScriptTooLong = &err.error_type() {
+                                    SetErrorType::TooLarge
+                                } else {
+                                    SetErrorType::InvalidScript
+                                },
+                            )
+                            .with_description(err.to_string())));
+                        }
+                    }
+                } else {
+                    return Ok(Err(SetError::new(SetErrorType::BlobNotFound)
+                        .with_property(SieveProperty::BlobId)
+                        .with_description("Blob does not exist.")));
+                }
+            } else {
+                None
+            }
+        } else if update.is_none() {
+            return Ok(Err(SetError::invalid_properties()
+                .with_property(SieveProperty::BlobId)
+                .with_description("Missing blobId.")));
+        } else {
+            None
+        };
+
+        // Validate
+        Ok(Ok(SetItemResponse {
+            builder: ObjectIndexBuilder::new()
+                .with_changes(changes)
+                .with_current_opt(update.map(|(_, current)| current)),
+            blob_update,
+            set_item,
+        }))
+    }
+}
+
+async fn sieve_metadata_writes(
+    server: &Server,
+    writer: &mut MetadataWriter,
+    patches: Option<MetadataPatches>,
+    script: Option<&mut SieveScript>,
+    target: MetadataTarget,
+) -> trc::Result<Result<Option<PreparedMetadata>, SetError<SieveProperty>>> {
+    let Some(patches) = patches else {
+        return Ok(Ok(None));
+    };
+    let prepared = match writer
+        .prepare_for(server, patches, MetadataAccess::FULL, target)
+        .await?
+    {
+        Ok(prepared) if prepared.is_empty() => return Ok(Ok(None)),
+        Ok(prepared) => prepared,
+        Err(err) => return Ok(Err(err)),
+    };
+    if let Some((kinds, script)) = prepared.shared_kinds().zip(script) {
+        script.set_metadata_kinds(kinds);
+    }
+    Ok(Ok(Some(prepared)))
+}
+
+pub struct SetItemResponse<'x> {
+    builder: ObjectIndexBuilder<Archive<&'x ArchivedSieveScript>, SieveScript>,
+    blob_update: Option<Vec<u8>>,
+    set_item: Option<bool>,
+}
+
+fn vacation_forbidden() -> SetError<SieveProperty> {
+    SetError::forbidden().with_description(concat!(
+        "The 'vacation' script cannot be modified, ",
+        "use VacationResponse/set instead."
+    ))
+}

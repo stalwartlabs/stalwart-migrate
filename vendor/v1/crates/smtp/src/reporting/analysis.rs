@@ -1,0 +1,465 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+// SPDX-SnippetBegin
+// SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+// SPDX-License-Identifier: LicenseRef-SEL
+#[cfg(feature = "enterprise")]
+use ahash::AHashSet;
+#[cfg(feature = "enterprise")]
+use common::psl;
+// SPDX-SnippetEnd
+use common::Server;
+use compact_str::{CompactString, ToCompactString, format_compact};
+use mail_parser::{Message, MessagePart, PartKind};
+use registry::{
+    schema::structs::{ArfExternalReport, DmarcExternalReport, TlsExternalReport},
+    types::datetime::UTCDateTime,
+};
+use smtp_report::{
+    arf::FeedbackReport, dmarc::AggregateReport, flate2::read::GzDecoder, tlsrpt::TlsReport, zip,
+};
+use std::{
+    borrow::Cow,
+    io::{Cursor, Read},
+};
+use store::write::{BatchBuilder, now};
+use trc::IncomingReportEvent;
+// SPDX-SnippetBegin
+// SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+// SPDX-License-Identifier: LicenseRef-SEL
+#[cfg(feature = "enterprise")]
+use types::id::Id;
+// SPDX-SnippetEnd
+
+use crate::reporting::{inbound::LogReport, index::ExternalReportIndex};
+
+enum Compression {
+    None,
+    Gzip,
+    Zip,
+}
+
+enum Format<D, T, A> {
+    Dmarc(D),
+    Tls(T),
+    Arf(A),
+}
+
+pub(crate) struct ReportData<'x> {
+    compression: Compression,
+    format: Format<(), (), ()>,
+    data: Cow<'x, [u8]>,
+}
+
+impl<'x> ReportData<'x> {
+    fn from_part(part: MessagePart<'x>) -> Option<Self> {
+        let (compression, format) = Self::classify(&part)?;
+        Some(ReportData {
+            compression,
+            format,
+            data: match part.text() {
+                Some(Cow::Borrowed(text)) => Cow::Borrowed(text.as_bytes()),
+                Some(Cow::Owned(text)) => Cow::Owned(text.into_bytes()),
+                None => part.decoded(),
+            },
+        })
+    }
+
+    fn classify(part: &MessagePart<'_>) -> Option<(Compression, Format<(), (), ()>)> {
+        match part.kind() {
+            PartKind::Text => {
+                if part
+                    .content_type()
+                    .and_then(|ct| ct.subtype())
+                    .is_some_and(|t| t.eq_ignore_ascii_case("xml"))
+                    || part
+                        .attachment_name()
+                        .and_then(|n| n.rsplit_once('.'))
+                        .is_some_and(|(_, e)| e.eq_ignore_ascii_case("xml"))
+                {
+                    Some((Compression::None, Format::Dmarc(())))
+                } else if part.is_content_type("message", "feedback-report") {
+                    Some((Compression::None, Format::Arf(())))
+                } else {
+                    None
+                }
+            }
+            PartKind::Binary | PartKind::InlineBinary => {
+                if part.is_content_type("message", "feedback-report") {
+                    return Some((Compression::None, Format::Arf(())));
+                }
+
+                let subtype = part
+                    .content_type()
+                    .and_then(|ct| ct.subtype())
+                    .unwrap_or("");
+                let attachment_name = part.attachment_name();
+                let ext = attachment_name
+                    .and_then(|f| f.rsplit_once('.'))
+                    .map_or("", |(_, e)| e);
+                let tls_parts = subtype.rsplit_once('+');
+                let compression = match (tls_parts.map(|(_, c)| c).unwrap_or(subtype), ext) {
+                    ("gzip", _) => Compression::Gzip,
+                    ("zip", _) => Compression::Zip,
+                    (_, "gz") => Compression::Gzip,
+                    (_, "zip") => Compression::Zip,
+                    _ => Compression::None,
+                };
+                let format = match (tls_parts.map(|(c, _)| c).unwrap_or(subtype), ext) {
+                    ("xml", _) => Format::Dmarc(()),
+                    ("tlsrpt", _) | (_, "json") => Format::Tls(()),
+                    _ => {
+                        if attachment_name.is_some_and(|n| n.contains(".xml") || n.contains('!')) {
+                            Format::Dmarc(())
+                        } else {
+                            return None;
+                        }
+                    }
+                };
+
+                Some((compression, format))
+            }
+            _ => None,
+        }
+    }
+
+    fn extract(message: &'x Message<'x>) -> Vec<Self> {
+        message.root().parts().filter_map(Self::from_part).collect()
+    }
+
+    pub(crate) fn is_present(message: &Message<'_>) -> bool {
+        message
+            .root()
+            .parts()
+            .any(|part| ReportData::classify(&part).is_some())
+    }
+}
+
+pub trait AnalyzeReport: Sync + Send {
+    fn analyze_report(&self, message: Message<'static>, session_id: u64);
+}
+
+impl AnalyzeReport for Server {
+    fn analyze_report(&self, message: Message<'static>, session_id: u64) {
+        let core = self.clone();
+        tokio::spawn(async move {
+            let from: String = message
+                .from()
+                .and_then(|a| a.last())
+                .and_then(|a| a.address())
+                .unwrap_or_default()
+                .into();
+            let to: Vec<String> = message.to().map_or_else(Vec::new, |a| {
+                a.mailboxes()
+                    .filter_map(|a| a.address())
+                    .map(|a| a.into())
+                    .collect()
+            });
+            let subject: String = message.subject().unwrap_or_default().into();
+            let reports = ReportData::extract(&message);
+            let max_size = core.core.smtp.report.analysis.max_size;
+
+            for report in reports {
+                let data = match report.compression {
+                    Compression::None => report.data,
+                    Compression::Gzip => {
+                        match read_capped(GzDecoder::new(report.data.as_ref()), 0, max_size) {
+                            Ok(buf) => Cow::Owned(buf),
+                            Err(err) => {
+                                trc::event!(
+                                    IncomingReport(IncomingReportEvent::DecompressError),
+                                    SpanId = session_id,
+                                    From = CompactString::from(&from),
+                                    Reason = err.to_compact_string(),
+                                    CausedBy = trc::location!()
+                                );
+
+                                continue;
+                            }
+                        }
+                    }
+                    Compression::Zip => {
+                        let data = report.data.to_vec();
+                        let result = tokio::task::spawn_blocking(
+                            move || -> Result<Vec<u8>, std::io::Error> {
+                                let mut archive = zip::ZipArchive::new(Cursor::new(data))
+                                    .map_err(std::io::Error::other)?;
+                                if archive.is_empty() {
+                                    return Ok(Vec::new());
+                                }
+                                let mut file =
+                                    archive.by_index(0).map_err(std::io::Error::other)?;
+                                let size_hint = file.size();
+                                read_capped(&mut file, size_hint, max_size)
+                            },
+                        )
+                        .await;
+                        match result {
+                            Ok(Ok(buf)) => Cow::Owned(buf),
+                            Ok(Err(err)) => {
+                                trc::event!(
+                                    IncomingReport(IncomingReportEvent::DecompressError),
+                                    SpanId = session_id,
+                                    From = CompactString::from(&from),
+                                    Reason = err.to_compact_string(),
+                                    CausedBy = trc::location!()
+                                );
+                                continue;
+                            }
+                            Err(err) => {
+                                trc::event!(
+                                    IncomingReport(IncomingReportEvent::DecompressError),
+                                    SpanId = session_id,
+                                    From = CompactString::from(&from),
+                                    Reason = err.to_compact_string(),
+                                    CausedBy = trc::location!()
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                };
+
+                let report = match report.format {
+                    Format::Dmarc(_) => match AggregateReport::parse_xml(&data) {
+                        Ok(report) => {
+                            // Log
+                            report.log();
+                            Format::Dmarc(report)
+                        }
+                        Err(err) => {
+                            trc::event!(
+                                IncomingReport(IncomingReportEvent::DmarcParseFailed),
+                                SpanId = session_id,
+                                From = CompactString::from(&from),
+                                Reason = err.to_compact_string(),
+                                CausedBy = trc::location!()
+                            );
+
+                            continue;
+                        }
+                    },
+                    Format::Tls(_) => match TlsReport::parse_json(&data) {
+                        Ok(report) => {
+                            // Log
+                            report.log();
+                            Format::Tls(report)
+                        }
+                        Err(err) => {
+                            trc::event!(
+                                IncomingReport(IncomingReportEvent::TlsRpcParseFailed),
+                                SpanId = session_id,
+                                From = CompactString::from(&from),
+                                Reason = format_compact!("{err:?}"),
+                                CausedBy = trc::location!()
+                            );
+
+                            continue;
+                        }
+                    },
+                    Format::Arf(_) => match FeedbackReport::parse_arf(&data) {
+                        Ok(report) => {
+                            // Log
+                            report.log();
+                            Format::Arf(report.into_owned())
+                        }
+                        Err(err) => {
+                            trc::event!(
+                                IncomingReport(IncomingReportEvent::ArfParseFailed),
+                                SpanId = session_id,
+                                From = CompactString::from(&from),
+                                Reason = err.to_compact_string(),
+                                CausedBy = trc::location!()
+                            );
+
+                            continue;
+                        }
+                    },
+                };
+
+                // Store report
+                if let Some(expires_in) = &core.core.smtp.report.analysis.store {
+                    let expires = now() + expires_in.as_secs();
+                    let item_id = core.inner.data.queue_id_gen.generate();
+                    let mut batch = BatchBuilder::new();
+
+                    match report {
+                        Format::Dmarc(report) => {
+                            #[cfg_attr(not(feature = "enterprise"), allow(unused_mut))]
+                            let mut report = DmarcExternalReport {
+                                from,
+                                to: to.into(),
+                                subject,
+                                // SPDX-SnippetBegin
+                                // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                                // SPDX-License-Identifier: LicenseRef-SEL
+                                #[cfg(feature = "enterprise")]
+                                member_tenant_id: None,
+                                // SPDX-SnippetEnd
+                                expires_at: UTCDateTime::from_timestamp(expires as i64),
+                                received_at: UTCDateTime::now(),
+                                report: report.into(),
+                            };
+                            // SPDX-SnippetBegin
+                            // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                            // SPDX-License-Identifier: LicenseRef-SEL
+                            #[cfg(feature = "enterprise")]
+                            {
+                                report.member_tenant_id = tenant_ids(
+                                    &core,
+                                    report
+                                        .domains()
+                                        .filter_map(psl::domain_str)
+                                        .collect::<AHashSet<_>>(),
+                                )
+                                .await;
+                            }
+                            // SPDX-SnippetEnd
+                            report.write_ops(&mut batch, item_id, true);
+                        }
+                        Format::Tls(report) => {
+                            #[cfg_attr(not(feature = "enterprise"), allow(unused_mut))]
+                            let mut report = TlsExternalReport {
+                                from,
+                                to: to.into(),
+                                subject,
+                                // SPDX-SnippetBegin
+                                // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                                // SPDX-License-Identifier: LicenseRef-SEL
+                                #[cfg(feature = "enterprise")]
+                                member_tenant_id: None,
+                                // SPDX-SnippetEnd
+                                expires_at: UTCDateTime::from_timestamp(expires as i64),
+                                received_at: UTCDateTime::now(),
+                                report: report.into(),
+                            };
+                            // SPDX-SnippetBegin
+                            // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                            // SPDX-License-Identifier: LicenseRef-SEL
+                            #[cfg(feature = "enterprise")]
+                            {
+                                report.member_tenant_id = tenant_ids(
+                                    &core,
+                                    report
+                                        .domains()
+                                        .filter_map(psl::domain_str)
+                                        .collect::<AHashSet<_>>(),
+                                )
+                                .await;
+                            }
+                            // SPDX-SnippetEnd
+                            report.write_ops(&mut batch, item_id, true);
+                        }
+                        Format::Arf(report) => {
+                            #[cfg_attr(not(feature = "enterprise"), allow(unused_mut))]
+                            let mut report = ArfExternalReport {
+                                from,
+                                to: to.into(),
+                                subject,
+                                // SPDX-SnippetBegin
+                                // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                                // SPDX-License-Identifier: LicenseRef-SEL
+                                #[cfg(feature = "enterprise")]
+                                member_tenant_id: None,
+                                // SPDX-SnippetEnd
+                                expires_at: UTCDateTime::from_timestamp(expires as i64),
+                                received_at: UTCDateTime::now(),
+                                report: report.into(),
+                            };
+                            // SPDX-SnippetBegin
+                            // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                            // SPDX-License-Identifier: LicenseRef-SEL
+                            #[cfg(feature = "enterprise")]
+                            {
+                                report.member_tenant_id = tenant_ids(
+                                    &core,
+                                    report
+                                        .domains()
+                                        .filter_map(psl::domain_str)
+                                        .collect::<AHashSet<_>>(),
+                                )
+                                .await;
+                            }
+                            // SPDX-SnippetEnd
+                            report.write_ops(&mut batch, item_id, true);
+                        }
+                    }
+
+                    if let Err(err) = core.core.storage.data.write_batch(&mut batch).await
+                        && !err.is_assertion_failure()
+                    {
+                        trc::error!(
+                            err.span_id(session_id)
+                                .caused_by(trc::location!())
+                                .details("Failed to write report")
+                        );
+                    }
+                }
+                return;
+            }
+        });
+    }
+}
+
+// SPDX-SnippetBegin
+// SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+// SPDX-License-Identifier: LicenseRef-SEL
+#[cfg(feature = "enterprise")]
+async fn tenant_ids(server: &Server, domains: AHashSet<&str>) -> Option<Id> {
+    let mut tenant_ids = Vec::with_capacity(domains.len());
+    for domain in domains {
+        if let Some(tenant_id) = server
+            .domain(domain)
+            .await
+            .map_err(|err| {
+                trc::error!(
+                    err.caused_by(trc::location!())
+                        .details("Failed to lookup domain")
+                );
+            })
+            .unwrap_or_default()
+            .and_then(|domain| domain.id_tenant)
+            .map(Id::from)
+            && !tenant_ids.contains(&tenant_id)
+        {
+            tenant_ids.push(tenant_id);
+        }
+    }
+
+    if tenant_ids.len() == 1 {
+        tenant_ids.into_iter().next()
+    } else {
+        None
+    }
+}
+// SPDX-SnippetEnd
+
+fn read_capped(
+    reader: impl Read,
+    size_hint: u64,
+    max_size: usize,
+) -> Result<Vec<u8>, std::io::Error> {
+    let max_size = max_size as u64;
+    if size_hint > max_size {
+        return Err(std::io::Error::other(format!(
+            "Report is larger than the {max_size} byte limit"
+        )));
+    }
+
+    let mut buf = Vec::with_capacity(size_hint.min(64 * 1024) as usize);
+    reader
+        .take(max_size.saturating_add(1))
+        .read_to_end(&mut buf)?;
+
+    if buf.len() as u64 > max_size {
+        return Err(std::io::Error::other(format!(
+            "Report is larger than the {max_size} byte limit"
+        )));
+    }
+
+    Ok(buf)
+}

@@ -1,0 +1,48 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com",
+        "enable": false
+      }
+    },
+    {
+      "key": "x:Cache",
+      "value": {
+        "spamLookup": 6291456,
+        "messages": 335544320
+      }
+    },
+    {
+      "key": "x:Role/c",
+      "value": {
+        "description": "r",
+        "enabledPermissions": {
+          "sysSpamAiGet": true,
+          "imapMetadataGet": true
+        }
+      }
+    },
+    {
+      "key": "x:Tracer/d",
+      "value": {
+        "@type": "Log",
+        "path": "/l",
+        "prefix": "stalwart.log",
+        "events": {
+          "cache.miss": true,
+          "dkim.verification-failed": true,
+          "scim.request": true
+        }
+      }
+    },
+    {
+      "key": "x:Metadata",
+      "value": {
+        "maxDepth": 8
+      }
+    }
+  ]
+}

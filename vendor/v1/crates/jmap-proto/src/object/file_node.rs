@@ -1,0 +1,943 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    object::{
+        AnyId, JmapObject, JmapObjectId, JmapRight, JmapSharedObject, MaybeReference,
+        metadata::{MetadataFilter, MetadataProperty, MetadataRoot, property_names},
+        parse_ref,
+    },
+    request::{
+        MaybeInvalid,
+        deserialize::{CowStr, DeserializeArguments},
+    },
+    types::date::UTCDate,
+};
+use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, PointerDepth, Property};
+use serde::{Serialize, Serializer};
+use std::{borrow::Cow, fmt::Display, str::FromStr};
+use types::{acl::Acl, blob::BlobId, id::Id, text::Text};
+use utils::glob::GlobPattern;
+
+#[derive(Debug, Clone, Default)]
+pub struct FileNode;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileNodeProperty {
+    Id,
+    ParentId,
+    BlobId,
+    Size,
+    Name,
+    Type,
+    MediaType,
+    Target,
+    Created,
+    Modified,
+    Accessed,
+    Changed,
+    Executable,
+    Role,
+    MyRights,
+    ShareWith,
+    IsSubscribed,
+    Metadata,
+    PrivateMetadata,
+
+    IdValue(Id),
+    Rights(FileNodeRight),
+    Pointer(JsonPointer<FileNodeProperty>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileNodeRight {
+    MayRead,
+    MayAddChildren,
+    MayRename,
+    MayDelete,
+    MayModifyContent,
+    MayShare,
+    MaySetMetadata,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileNodeNodeType {
+    File,
+    Directory,
+    SymLink,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileNodeRole {
+    Root,
+    Home,
+    Temp,
+    Trash,
+    Documents,
+    Downloads,
+    Music,
+    Pictures,
+    Videos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileNodeValue {
+    Id(Id),
+    Date(UTCDate),
+    BlobId(BlobId),
+    IdReference(String),
+}
+
+impl Property for FileNodeProperty {
+    fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
+        Self::try_parse_nested(key, value, PointerDepth::default())
+    }
+
+    fn try_parse_nested(
+        key: Option<&Key<'_, Self>>,
+        value: &str,
+        depth: PointerDepth,
+    ) -> Option<Self> {
+        match key {
+            Some(Key::Property(key)) => match key.patch_or_prop() {
+                FileNodeProperty::ShareWith => {
+                    Id::from_str(value).ok().map(FileNodeProperty::IdValue)
+                }
+                _ => FileNodeProperty::parse_nested_name(value),
+            },
+            Some(_) => FileNodeProperty::parse_nested_name(value),
+            None => FileNodeProperty::parse(value, Some(depth)),
+        }
+    }
+
+    fn is_opaque(&self) -> bool {
+        self.metadata_root().is_some()
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.text().to_cow()
+    }
+
+    fn key_eq(&self, other: &Self) -> bool {
+        if self.has_dynamic_text() || other.has_dynamic_text() {
+            self.text().eq_text(other.text())
+        } else {
+            self == other
+        }
+    }
+
+    fn key_eq_str(&self, other: &str) -> bool {
+        self.text().eq_str(other)
+    }
+
+    fn serialize_text<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.text().serialize(serializer)
+    }
+}
+
+impl FileNodeRight {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FileNodeRight::MayRead => "mayRead",
+            FileNodeRight::MayAddChildren => "mayAddChildren",
+            FileNodeRight::MayRename => "mayRename",
+            FileNodeRight::MayDelete => "mayDelete",
+            FileNodeRight::MayModifyContent => "mayModifyContent",
+            FileNodeRight::MayShare => "mayShare",
+            FileNodeRight::MaySetMetadata => "maySetMetadata",
+        }
+    }
+}
+
+impl FileNodeNodeType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FileNodeNodeType::File => "File",
+            FileNodeNodeType::Directory => "Directory",
+            FileNodeNodeType::SymLink => "SymLink",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        hashify::map!(value.as_bytes(), FileNodeNodeType,
+            b"File" => FileNodeNodeType::File,
+            b"Directory" => FileNodeNodeType::Directory,
+            b"SymLink" => FileNodeNodeType::SymLink,
+        )
+        .copied()
+    }
+}
+
+impl FromStr for FileNodeNodeType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        FileNodeNodeType::parse(s).ok_or(())
+    }
+}
+
+impl Display for FileNodeNodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for FileNodeNodeType {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl FileNodeRole {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FileNodeRole::Root => "root",
+            FileNodeRole::Home => "home",
+            FileNodeRole::Temp => "temp",
+            FileNodeRole::Trash => "trash",
+            FileNodeRole::Documents => "documents",
+            FileNodeRole::Downloads => "downloads",
+            FileNodeRole::Music => "music",
+            FileNodeRole::Pictures => "pictures",
+            FileNodeRole::Videos => "videos",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        hashify::map!(value.as_bytes(), FileNodeRole,
+            b"root" => FileNodeRole::Root,
+            b"home" => FileNodeRole::Home,
+            b"temp" => FileNodeRole::Temp,
+            b"trash" => FileNodeRole::Trash,
+            b"documents" => FileNodeRole::Documents,
+            b"downloads" => FileNodeRole::Downloads,
+            b"music" => FileNodeRole::Music,
+            b"pictures" => FileNodeRole::Pictures,
+            b"videos" => FileNodeRole::Videos,
+        )
+        .copied()
+    }
+}
+
+impl FromStr for FileNodeRole {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        FileNodeRole::parse(s).ok_or(())
+    }
+}
+
+impl Display for FileNodeRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Element for FileNodeValue {
+    type Property = FileNodeProperty;
+
+    fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
+        if let Key::Property(prop) = key {
+            match prop.patch_or_prop() {
+                FileNodeProperty::Id | FileNodeProperty::ParentId => match parse_ref(value) {
+                    MaybeReference::Value(v) => Some(FileNodeValue::Id(v)),
+                    MaybeReference::Reference(v) => Some(FileNodeValue::IdReference(v)),
+                    MaybeReference::ParseError => None,
+                },
+                FileNodeProperty::BlobId => match parse_ref(value) {
+                    MaybeReference::Value(v) => Some(FileNodeValue::BlobId(v)),
+                    MaybeReference::Reference(v) => Some(FileNodeValue::IdReference(v)),
+                    MaybeReference::ParseError => None,
+                },
+                FileNodeProperty::Created
+                | FileNodeProperty::Modified
+                | FileNodeProperty::Accessed
+                | FileNodeProperty::Changed => {
+                    UTCDate::from_str(value).ok().map(FileNodeValue::Date)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.text().to_cow()
+    }
+
+    fn serialize_text<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            FileNodeValue::Date(date) => date.serialize(serializer),
+            value => value.text().serialize(serializer),
+        }
+    }
+}
+
+impl FileNodeValue {
+    pub fn text(&self) -> Text<'_> {
+        match self {
+            FileNodeValue::Id(id) => Text::Id(*id),
+            FileNodeValue::Date(utcdate) => Text::Display(utcdate),
+            FileNodeValue::BlobId(blob_id) => Text::Display(blob_id),
+            FileNodeValue::IdReference(r) => Text::Reference(r),
+        }
+    }
+}
+
+impl FileNodeProperty {
+    pub fn text(&self) -> Text<'_> {
+        Text::Static(match self {
+            FileNodeProperty::Id => "id",
+            FileNodeProperty::ParentId => "parentId",
+            FileNodeProperty::BlobId => "blobId",
+            FileNodeProperty::Size => "size",
+            FileNodeProperty::Name => "name",
+            FileNodeProperty::Type => "@type",
+            FileNodeProperty::MediaType => "mediaType",
+            FileNodeProperty::Target => "target",
+            FileNodeProperty::Created => "created",
+            FileNodeProperty::Modified => "modified",
+            FileNodeProperty::Accessed => "accessed",
+            FileNodeProperty::Changed => "changed",
+            FileNodeProperty::Executable => "executable",
+            FileNodeProperty::Role => "role",
+            FileNodeProperty::MyRights => "myRights",
+            FileNodeProperty::ShareWith => "shareWith",
+            FileNodeProperty::IsSubscribed => "isSubscribed",
+            FileNodeProperty::Metadata => "metadata",
+            FileNodeProperty::PrivateMetadata => "privateMetadata",
+            FileNodeProperty::Rights(file_right) => file_right.as_str(),
+            FileNodeProperty::Pointer(json_pointer) => return Text::Display(json_pointer),
+            FileNodeProperty::IdValue(id) => return Text::Id(*id),
+        })
+    }
+
+    fn has_dynamic_text(&self) -> bool {
+        matches!(
+            self,
+            FileNodeProperty::Pointer(_) | FileNodeProperty::IdValue(_)
+        )
+    }
+
+    property_names!(
+        FileNodeProperty,
+        "id" => FileNodeProperty::Id,
+        "parentId" => FileNodeProperty::ParentId,
+        "blobId" => FileNodeProperty::BlobId,
+        "size" => FileNodeProperty::Size,
+        "name" => FileNodeProperty::Name,
+        "@type" => FileNodeProperty::Type,
+        "mediaType" => FileNodeProperty::MediaType,
+        "target" => FileNodeProperty::Target,
+        "created" => FileNodeProperty::Created,
+        "modified" => FileNodeProperty::Modified,
+        "accessed" => FileNodeProperty::Accessed,
+        "changed" => FileNodeProperty::Changed,
+        "executable" => FileNodeProperty::Executable,
+        "role" => FileNodeProperty::Role,
+        "myRights" => FileNodeProperty::MyRights,
+        "shareWith" => FileNodeProperty::ShareWith,
+        "isSubscribed" => FileNodeProperty::IsSubscribed,
+        "mayRead" => FileNodeProperty::Rights(FileNodeRight::MayRead),
+        "mayAddChildren" => FileNodeProperty::Rights(FileNodeRight::MayAddChildren),
+        "mayRename" => FileNodeProperty::Rights(FileNodeRight::MayRename),
+        "mayDelete" => FileNodeProperty::Rights(FileNodeRight::MayDelete),
+        "mayModifyContent" => FileNodeProperty::Rights(FileNodeRight::MayModifyContent),
+        "mayShare" => FileNodeProperty::Rights(FileNodeRight::MayShare),
+        "maySetMetadata" => FileNodeProperty::Rights(FileNodeRight::MaySetMetadata),
+    );
+
+    fn parse(value: &str, patch_depth: Option<PointerDepth>) -> Option<Self> {
+        FileNodeProperty::parse_name(value).or_else(|| {
+            patch_depth
+                .filter(|_| value.contains('/'))
+                .and_then(|depth| JsonPointer::parse_nested(value, depth))
+                .map(FileNodeProperty::Pointer)
+        })
+    }
+
+    fn patch_or_prop(&self) -> &FileNodeProperty {
+        if let FileNodeProperty::Pointer(ptr) = self
+            && let Some(JsonPointerItem::Key(Key::Property(prop))) = ptr.last()
+        {
+            prop
+        } else {
+            self
+        }
+    }
+}
+
+impl MetadataProperty for FileNodeProperty {
+    fn as_metadata_root(&self) -> Option<MetadataRoot> {
+        match self {
+            FileNodeProperty::Metadata => Some(MetadataRoot::Shared),
+            FileNodeProperty::PrivateMetadata => Some(MetadataRoot::Private),
+            _ => None,
+        }
+    }
+
+    fn as_pointer(&self) -> Option<&JsonPointer<Self>> {
+        match self {
+            FileNodeProperty::Pointer(pointer) => Some(pointer),
+            _ => None,
+        }
+    }
+
+    fn from_metadata_root(root: MetadataRoot) -> Self {
+        match root {
+            MetadataRoot::Shared => FileNodeProperty::Metadata,
+            MetadataRoot::Private => FileNodeProperty::PrivateMetadata,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FileNodeSetArguments {
+    pub on_destroy_remove_children: Option<bool>,
+    pub on_exists: OnExists,
+    pub compare_case_insensitively: Option<bool>,
+}
+
+pub type FileNodeCopyArguments = FileNodeSetArguments;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OnExists {
+    #[default]
+    Reject,
+    Replace,
+    Rename,
+    Newest,
+}
+
+impl<'de> serde::Deserialize<'de> for OnExists {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let Some(value) =
+            Option::<CowStr<'_>>::deserialize(deserializer)?.filter(|value| !value.0.is_empty())
+        else {
+            return Ok(OnExists::Reject);
+        };
+        hashify::fnc_map!(value.0.as_bytes(),
+            b"replace" => Ok(OnExists::Replace),
+            b"rename" => Ok(OnExists::Rename),
+            b"newest" => Ok(OnExists::Newest),
+            b"unchanged" => Err(serde::de::Error::custom(
+                "onExists \"unchanged\" requires JMAP Conditional Set, which is not supported",
+            )),
+            _ => Err(serde::de::Error::custom(format!(
+                "Invalid onExists value: {:?}",
+                value.0
+            )))
+        )
+    }
+}
+
+impl<'x> DeserializeArguments<'x> for FileNodeSetArguments {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'x>,
+    {
+        hashify::fnc_map!(key.as_bytes(),
+            b"onDestroyRemoveChildren" => {
+                self.on_destroy_remove_children = map.next_value()?;
+            },
+            b"onExists" => {
+                self.on_exists = map.next_value()?;
+            },
+            b"compareCaseInsensitively" => {
+                self.compare_case_insensitively = map.next_value()?;
+            },
+            _ => {
+                let _ = map.next_value::<serde::de::IgnoredAny>()?;
+            }
+        );
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FileNodeGetArguments {
+    pub fetch_parents: Option<bool>,
+}
+
+impl<'x> DeserializeArguments<'x> for FileNodeGetArguments {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'x>,
+    {
+        if key == "fetchParents" {
+            self.fetch_parents = map.next_value()?;
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FileNodeQueryArguments {
+    pub depth: Option<u32>,
+}
+
+impl<'x> DeserializeArguments<'x> for FileNodeQueryArguments {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'x>,
+    {
+        if key == "depth" {
+            self.depth = map.next_value()?;
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl FromStr for FileNodeProperty {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        FileNodeProperty::parse(s, None)
+            .or_else(|| {
+                MetadataRoot::from_selector(s)
+                    .map(|_| FileNodeProperty::Pointer(JsonPointer::parse(s)))
+            })
+            .ok_or(())
+    }
+}
+
+impl JmapObject for FileNode {
+    type Property = FileNodeProperty;
+
+    type Element = FileNodeValue;
+
+    type Id = Id;
+
+    type Filter = FileNodeFilter;
+
+    type Comparator = FileNodeComparator;
+
+    type GetArguments = FileNodeGetArguments;
+
+    type SetArguments<'de> = FileNodeSetArguments;
+
+    type QueryArguments = FileNodeQueryArguments;
+
+    type CopyArguments = FileNodeCopyArguments;
+
+    type ParseArguments = ();
+
+    const ID_PROPERTY: Self::Property = FileNodeProperty::Id;
+}
+
+impl JmapSharedObject for FileNode {
+    type Right = FileNodeRight;
+
+    const SHARE_WITH_PROPERTY: Self::Property = FileNodeProperty::ShareWith;
+}
+
+impl From<Id> for FileNodeProperty {
+    fn from(id: Id) -> Self {
+        FileNodeProperty::IdValue(id)
+    }
+}
+
+impl JmapRight for FileNodeRight {
+    fn to_acl(&self) -> &'static [Acl] {
+        match self {
+            FileNodeRight::MayRead => &[Acl::Read, Acl::ReadItems],
+            FileNodeRight::MayAddChildren => &[Acl::AddItems],
+            FileNodeRight::MayRename => &[Acl::Modify],
+            FileNodeRight::MayDelete => &[Acl::RemoveItems],
+            FileNodeRight::MayModifyContent => &[Acl::ModifyItems],
+            FileNodeRight::MayShare => &[Acl::Share],
+            FileNodeRight::MaySetMetadata => &[Acl::ModifyMetadata],
+        }
+    }
+
+    fn all_rights() -> &'static [Self] {
+        &[
+            FileNodeRight::MayRead,
+            FileNodeRight::MayAddChildren,
+            FileNodeRight::MayRename,
+            FileNodeRight::MayDelete,
+            FileNodeRight::MayModifyContent,
+            FileNodeRight::MayShare,
+            FileNodeRight::MaySetMetadata,
+        ]
+    }
+}
+
+impl From<FileNodeRight> for FileNodeProperty {
+    fn from(right: FileNodeRight) -> Self {
+        FileNodeProperty::Rights(right)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileNodeFilter {
+    IsTopLevel(bool),
+    ParentId(MaybeInvalid<Id>),
+    AncestorId(MaybeInvalid<Id>),
+    DescendantId(MaybeInvalid<Id>),
+    NodeType(String),
+    Role(String),
+    HasAnyRole(bool),
+    BlobId(MaybeInvalid<BlobId>),
+    IsExecutable(bool),
+    CreatedBefore(UTCDate),
+    CreatedAfter(UTCDate),
+    ModifiedBefore(UTCDate),
+    ModifiedAfter(UTCDate),
+    AccessedBefore(UTCDate),
+    AccessedAfter(UTCDate),
+    MinSize(u64),
+    MaxSize(u64),
+    Name(String),
+    NameMatch(GlobPattern),
+    MediaType(String),
+    MediaTypeMatch(GlobPattern),
+    Text(String),
+    Body(String),
+    Metadata(MetadataFilter),
+    _T(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileNodeComparator {
+    Name,
+    Size,
+    Created,
+    Modified,
+    MediaType,
+    NodeType,
+    Tree,
+    _T(String),
+}
+
+impl<'de> DeserializeArguments<'de> for FileNodeFilter {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        hashify::fnc_map!(key.as_bytes(),
+            b"isTopLevel" => {
+                *self = FileNodeFilter::IsTopLevel(map.next_value()?);
+            },
+            b"parentId" => {
+                *self = FileNodeFilter::ParentId(map.next_value()?);
+            },
+            b"ancestorId" => {
+                *self = FileNodeFilter::AncestorId(map.next_value()?);
+            },
+            b"descendantId" => {
+                *self = FileNodeFilter::DescendantId(map.next_value()?);
+            },
+            b"nodeType" => {
+                *self = FileNodeFilter::NodeType(map.next_value()?);
+            },
+            b"role" => {
+                *self = FileNodeFilter::Role(map.next_value()?);
+            },
+            b"hasAnyRole" => {
+                *self = FileNodeFilter::HasAnyRole(map.next_value()?);
+            },
+            b"blobId" => {
+                *self = FileNodeFilter::BlobId(map.next_value()?);
+            },
+            b"isExecutable" => {
+                *self = FileNodeFilter::IsExecutable(map.next_value()?);
+            },
+            b"createdBefore" => {
+                *self = FileNodeFilter::CreatedBefore(map.next_value()?);
+            },
+            b"createdAfter" => {
+                *self = FileNodeFilter::CreatedAfter(map.next_value()?);
+            },
+            b"modifiedBefore" => {
+                *self = FileNodeFilter::ModifiedBefore(map.next_value()?);
+            },
+            b"modifiedAfter" => {
+                *self = FileNodeFilter::ModifiedAfter(map.next_value()?);
+            },
+            b"accessedBefore" => {
+                *self = FileNodeFilter::AccessedBefore(map.next_value()?);
+            },
+            b"accessedAfter" => {
+                *self = FileNodeFilter::AccessedAfter(map.next_value()?);
+            },
+            b"minSize" => {
+                *self = FileNodeFilter::MinSize(map.next_value()?);
+            },
+            b"maxSize" => {
+                *self = FileNodeFilter::MaxSize(map.next_value()?);
+            },
+            b"name" => {
+                *self = FileNodeFilter::Name(map.next_value()?);
+            },
+            b"nameMatch" => {
+                *self = FileNodeFilter::NameMatch(map.next_value()?);
+            },
+            b"mediaType" => {
+                *self = FileNodeFilter::MediaType(map.next_value()?);
+            },
+            b"mediaTypeMatch" => {
+                *self = FileNodeFilter::MediaTypeMatch(map.next_value()?);
+            },
+            b"body" => {
+                *self = FileNodeFilter::Body(map.next_value()?);
+            },
+            b"text" => {
+                *self = FileNodeFilter::Text(map.next_value()?);
+            },
+            _ => {
+                *self = match MetadataFilter::try_deserialize(key, map)? {
+                    Some(filter) => FileNodeFilter::Metadata(filter),
+                    None => {
+                        let _ = map.next_value::<serde::de::IgnoredAny>()?;
+                        FileNodeFilter::_T(key.to_string())
+                    }
+                };
+            }
+        );
+
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeArguments<'de> for FileNodeComparator {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        if key == "property" {
+            let value = map.next_value::<CowStr>()?.0;
+            hashify::fnc_map!(value.as_bytes(),
+                b"name" => {
+                    *self = FileNodeComparator::Name;
+                },
+                b"size" => {
+                    *self = FileNodeComparator::Size;
+                },
+                b"created" => {
+                    *self = FileNodeComparator::Created;
+                },
+                b"modified" => {
+                    *self = FileNodeComparator::Modified;
+                },
+                b"mediaType" => {
+                    *self = FileNodeComparator::MediaType;
+                },
+                b"nodeType" => {
+                    *self = FileNodeComparator::NodeType;
+                },
+                b"tree" => {
+                    *self = FileNodeComparator::Tree;
+                },
+                _ => {
+                    *self = FileNodeComparator::_T(value.into_owned());
+                }
+            );
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for FileNodeFilter {
+    fn default() -> Self {
+        FileNodeFilter::_T("".to_string())
+    }
+}
+
+impl Default for FileNodeComparator {
+    fn default() -> Self {
+        FileNodeComparator::_T("".to_string())
+    }
+}
+
+impl From<Id> for FileNodeValue {
+    fn from(id: Id) -> Self {
+        FileNodeValue::Id(id)
+    }
+}
+
+impl JmapObjectId for FileNodeValue {
+    fn as_id(&self) -> Option<Id> {
+        match self {
+            FileNodeValue::Id(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        match self {
+            FileNodeValue::Id(id) => Some(AnyId::Id(*id)),
+            FileNodeValue::BlobId(blob_id) => Some(AnyId::BlobId(blob_id.clone())),
+            _ => None,
+        }
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        if let FileNodeValue::IdReference(r) = self {
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    fn try_set_id(&mut self, new_id: AnyId) -> bool {
+        match new_id {
+            AnyId::Id(id) => {
+                *self = FileNodeValue::Id(id);
+            }
+            AnyId::BlobId(blob_id) => {
+                *self = FileNodeValue::BlobId(blob_id);
+            }
+        }
+        true
+    }
+}
+
+impl FileNodeFilter {
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            FileNodeFilter::IsTopLevel(_) => "isTopLevel",
+            FileNodeFilter::ParentId(_) => "parentId",
+            FileNodeFilter::AncestorId(_) => "ancestorId",
+            FileNodeFilter::DescendantId(_) => "descendantId",
+            FileNodeFilter::NodeType(_) => "nodeType",
+            FileNodeFilter::Role(_) => "role",
+            FileNodeFilter::HasAnyRole(_) => "hasAnyRole",
+            FileNodeFilter::BlobId(_) => "blobId",
+            FileNodeFilter::IsExecutable(_) => "isExecutable",
+            FileNodeFilter::CreatedBefore(_) => "createdBefore",
+            FileNodeFilter::CreatedAfter(_) => "createdAfter",
+            FileNodeFilter::ModifiedBefore(_) => "modifiedBefore",
+            FileNodeFilter::ModifiedAfter(_) => "modifiedAfter",
+            FileNodeFilter::AccessedBefore(_) => "accessedBefore",
+            FileNodeFilter::AccessedAfter(_) => "accessedAfter",
+            FileNodeFilter::MinSize(_) => "minSize",
+            FileNodeFilter::MaxSize(_) => "maxSize",
+            FileNodeFilter::Name(_) => "name",
+            FileNodeFilter::NameMatch(_) => "nameMatch",
+            FileNodeFilter::MediaType(_) => "mediaType",
+            FileNodeFilter::MediaTypeMatch(_) => "mediaTypeMatch",
+            FileNodeFilter::Text(_) => "text",
+            FileNodeFilter::Body(_) => "body",
+            FileNodeFilter::Metadata(filter) => filter.as_str(),
+            FileNodeFilter::_T(s) => return s.into(),
+        }
+        .into()
+    }
+}
+
+impl FileNodeComparator {
+    pub fn as_str(&self) -> &str {
+        match self {
+            FileNodeComparator::Name => "name",
+            FileNodeComparator::Size => "size",
+            FileNodeComparator::Created => "created",
+            FileNodeComparator::Modified => "modified",
+            FileNodeComparator::MediaType => "mediaType",
+            FileNodeComparator::NodeType => "nodeType",
+            FileNodeComparator::Tree => "tree",
+            FileNodeComparator::_T(s) => s.as_ref(),
+        }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            FileNodeComparator::Name => "name",
+            FileNodeComparator::Size => "size",
+            FileNodeComparator::Created => "created",
+            FileNodeComparator::Modified => "modified",
+            FileNodeComparator::MediaType => "mediaType",
+            FileNodeComparator::NodeType => "nodeType",
+            FileNodeComparator::Tree => "tree",
+            FileNodeComparator::_T(s) => return s.into(),
+        }
+        .into()
+    }
+}
+
+impl serde::Serialize for FileNodeComparator {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl TryFrom<FileNodeProperty> for Id {
+    type Error = ();
+
+    fn try_from(value: FileNodeProperty) -> Result<Self, Self::Error> {
+        if let FileNodeProperty::IdValue(id) = value {
+            Ok(id)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<FileNodeProperty> for FileNodeRight {
+    type Error = ();
+
+    fn try_from(value: FileNodeProperty) -> Result<Self, Self::Error> {
+        if let FileNodeProperty::Rights(right) = value {
+            Ok(right)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl JmapObjectId for FileNodeProperty {
+    fn as_id(&self) -> Option<Id> {
+        if let FileNodeProperty::IdValue(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        if let FileNodeProperty::IdValue(id) = self {
+            Some(AnyId::Id(*id))
+        } else {
+            None
+        }
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        None
+    }
+
+    fn try_set_id(&mut self, new_id: AnyId) -> bool {
+        if let AnyId::Id(id) = new_id {
+            *self = FileNodeProperty::IdValue(id);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Display for FileNodeProperty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_cow())
+    }
+}

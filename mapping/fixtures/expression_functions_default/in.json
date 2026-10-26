@@ -1,0 +1,30 @@
+{
+  "objects": [
+    {
+      "key": "x:SpamRule/b",
+      "value": {
+        "@type": "Any",
+        "name": "rate",
+        "enable": true,
+        "priority": 10,
+        "condition": {
+          "match": {},
+          "else": "counter_get('redis', 'k:' + sender) > 5"
+        }
+      }
+    },
+    {
+      "key": "x:SpamRule/c",
+      "value": {
+        "@type": "Any",
+        "name": "incr",
+        "enable": true,
+        "priority": 11,
+        "condition": {
+          "match": {},
+          "else": "counter_incr('redis', 'k', 1) > 5"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "reference_deferred",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
+    }
+  ],
+  "deferred": [
+    {
+      "key": "x:Account/c",
+      "properties": {
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "allowSpamTraining": false,
+          "encryptOnAppend": true,
+          "publicKey": "d"
+        }
+      }
+    }
+  ],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "isEnabled": true,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "alice"
+      }
+    },
+    {
+      "key": "x:PublicKey/d",
+      "source": "x:PublicKey/d",
+      "value": {
+        "accountId": "c",
+        "description": "alice",
+        "key": "-----BEGIN PGP-----"
+      }
+    }
+  ],
+  "questions": []
+}

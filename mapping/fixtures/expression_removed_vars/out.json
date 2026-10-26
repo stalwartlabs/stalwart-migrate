@@ -1,0 +1,84 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:DmarcReportSettings",
+      "level": "warning",
+      "path": "aggregateSubject",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:DmarcReportSettings",
+      "level": "info",
+      "path": "aggregateDkimSignDomain"
+    },
+    {
+      "change": "transformed",
+      "key": "x:DsnReportSettings",
+      "level": "info",
+      "path": "fromName"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SieveUserInterpreter",
+      "level": "info",
+      "path": "dkimSignDomain"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamDnsblServer/b",
+      "level": "info",
+      "path": "zone"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:DmarcReportSettings",
+      "source": "x:DmarcReportSettings",
+      "value": {}
+    },
+    {
+      "key": "x:DsnReportSettings",
+      "source": "x:DsnReportSettings",
+      "value": {
+        "fromAddress": {
+          "else": "'postmaster@example.com'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:SieveUserInterpreter",
+      "source": "x:SieveUserInterpreter",
+      "value": {}
+    },
+    {
+      "key": "x:SpamDnsblServer/b",
+      "source": "x:SpamDnsblServer/b",
+      "value": {
+        "@type": "Ip",
+        "enable": true,
+        "name": "rbl",
+        "tag": {
+          "else": "'RBL'",
+          "match": {}
+        },
+        "zone": {
+          "else": "ip_reverse + '.zen.example'",
+          "match": {}
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

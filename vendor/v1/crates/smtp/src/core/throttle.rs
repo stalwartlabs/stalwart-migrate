@@ -1,0 +1,244 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use super::Session;
+use common::{
+    KV_RATE_LIMIT_SMTP, ThrottleKey,
+    config::smtp::*,
+    expr::{Bump, functions::ResolveVariable},
+    network::SessionStream,
+};
+use compact_str::ToCompactString;
+use queue::QueueQuota;
+use registry::schema::{enums::ExpressionVariable, structs::Rate};
+use trc::SmtpEvent;
+
+pub trait NewKey: Sized {
+    fn new_key(&self, e: &impl ResolveVariable, context: &str) -> ThrottleKey;
+}
+
+impl NewKey for QueueQuota {
+    fn new_key(&self, e: &impl ResolveVariable, _: &str) -> ThrottleKey {
+        let arena = Bump::new();
+        let mut hasher = blake3::Hasher::new();
+
+        if (self.keys & THROTTLE_RCPT) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::Rcpt, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_RCPT_DOMAIN) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::RcptDomain, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_SENDER) != 0 {
+            let sender = e
+                .resolve_variable(ExpressionVariable::Sender, &arena)
+                .to_str(&arena);
+            hasher.update(if !sender.is_empty() { sender } else { "<>" }.as_bytes());
+        }
+        if (self.keys & THROTTLE_SENDER_DOMAIN) != 0 {
+            let sender_domain = e
+                .resolve_variable(ExpressionVariable::SenderDomain, &arena)
+                .to_str(&arena);
+            hasher.update(
+                if !sender_domain.is_empty() {
+                    sender_domain
+                } else {
+                    "<>"
+                }
+                .as_bytes(),
+            );
+        }
+
+        if let Some(messages) = &self.messages {
+            hasher.update(&messages.to_ne_bytes()[..]);
+        }
+
+        if let Some(size) = &self.size {
+            hasher.update(&size.to_ne_bytes()[..]);
+        }
+
+        ThrottleKey {
+            hash: hasher.finalize().into(),
+        }
+    }
+}
+
+impl NewKey for QueueRateLimiter {
+    fn new_key(&self, e: &impl ResolveVariable, context: &str) -> ThrottleKey {
+        let arena = Bump::new();
+        let mut hasher = blake3::Hasher::new();
+
+        if (self.keys & THROTTLE_RCPT) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::Rcpt, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_RCPT_DOMAIN) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::RcptDomain, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_SENDER) != 0 {
+            let sender = e
+                .resolve_variable(ExpressionVariable::Sender, &arena)
+                .to_str(&arena);
+            hasher.update(if !sender.is_empty() { sender } else { "<>" }.as_bytes());
+        }
+        if (self.keys & THROTTLE_SENDER_DOMAIN) != 0 {
+            let sender_domain = e
+                .resolve_variable(ExpressionVariable::SenderDomain, &arena)
+                .to_str(&arena);
+            hasher.update(
+                if !sender_domain.is_empty() {
+                    sender_domain
+                } else {
+                    "<>"
+                }
+                .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_HELO_DOMAIN) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::HeloDomain, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_AUTH_AS) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::AuthenticatedAs, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_LISTENER) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::Listener, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_MX) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::Mx, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_REMOTE_IP) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::RemoteIp, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        if (self.keys & THROTTLE_LOCAL_IP) != 0 {
+            hasher.update(
+                e.resolve_variable(ExpressionVariable::LocalIp, &arena)
+                    .to_str(&arena)
+                    .as_bytes(),
+            );
+        }
+        hasher.update(&self.rate.period.as_secs().to_be_bytes()[..]);
+        hasher.update(&self.rate.count.to_be_bytes()[..]);
+        hasher.update(context.as_bytes());
+
+        ThrottleKey {
+            hash: hasher.finalize().into(),
+        }
+    }
+}
+
+impl<T: SessionStream> Session<T> {
+    pub async fn is_allowed(&mut self) -> bool {
+        let throttles = if !self.data.rcpt_to.is_empty() {
+            &self.server.core.smtp.queue.inbound_limiters.rcpt
+        } else if self.data.mail_from.is_some() {
+            &self.server.core.smtp.queue.inbound_limiters.sender
+        } else {
+            &self.server.core.smtp.queue.inbound_limiters.remote
+        };
+
+        for t in throttles {
+            if t.expr.is_empty() || self.eval_if(&t.expr).await.unwrap_or(false) {
+                if (t.keys & THROTTLE_RCPT_DOMAIN) != 0
+                    && let Some((last, previous)) = self.data.rcpt_to.split_last()
+                    && previous.iter().any(|p| p.domain == last.domain)
+                {
+                    continue;
+                }
+
+                // Build throttle key
+                let key = t.new_key(self, "inbound");
+
+                // Check rate
+                match self
+                    .server
+                    .in_memory_store()
+                    .is_rate_allowed(KV_RATE_LIMIT_SMTP, key.hash.as_slice(), &t.rate)
+                    .await
+                {
+                    Ok(Some(_)) => {
+                        trc::event!(
+                            Smtp(SmtpEvent::RateLimitExceeded),
+                            SpanId = self.data.session_id,
+                            Name = t.id.to_compact_string(),
+                            Limit = t.rate.count,
+                            Period = t.rate.period.into_inner(),
+                        );
+
+                        return false;
+                    }
+                    Err(err) => {
+                        trc::error!(
+                            err.span_id(self.data.session_id)
+                                .caused_by(trc::location!())
+                        );
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        true
+    }
+
+    pub async fn throttle_rcpt(&self, rcpt: &str, rate: &Rate, ctx: &str) -> bool {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(rcpt.as_bytes());
+        hasher.update(ctx.as_bytes());
+        hasher.update(&rate.period.as_secs().to_ne_bytes()[..]);
+        hasher.update(&rate.count.to_ne_bytes()[..]);
+
+        match self
+            .server
+            .in_memory_store()
+            .is_rate_allowed(KV_RATE_LIMIT_SMTP, hasher.finalize().as_bytes(), rate)
+            .await
+        {
+            Ok(None) => true,
+            Ok(Some(_)) => false,
+            Err(err) => {
+                trc::error!(
+                    err.span_id(self.data.session_id)
+                        .caused_by(trc::location!())
+                );
+                true
+            }
+        }
+    }
+}

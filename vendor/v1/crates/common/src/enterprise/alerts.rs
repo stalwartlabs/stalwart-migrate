@@ -1,0 +1,144 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: LicenseRef-SEL
+ *
+ * This file is subject to the Stalwart Enterprise License Agreement (SEL) and
+ * is NOT open source software.
+ *
+ */
+
+use super::{AlertContent, AlertContentToken, AlertMethod};
+use crate::Server;
+use crate::expr::{Bump, functions::EmptyResolver};
+use compact_str::CompactString;
+use mail_builder::{
+    MessageBuilder,
+    headers::{
+        HeaderType,
+        address::{Address, EmailAddress},
+    },
+};
+use std::fmt::Write;
+use trc::{Collector, TelemetryEvent};
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct AlertMessage {
+    pub from: String,
+    pub to: Vec<String>,
+    pub body: Vec<u8>,
+}
+
+impl Server {
+    pub async fn process_alerts(&self) -> Option<Vec<AlertMessage>> {
+        let alerts = &self.core.enterprise.as_ref()?.metrics_alerts;
+        if alerts.is_empty() {
+            return None;
+        }
+        let mut messages = Vec::new();
+        let mut arena = Bump::new();
+
+        for alert in alerts {
+            if !self
+                .eval_if(&alert.condition, &EmptyResolver, &mut arena, 0)
+                .await
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            for method in &alert.method {
+                match method {
+                    AlertMethod::Email {
+                        from_name,
+                        from_addr,
+                        to,
+                        subject,
+                        body,
+                    } => {
+                        let subject = subject.build();
+                        trc::event!(
+                            Telemetry(TelemetryEvent::AlertMessage),
+                            Id = alert.id.id().id(),
+                            To = to
+                                .iter()
+                                .map(|t| trc::Value::from(CompactString::from(t)))
+                                .collect::<Vec<_>>(),
+                            Details = subject.clone()
+                        );
+
+                        messages.push(AlertMessage {
+                            from: from_addr.clone(),
+                            to: to.clone(),
+                            body: MessageBuilder::new()
+                                .from(Address::Address(EmailAddress {
+                                    name: from_name.as_ref().map(|s| s.into()),
+                                    email: from_addr.as_str().into(),
+                                }))
+                                .header(
+                                    "To",
+                                    HeaderType::Address(Address::List(
+                                        to.iter()
+                                            .map(|to| {
+                                                Address::Address(EmailAddress {
+                                                    name: None,
+                                                    email: to.as_str().into(),
+                                                })
+                                            })
+                                            .collect(),
+                                    )),
+                                )
+                                .header("Auto-Submitted", HeaderType::Text("auto-generated".into()))
+                                .message_id(self.core.network.message_id())
+                                .subject(subject)
+                                .text_body(body.build())
+                                .write_to_vec()
+                                .unwrap_or_default(),
+                        });
+                    }
+                    AlertMethod::Event { message } => {
+                        trc::event!(
+                            Telemetry(TelemetryEvent::AlertEvent),
+                            Id = alert.id.id().id(),
+                            Details = message.as_ref().map(|m| m.build())
+                        );
+                    }
+                }
+            }
+        }
+
+        (!messages.is_empty()).then_some(messages)
+    }
+}
+
+impl AlertContent {
+    pub fn build(&self) -> String {
+        let mut buf = String::with_capacity(self.len());
+        for token in &self.0 {
+            token.write(&mut buf);
+        }
+        buf
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.0.iter().map(|t| t.len()).sum()
+    }
+}
+
+impl AlertContentToken {
+    fn write(&self, buf: &mut String) {
+        match self {
+            AlertContentToken::Text(text) => buf.push_str(text),
+            AlertContentToken::Metric(metric_type) => {
+                let _ = write!(buf, "{}", Collector::read_metric(*metric_type));
+            }
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            AlertContentToken::Text(s) => s.len(),
+            AlertContentToken::Metric(_) => 10,
+        }
+    }
+}

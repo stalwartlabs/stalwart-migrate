@@ -1,0 +1,66 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_inherited",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexContactFields"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexCalendarFields/start",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexCalendarFields/uid",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexEmailFields/receivedAt",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexTracingFields",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexCalendarFields"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Search",
+      "source": "x:Search",
+      "value": {
+        "indexEmailFields": {
+          "from": true,
+          "subject": true
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

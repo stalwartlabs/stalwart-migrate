@@ -1,0 +1,11 @@
+{
+  "objects": [
+    {
+      "key": "x:OidcProvider",
+      "value": {
+        "anonymousClientRegistration": true,
+        "requireClientRegistration": false
+      }
+    }
+  ]
+}

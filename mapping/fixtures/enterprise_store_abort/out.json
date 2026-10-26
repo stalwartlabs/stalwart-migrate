@@ -1,0 +1,24 @@
+{
+  "aborted": true,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:BlobStore",
+      "level": "warning",
+      "path": "@type",
+      "reason": "enterprise only, target is open source"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:BlobStore"
+  ],
+  "objects": [],
+  "questions": [
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "enterprise_on_oss"
+    }
+  ]
+}

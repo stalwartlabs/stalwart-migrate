@@ -1,0 +1,29 @@
+{
+  "objects": [
+    {
+      "key": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "bucket": "b",
+        "region": {
+          "@type": "UsEast1"
+        },
+        "accessKey": {
+          "@type": "Value",
+          "value": "AK"
+        },
+        "secretKey": {
+          "@type": "Value",
+          "secret": "sk"
+        },
+        "securityToken": {
+          "@type": "Value",
+          "secret": "legacy"
+        },
+        "sessionToken": {
+          "@type": "None"
+        }
+      }
+    }
+  ]
+}

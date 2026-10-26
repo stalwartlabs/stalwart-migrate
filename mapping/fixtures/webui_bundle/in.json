@@ -1,0 +1,60 @@
+{
+  "objects": [
+    {
+      "key": "x:Application/a",
+      "value": {
+        "description": "Stalwart Web Interface",
+        "enabled": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/download/v1.0.11/webui.zip",
+        "urlPrefix": {
+          "/admin": true,
+          "/account": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/b",
+      "value": {
+        "description": "Custom bundle",
+        "enabled": true,
+        "resourceUrl": "https://cdn.example.com/webui.zip",
+        "urlPrefix": {
+          "/custom": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/c",
+      "value": {
+        "description": "Already v2",
+        "enabled": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/download/v2.0.1/webui.zip",
+        "urlPrefix": {
+          "/v2": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/d",
+      "value": {
+        "description": "Latest release",
+        "enabled": true,
+        "resourceUrl": "https://github.com/stalwartlabs/webui/releases/latest/download/webui.zip",
+        "urlPrefix": {
+          "/latest": true
+        }
+      }
+    },
+    {
+      "key": "x:Application/e",
+      "value": {
+        "description": "Other repository",
+        "enabled": true,
+        "resourceUrl": "https://github.com/example/webui/releases/latest/download/webui.zip",
+        "urlPrefix": {
+          "/other": true
+        }
+      }
+    }
+  ]
+}

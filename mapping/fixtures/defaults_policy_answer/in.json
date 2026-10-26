@@ -1,0 +1,17 @@
+{
+  "objects": [
+    {
+      "key": "x:Cache",
+      "value": {
+        "messages": 52428800,
+        "dnsRbl": 5242880
+      }
+    },
+    {
+      "key": "x:SpamPyzor",
+      "value": {
+        "enable": true
+      }
+    }
+  ]
+}

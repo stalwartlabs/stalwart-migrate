@@ -1,0 +1,18 @@
+{
+  "objects": [
+    {
+      "key": "x:BlobStore",
+      "value": {
+        "@type": "Azure",
+        "storageAccount": "acct",
+        "container": "c",
+        "accessKey": {
+          "@type": "None"
+        },
+        "sasToken": {
+          "@type": "None"
+        }
+      }
+    }
+  ]
+}

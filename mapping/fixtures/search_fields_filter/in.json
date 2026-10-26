@@ -1,0 +1,34 @@
+{
+  "objects": [
+    {
+      "key": "x:Search",
+      "value": {
+        "indexEmailFields": {
+          "from": true,
+          "subject": true,
+          "receivedAt": true
+        },
+        "indexCalendarFields": {
+          "start": true,
+          "uid": true
+        },
+        "indexContactFields": {
+          "uid": true,
+          "name": true,
+          "email": true,
+          "kind": true,
+          "member": true,
+          "nickname": true,
+          "organization": true,
+          "phone": true,
+          "onlineService": true,
+          "address": true,
+          "note": true
+        },
+        "indexTracingFields": {
+          "eventType": true
+        }
+      }
+    }
+  ]
+}

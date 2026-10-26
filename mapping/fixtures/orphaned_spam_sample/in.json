@@ -1,0 +1,16 @@
+{
+ "objects": [
+  {
+   "key": "x:SpamTrainingSample/d",
+   "value": {
+    "accountId": "c",
+    "isSpam": true,
+    "blobId": "blob"
+   }
+  }
+ ],
+ "owners": {
+  "accounts": [],
+  "principals": "migrated"
+ }
+}

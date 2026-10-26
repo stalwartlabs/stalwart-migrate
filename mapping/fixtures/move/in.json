@@ -1,0 +1,23 @@
+{
+  "objects": [
+    {
+      "key": "x:SenderAuth",
+      "value": {
+        "dkimSignDomain": {
+          "match": {},
+          "else": "'signing.example.com'"
+        },
+        "dkimStrict": true
+      }
+    },
+    {
+      "key": "x:MtaStageData",
+      "value": {
+        "maxMessages": {
+          "match": {},
+          "else": "10"
+        }
+      }
+    }
+  ]
+}

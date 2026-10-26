@@ -1,0 +1,2853 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "clamped",
+      "key": "x:Authentication",
+      "level": "warning",
+      "path": "minPasswordLength"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "accessTokens"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "dnsIpv4"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "dnsPtr"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "dnsTlsa"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "events"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "files"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "httpAuth"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "roles"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Cache",
+      "level": "warning",
+      "path": "spamLookup"
+    },
+    {
+      "change": "clamped",
+      "key": "x:CalendarScheduling",
+      "level": "warning",
+      "path": "maxItipSize"
+    },
+    {
+      "change": "clamped",
+      "key": "x:DataRetention",
+      "level": "warning",
+      "path": "dataCleanupSchedule/hour"
+    },
+    {
+      "change": "clamped",
+      "key": "x:DataRetention",
+      "level": "warning",
+      "path": "dataCleanupSchedule/minute"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Email",
+      "level": "warning",
+      "path": "maxMessages"
+    },
+    {
+      "change": "clamped",
+      "key": "x:HttpLookup/c",
+      "level": "warning",
+      "path": "maxEntries"
+    },
+    {
+      "change": "clamped",
+      "key": "x:HttpLookup/c",
+      "level": "warning",
+      "path": "maxEntrySize"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Imap",
+      "level": "warning",
+      "path": "rateLimit/count"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Imap",
+      "level": "warning",
+      "path": "rateLimit/period"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Jmap",
+      "level": "warning",
+      "path": "maxChangesResults"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Jmap",
+      "level": "warning",
+      "path": "maxRequestSize"
+    },
+    {
+      "change": "clamped",
+      "key": "x:MtaOutboundThrottle/c",
+      "level": "warning",
+      "path": "rate/period"
+    },
+    {
+      "change": "clamped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "accessTokenExpiry"
+    },
+    {
+      "change": "clamped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "refreshTokenExpiry"
+    },
+    {
+      "change": "clamped",
+      "key": "x:QueuedMessage/b",
+      "level": "warning",
+      "path": "recipients/k/status/responseCode"
+    },
+    {
+      "change": "clamped",
+      "key": "x:ReportSettings",
+      "level": "warning",
+      "path": "maxInboundReportSize"
+    },
+    {
+      "change": "clamped",
+      "key": "x:Security",
+      "level": "warning",
+      "path": "authBanRate/period"
+    },
+    {
+      "change": "clamped",
+      "key": "x:SpamClassifier",
+      "level": "warning",
+      "path": "minSpamSamples"
+    },
+    {
+      "change": "dangling",
+      "key": "x:Account/b",
+      "level": "error",
+      "path": "domainId"
+    },
+    {
+      "change": "dangling",
+      "key": "x:AccountSettings",
+      "level": "error",
+      "path": "encryptionAtRest/publicKey"
+    },
+    {
+      "change": "dangling",
+      "key": "x:ArchivedItem/b",
+      "level": "error",
+      "path": "accountId"
+    },
+    {
+      "change": "dangling",
+      "key": "x:MaskedEmail/c",
+      "level": "error",
+      "path": "accountId"
+    },
+    {
+      "change": "dangling",
+      "key": "x:PublicKey/d",
+      "level": "error",
+      "path": "accountId"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "accounts"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsMx"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsTxt"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "domainNames"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "domainNamesNegative"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "emailAddresses"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "tenants"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:DkimReportSettings",
+      "level": "info",
+      "path": "dkimSignDomain"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:DkimReportSettings",
+      "level": "info",
+      "path": "fromAddress"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:DmarcReportSettings",
+      "level": "info",
+      "path": "aggregateDkimSignDomain"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:NetworkListener/b",
+      "level": "info",
+      "path": "maxConnections"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexCalendarFields"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexContactFields"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:SearchStore",
+      "level": "info",
+      "path": "poolMaxConnections"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:TlsReportSettings",
+      "level": "info",
+      "path": "orgName"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:SpamPyzor",
+      "level": "info",
+      "path": "enable"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Account/b",
+      "level": "warning",
+      "path": "permissions/disabledPermissions/jmapPrincipalUpdate",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AcmeProvider/c",
+      "level": "warning",
+      "path": "maxRetries",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AppPassword/c",
+      "level": "warning",
+      "path": "permissions/permissions/sysDmarcExternalReportUpdate",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Directory/b",
+      "level": "warning",
+      "path": "requireScopes",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:DmarcReportSettings",
+      "level": "warning",
+      "path": "aggregateSubject",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "anonymousClientRegistration",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "authCodeMaxAttempts",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "refreshTokenRenewal",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "requireClientRegistration",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexEmailFields/hasAttachment",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexEmailFields/size",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Search",
+      "level": "warning",
+      "path": "indexTracingFields",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SieveSystemInterpreter",
+      "level": "warning",
+      "path": "duplicateExpiry",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "categories",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "confidence",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "prompt",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosCategory",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosConfidence",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosExplanation",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "separator",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "temperature",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SystemSettings",
+      "level": "warning",
+      "path": "threadPoolSize",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Task/c",
+      "level": "warning",
+      "path": "@type",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:TaskManager",
+      "level": "warning",
+      "path": "maxAttempts",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:TaskManager",
+      "level": "warning",
+      "path": "totalDeadline",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:TlsReportSettings",
+      "level": "warning",
+      "path": "subject",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "moved",
+      "key": "x:SenderAuth",
+      "level": "info",
+      "path": "dkimSignDomain"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:ArfExternalReport/c",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:Authentication",
+      "level": "warning",
+      "path": "defaultAdminRoleIds/d"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:Authentication",
+      "level": "warning",
+      "path": "defaultGroupRoleIds/b"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:Authentication",
+      "level": "warning",
+      "path": "defaultTenantRoleIds/d"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:DkimSignature/c",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:DmarcExternalReport/d",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:OAuthClient/c",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:Role/c",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:TlsExternalReport/b",
+      "level": "warning",
+      "path": "memberTenantId"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/b",
+      "level": "info",
+      "path": "modelType"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Alert/c",
+      "level": "info",
+      "path": "condition"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Directory/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:DmarcReportSettings",
+      "level": "info",
+      "path": "aggregateMaxReportSize"
+    },
+    {
+      "change": "transformed",
+      "key": "x:DmarcReportSettings",
+      "level": "info",
+      "path": "failureSubject"
+    },
+    {
+      "change": "transformed",
+      "key": "x:DmarcReportSettings",
+      "level": "warning",
+      "path": "aggregateFromName"
+    },
+    {
+      "change": "transformed",
+      "key": "x:DmarcReportSettings",
+      "level": "warning",
+      "path": "failureFromAddress"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaExtensions",
+      "level": "warning",
+      "path": "dsn"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaExtensions",
+      "level": "warning",
+      "path": "expn"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaExtensions",
+      "level": "warning",
+      "path": "futureRelease"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaHook/c",
+      "level": "info",
+      "path": "enable"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaOutboundStrategy",
+      "level": "info",
+      "path": "schedule"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaOutboundStrategy",
+      "level": "warning",
+      "path": "tls"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaQueueQuota/d",
+      "level": "warning",
+      "path": "match"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageConnect",
+      "level": "warning",
+      "path": "script"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageData",
+      "level": "warning",
+      "path": "addDateHeader"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageEhlo",
+      "level": "info",
+      "path": "rejectNonFqdn"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageEhlo",
+      "level": "warning",
+      "path": "require"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageRcpt",
+      "level": "info",
+      "path": "maxRecipients"
+    },
+    {
+      "change": "transformed",
+      "key": "x:MtaStageRcpt",
+      "level": "info",
+      "path": "script"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SenderAuth",
+      "level": "info",
+      "path": "reverseIpVerify"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SieveSystemInterpreter",
+      "level": "info",
+      "path": "defaultFromAddress"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SieveSystemInterpreter",
+      "level": "warning",
+      "path": "defaultReturnPath"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SieveUserInterpreter",
+      "level": "warning",
+      "path": "dkimSignDomain"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamDnsblServer/c",
+      "level": "warning",
+      "path": "zone"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamLlm",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpfReportSettings",
+      "level": "warning",
+      "path": "subject"
+    },
+    {
+      "change": "transformed",
+      "key": "x:TlsReportSettings",
+      "level": "info",
+      "path": "contactInfo"
+    },
+    {
+      "change": "transformed",
+      "key": "x:TlsReportSettings",
+      "level": "info",
+      "path": "fromAddress"
+    },
+    {
+      "change": "transformed",
+      "key": "x:TlsReportSettings",
+      "level": "info",
+      "path": "maxReportSize"
+    },
+    {
+      "change": "transformed",
+      "key": "x:TlsReportSettings",
+      "level": "warning",
+      "path": "sendFrequency"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:Task/c"
+  ],
+  "objects": [
+    {
+      "key": "x:Tenant/d",
+      "source": "x:Tenant/d",
+      "value": {
+        "logo": "s9",
+        "name": "s3",
+        "permissions": {
+          "@type": "Replace",
+          "disabledPermissions": {
+            "sysMtaStageAuthGet": true
+          },
+          "enabledPermissions": {
+            "actionTroubleshootDmarc": true,
+            "jmapCalendarEventParse": true,
+            "jmapEmailQuery": true,
+            "sysInMemoryStoreGet": true,
+            "sysMemoryLookupKeyQuery": true,
+            "taskDkimManagement": true
+          }
+        },
+        "quotas": {
+          "maxDomains": 0
+        }
+      }
+    },
+    {
+      "key": "x:Domain/d",
+      "source": "x:Domain/d",
+      "value": {
+        "aliases": {},
+        "allowRelaying": false,
+        "catchAllAddress": "a@b.c",
+        "certificateManagement": {
+          "@type": "Manual"
+        },
+        "description": "s5",
+        "directoryId": null,
+        "dnsManagement": {
+          "@type": "Manual"
+        },
+        "enable": false,
+        "logo": "s2",
+        "memberTenantId": null,
+        "name": "s0",
+        "subAddressing": {
+          "@type": "Enabled"
+        }
+      }
+    },
+    {
+      "key": "x:Directory/b",
+      "source": "x:Directory/b",
+      "value": {
+        "@type": "Oidc",
+        "acceptedAudiences": {
+          "s5": true
+        },
+        "allowIdTokenClaims": false,
+        "allowInvalidCerts": false,
+        "claimGroups": null,
+        "claimName": "s7",
+        "claimUsername": "s0",
+        "issuerUrl": "https://x.example/v1/chat/completions",
+        "lenientIssuerMatch": false,
+        "opaqueTokenValidation": "userInfo",
+        "skipAudienceValidation": false,
+        "unscopedTokens": "interoperable",
+        "usernameDomain": null
+      }
+    },
+    {
+      "key": "x:Role/c",
+      "source": "x:Role/c",
+      "value": {
+        "description": "s6",
+        "disabledPermissions": {
+          "jmapEmailCreate": true,
+          "sysAlertUpdate": true,
+          "sysMtaInboundThrottleCreate": true,
+          "sysReportSettingsUpdate": true,
+          "sysSpamDnsblSettingsGet": true
+        },
+        "memberTenantId": null,
+        "roleIds": {}
+      }
+    },
+    {
+      "key": "x:MailingList/b",
+      "source": "x:MailingList/b",
+      "value": {
+        "aliases": {},
+        "description": "s5",
+        "domainId": "d",
+        "emailAddress": "a@b.c",
+        "memberTenantId": "d",
+        "name": "s7",
+        "recipients": {
+          "a0": true
+        }
+      }
+    },
+    {
+      "key": "x:AccountPassword",
+      "source": "x:AccountPassword",
+      "value": {
+        "otpAuth": {
+          "otpCode": "s4",
+          "otpUrl": "https://x.example/v1/chat/completions"
+        }
+      }
+    },
+    {
+      "key": "x:AccountSettings",
+      "source": "x:AccountSettings",
+      "value": {
+        "encryptionAtRest": {
+          "@type": "Aes128",
+          "allowSpamTraining": true,
+          "encryptOnAppend": false,
+          "publicKey": "c"
+        },
+        "locale": "lv-LV",
+        "timeZone": "Etc/GMT+10"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/c",
+      "source": "x:AcmeProvider/c",
+      "value": {
+        "challengeType": "Dns01",
+        "contact": {
+          "a0": true,
+          "a1": true
+        },
+        "description": "s6",
+        "directory": "https://x.example/v1/chat/completions",
+        "eabHmacKey": "s9",
+        "eabKeyId": "s9",
+        "memberTenantId": "d",
+        "preferredChain": "s4",
+        "renewBefore": "R23"
+      }
+    },
+    {
+      "key": "x:Action/d",
+      "source": "x:Action/d",
+      "value": {
+        "@type": "ResumeMtaQueue"
+      }
+    },
+    {
+      "key": "x:AddressBook",
+      "source": "x:AddressBook",
+      "value": {
+        "defaultHrefName": "s9",
+        "maxAddressBooks": 250,
+        "maxContacts": 5,
+        "maxVCardSize": 0,
+        "vCardVersion": "v4"
+      }
+    },
+    {
+      "key": "x:AiModel/b",
+      "source": "x:AiModel/b",
+      "value": {
+        "@type": "OpenAi",
+        "allowInvalidCerts": false,
+        "apiKey": {
+          "@type": "None"
+        },
+        "httpHeaders": {
+          "k": "s4"
+        },
+        "model": "s2",
+        "name": "s3",
+        "profile": "Generic",
+        "temperature": 1.5,
+        "url": "https://x.example/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:Alert/c",
+      "source": "x:Alert/c",
+      "value": {
+        "condition": {
+          "else": "rcpt_domain",
+          "match": {
+            "0": {
+              "if": "key_incr('s', 'k', 1)",
+              "then": "'a'"
+            }
+          }
+        },
+        "enable": true,
+        "eventAlert": {
+          "@type": "Disabled"
+        }
+      }
+    },
+    {
+      "key": "x:AllowedIp/d",
+      "source": "x:AllowedIp/d",
+      "value": {
+        "address": "s4",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "expiresAt": null,
+        "reason": "s6"
+      }
+    },
+    {
+      "key": "x:ApiKey/b",
+      "source": "x:ApiKey/b",
+      "value": {
+        "allowedIps": {
+          "a0": true
+        },
+        "description": "s4",
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "permissions": {
+          "@type": "Inherit"
+        }
+      }
+    },
+    {
+      "key": "x:AppPassword/c",
+      "source": "x:AppPassword/c",
+      "value": {
+        "allowedIps": {
+          "a0": true,
+          "a1": true
+        },
+        "createdAt": "2024-01-01T00:00:00Z",
+        "description": "s3",
+        "permissions": {
+          "@type": "Replace",
+          "permissions": {
+            "sysSpamClassifierGet": true
+          }
+        },
+        "secret": "s9"
+      }
+    },
+    {
+      "key": "x:Application/d",
+      "source": "x:Application/d",
+      "value": {
+        "autoUpdateInterval": 7776000000,
+        "description": "s0",
+        "enable": false,
+        "oauthClientId": "s9",
+        "unpackDirectory": null,
+        "urlPrefix": {}
+      }
+    },
+    {
+      "key": "x:ArchivedItem/b",
+      "source": "x:ArchivedItem/b",
+      "value": {
+        "@type": "Email",
+        "accountId": "c",
+        "archivedUntil": "2024-01-01T00:00:00Z",
+        "receivedAt": "2024-01-01T00:00:00Z",
+        "size": 0,
+        "status": "archived"
+      }
+    },
+    {
+      "key": "x:ArfExternalReport/c",
+      "source": "x:ArfExternalReport/c",
+      "value": {
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "memberTenantId": null,
+        "receivedAt": "2024-01-01T00:00:00Z",
+        "subject": "s6"
+      }
+    },
+    {
+      "key": "x:Asn",
+      "source": "x:Asn",
+      "value": {
+        "@type": "Resource",
+        "asnUrls": {
+          "a0": true,
+          "a1": true
+        },
+        "geoUrls": {},
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "refreshInterval": 1001,
+        "timeout": 300000
+      }
+    },
+    {
+      "key": "x:Authentication",
+      "source": "x:Authentication",
+      "value": {
+        "defaultAdminRoleIds": {
+          "c": true
+        },
+        "defaultGroupRoleIds": {},
+        "defaultTenantRoleIds": {
+          "c": true
+        },
+        "defaultUserRoleIds": {},
+        "directoryId": "b",
+        "maxApiKeys": 1,
+        "maxAppPasswords": 5,
+        "minPasswordLength": 1,
+        "minPasswordStrength": "three",
+        "passwordDefaultExpiry": 5,
+        "passwordHashAlgorithm": "pbkdf2"
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "Default"
+      }
+    },
+    {
+      "key": "x:BlockedIp/d",
+      "source": "x:BlockedIp/d",
+      "value": {
+        "address": "s3",
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "reason": "manual"
+      }
+    },
+    {
+      "key": "x:Bootstrap",
+      "source": "x:Bootstrap",
+      "value": {
+        "defaultDomain": "s8",
+        "defaultHostname": "s7",
+        "directory": {
+          "@type": "Internal"
+        },
+        "dnsServer": {
+          "@type": "Manual"
+        },
+        "generateDkimKeys": false,
+        "inMemoryStore": {
+          "@type": "Redis",
+          "poolMaxConnections": 10,
+          "poolTimeoutCreate": 30000,
+          "poolTimeoutWait": 30000
+        },
+        "requestTlsCertificate": true,
+        "tracer": {
+          "@type": "OtelGrpc",
+          "enable": true,
+          "enableLogExporter": false,
+          "enableSpanExporter": true,
+          "httpAuth": {
+            "@type": "Bearer",
+            "bearerToken": {
+              "@type": "File",
+              "filePath": "s6"
+            }
+          },
+          "httpHeaders": {
+            "k": "s9"
+          },
+          "level": "info",
+          "lossy": true,
+          "throttle": 1001,
+          "timeout": 1001,
+          "url": "https://x.example/v1/chat/completions"
+        }
+      }
+    },
+    {
+      "key": "x:Cache",
+      "source": "x:Cache",
+      "value": {
+        "accessTokens": 2048,
+        "contacts": 3048,
+        "dnsIpv4": 2048,
+        "dnsIpv6": 3048,
+        "dnsPtr": 2048,
+        "dnsTlsa": 2048,
+        "emailAddressesNegative": 2097152,
+        "events": 2048,
+        "files": 2048,
+        "httpAuth": 2048,
+        "messages": 2048,
+        "negativeTtl": 3600000,
+        "roles": 2048,
+        "spamLookup": 2048
+      }
+    },
+    {
+      "key": "x:Calendar",
+      "source": "x:Calendar",
+      "value": {
+        "defaultDisplayName": null,
+        "defaultHrefName": null,
+        "maxAttendees": 20,
+        "maxICalendarSize": 524288,
+        "maxParticipantIdentities": null,
+        "maxRecurrenceExpansions": 0
+      }
+    },
+    {
+      "key": "x:CalendarAlarm",
+      "source": "x:CalendarAlarm",
+      "value": {
+        "enable": true,
+        "fromAddress": "a@b.c",
+        "fromName": "s1",
+        "minTriggerInterval": 3600000,
+        "template": "s8"
+      }
+    },
+    {
+      "key": "x:CalendarScheduling",
+      "source": "x:CalendarScheduling",
+      "value": {
+        "autoAddInvitations": true,
+        "emailTemplate": "s5",
+        "enable": true,
+        "httpRsvpEnable": false,
+        "httpRsvpLinkExpiry": 0,
+        "httpRsvpTemplate": "s1",
+        "httpRsvpUrl": "https://x.example/v1/chat/completions",
+        "maxItipSize": 100,
+        "maxRecipients": 100
+      }
+    },
+    {
+      "key": "x:Certificate/b",
+      "source": "x:Certificate/b",
+      "value": {
+        "certificate": {
+          "@type": "Text",
+          "value": "s7"
+        },
+        "privateKey": {
+          "@type": "File",
+          "filePath": "s4"
+        }
+      }
+    },
+    {
+      "key": "x:ClusterNode/c",
+      "source": "x:ClusterNode/c",
+      "value": {
+        "hostname": "s4",
+        "lastRenewal": "2024-01-01T00:00:00Z",
+        "nodeId": 1
+      }
+    },
+    {
+      "key": "x:ClusterRole/d",
+      "source": "x:ClusterRole/d",
+      "value": {
+        "description": "s6",
+        "listeners": {
+          "@type": "EnableSome",
+          "listenerIds": {}
+        },
+        "name": "s2"
+      }
+    },
+    {
+      "key": "x:Coordinator",
+      "source": "x:Coordinator",
+      "value": {
+        "@type": "Zenoh",
+        "config": "s8"
+      }
+    },
+    {
+      "key": "x:DataRetention",
+      "source": "x:DataRetention",
+      "value": {
+        "archiveDeletedAccountsFor": 1001,
+        "archiveDeletedItemsFor": 0,
+        "blobCleanupSchedule": {
+          "@type": "Daily",
+          "minute": 5
+        },
+        "dataCleanupSchedule": {
+          "@type": "Daily",
+          "hour": 23,
+          "minute": 59
+        },
+        "expungeSchedulingInboxAfter": 5,
+        "expungeShareNotifyAfter": 0,
+        "expungeSubmissionsAfter": 259200000,
+        "expungeTrashAfter": 1001,
+        "holdMetricsFor": 1001,
+        "holdMtaReportsFor": 100,
+        "holdTracesFor": 0,
+        "metricsCollectionInterval": {
+          "@type": "Hourly",
+          "minute": 0
+        }
+      }
+    },
+    {
+      "key": "x:DataStore",
+      "source": "x:DataStore",
+      "value": {
+        "@type": "Sqlite",
+        "path": "s7",
+        "poolWorkers": 5
+      }
+    },
+    {
+      "key": "x:DkimReportSettings",
+      "source": "x:DkimReportSettings",
+      "value": {
+        "subject": {
+          "else": "'DKIM Authentication Failure Report'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:DkimSignature/c",
+      "source": "x:DkimSignature/c",
+      "value": {
+        "@type": "Dkim2Ed25519Sha256",
+        "memberTenantId": null,
+        "nextTransitionAt": null,
+        "privateKey": {
+          "@type": "Text",
+          "secret": "s4"
+        },
+        "selector": "s6",
+        "stage": "active"
+      }
+    },
+    {
+      "key": "x:DmarcExternalReport/d",
+      "source": "x:DmarcExternalReport/d",
+      "value": {
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "from": "a@b.c",
+        "memberTenantId": null,
+        "receivedAt": "2024-01-01T00:00:00Z",
+        "subject": "s5"
+      }
+    },
+    {
+      "key": "x:DmarcInternalReport/b",
+      "source": "x:DmarcInternalReport/b",
+      "value": {
+        "createdAt": "2024-01-01T00:00:00Z",
+        "domain": "s2",
+        "policyIdentifier": 100
+      }
+    },
+    {
+      "key": "x:DmarcReportSettings",
+      "source": "x:DmarcReportSettings",
+      "value": {
+        "aggregateSendFrequency": {
+          "else": "daily",
+          "match": {}
+        },
+        "failureDkimSignDomain": {
+          "else": "retry_num > 1",
+          "match": {}
+        },
+        "failureFromName": {
+          "else": "rcpt_domain",
+          "match": {
+            "0": {
+              "if": "retry_num > 1",
+              "then": "rcpt_domain"
+            }
+          }
+        },
+        "failureSubject": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {
+            "0": {
+              "if": "sender_domain == 'x'",
+              "then": "system('domain')"
+            }
+          }
+        },
+        "maxAggregateReportSize": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {
+            "0": {
+              "if": "sender_domain == 'x'",
+              "then": "sender_domain == 'x'"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:DnsResolver",
+      "source": "x:DnsResolver",
+      "value": {
+        "@type": "Cloudflare",
+        "attempts": 100,
+        "enableEdns": false,
+        "tcpOnError": true,
+        "timeout": 5000,
+        "useTls": true
+      }
+    },
+    {
+      "key": "x:DnsServer/c",
+      "source": "x:DnsServer/c",
+      "value": {
+        "@type": "LuaDns",
+        "description": "s6",
+        "memberTenantId": "d",
+        "pollInterval": 15000,
+        "propagationTimeout": 100,
+        "timeout": 0,
+        "token": {
+          "@type": "File",
+          "filePath": "s2"
+        },
+        "username": "s0"
+      }
+    },
+    {
+      "key": "x:DsnReportSettings",
+      "source": "x:DsnReportSettings",
+      "value": {
+        "dkimSignDomain": {
+          "else": "sender_domain == 'x'",
+          "match": {}
+        },
+        "fromAddress": {
+          "else": "rcpt_domain",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:Email",
+      "source": "x:Email",
+      "value": {
+        "compressionAlgorithm": "lz4",
+        "defaultFolders": {
+          "drafts": {
+            "aliases": {
+              "a0": true,
+              "a1": true
+            },
+            "create": false,
+            "name": "s5",
+            "subscribe": false
+          }
+        },
+        "encryptAtRest": true,
+        "encryptOnAppend": true,
+        "maxIdentities": 1001,
+        "maxMailboxDepth": 10,
+        "maxMailboxNameLength": 1002,
+        "maxMailboxes": 250,
+        "maxMaskedAddresses": 5,
+        "maxMessageSize": 75000000,
+        "maxMessages": 1,
+        "maxPublicKeys": 5,
+        "maxSubmissions": 100
+      }
+    },
+    {
+      "key": "x:Enterprise",
+      "source": "x:Enterprise",
+      "value": {
+        "apiKey": {
+          "@type": "File",
+          "filePath": "s3"
+        },
+        "licenseKey": {
+          "@type": "File",
+          "filePath": "s6"
+        },
+        "logo": "https://x.example/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:EventTracingLevel/b",
+      "source": "x:EventTracingLevel/b",
+      "value": {
+        "event": "arc.chain-invalid"
+      }
+    },
+    {
+      "key": "x:FileStorage",
+      "source": "x:FileStorage",
+      "value": {
+        "maxFolders": 5
+      }
+    },
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "allowedEndpoints": {
+          "else": "200",
+          "match": {}
+        },
+        "clientIpSource": "peer",
+        "enableHsts": true,
+        "rateLimitAuthenticated": {
+          "count": 1000,
+          "period": "1m"
+        },
+        "redirectRoot": "/account",
+        "responseHeaders": {
+          "k": "s6"
+        },
+        "usePermissiveCors": true
+      }
+    },
+    {
+      "key": "x:HttpForm",
+      "source": "x:HttpForm",
+      "value": {
+        "defaultFromAddress": "postmaster@localhost",
+        "defaultName": "s2",
+        "defaultSubject": "s7",
+        "deliverTo": {
+          "a0": true,
+          "a1": true
+        },
+        "enable": false,
+        "fieldEmail": null,
+        "fieldHoneyPot": "s4",
+        "fieldName": "s8",
+        "rateLimit": {
+          "period": 1002
+        },
+        "validateDomain": true
+      }
+    },
+    {
+      "key": "x:HttpLookup/c",
+      "source": "x:HttpLookup/c",
+      "value": {
+        "enable": true,
+        "format": {
+          "@type": "List"
+        },
+        "isGzipped": false,
+        "maxEntries": 1,
+        "maxEntrySize": 1048576,
+        "maxSize": 104857600,
+        "namespace": "s0",
+        "refreshInterval": 100,
+        "timeout": 1000,
+        "url": "https://x.example/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:Imap",
+      "source": "x:Imap",
+      "value": {
+        "allowPlainTextAuth": false,
+        "anonymousTimeout": 0,
+        "authenticatedTimeout": 5,
+        "maxAuthFailures": 3,
+        "maxMessagesPerSave": 2001,
+        "maxUidBatches": 5,
+        "rateLimit": {
+          "count": 1000000,
+          "period": 1
+        }
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Redis",
+        "connectTimeout": 1001,
+        "poolTimeoutRecycle": 30000,
+        "poolTimeoutWait": 0
+      }
+    },
+    {
+      "key": "x:Jmap",
+      "source": "x:Jmap",
+      "value": {
+        "maxChangesResults": 1,
+        "maxConcurrentRequests": 100,
+        "maxConcurrentUploads": 4,
+        "maxGetResults": 500,
+        "maxMethodCalls": 1002,
+        "maxPushSize": 4096,
+        "maxQueryResults": 1001,
+        "maxRequestSize": 1,
+        "maxSetObjects": 500,
+        "maxSnippetResults": 100,
+        "maxSubscriptions": null,
+        "maxUploadCount": 1,
+        "maxUploadSize": 100,
+        "parseLimitEmail": 1,
+        "parseLimitEvent": 1,
+        "pushAttemptWait": 100,
+        "pushRequestTimeout": 0,
+        "pushRetryWait": 1000,
+        "pushShardsTotal": 1001,
+        "pushVerifyTimeout": 1001,
+        "uploadQuota": 50000000,
+        "webPushContact": "s3",
+        "webPushKey": {
+          "@type": "None"
+        },
+        "websocketHeartbeat": 60000
+      }
+    },
+    {
+      "key": "x:Log/d",
+      "source": "x:Log/d",
+      "value": {
+        "event": "dkim2.public-key-error"
+      }
+    },
+    {
+      "key": "x:MaskedEmail/c",
+      "source": "x:MaskedEmail/c",
+      "value": {
+        "accountId": "c",
+        "createdBy": "s3",
+        "description": "s2",
+        "emailDomain": "s5",
+        "emailPrefix": "s0",
+        "enable": true,
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "forDomain": "s1",
+        "url": "s5"
+      }
+    },
+    {
+      "key": "x:MemoryLookupKey/d",
+      "source": "x:MemoryLookupKey/d",
+      "value": {
+        "isGlobPattern": false,
+        "key": "s1",
+        "namespace": "s7"
+      }
+    },
+    {
+      "key": "x:MemoryLookupKeyValue/b",
+      "source": "x:MemoryLookupKeyValue/b",
+      "value": {
+        "isGlobPattern": true,
+        "key": "s2",
+        "namespace": "s9",
+        "value": "s5"
+      }
+    },
+    {
+      "key": "x:Metric/c",
+      "source": "x:Metric/c",
+      "value": {
+        "@type": "Gauge",
+        "count": 0,
+        "metric": "dkim2.signature-invalid",
+        "timestamp": "2024-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "x:Metrics",
+      "source": "x:Metrics",
+      "value": {
+        "metrics": {
+          "mail-auth.crypto": true,
+          "store.data-iterate": true
+        },
+        "metricsPolicy": "exclude",
+        "prometheus": {
+          "@type": "Disabled"
+        }
+      }
+    },
+    {
+      "key": "x:MetricsStore",
+      "source": "x:MetricsStore",
+      "value": {
+        "@type": "FoundationDb",
+        "clusterFile": "s6",
+        "datacenterId": "s7",
+        "machineId": "s2",
+        "transactionRetryDelay": 1001,
+        "transactionRetryLimit": null,
+        "transactionTimeout": 5
+      }
+    },
+    {
+      "key": "x:MtaConnectionStrategy/d",
+      "source": "x:MtaConnectionStrategy/d",
+      "value": {
+        "connectTimeout": 300000,
+        "dataTimeout": 600000,
+        "description": "s3",
+        "ehloTimeout": 300000,
+        "greetingTimeout": 300000,
+        "localIps": {
+          "0": {
+            "ehloHostname": null,
+            "localIp": "s5"
+          },
+          "1": {
+            "ehloHostname": "s9"
+          }
+        },
+        "mailFromTimeout": 300000,
+        "name": "s5",
+        "rcptToTimeout": 300000
+      }
+    },
+    {
+      "key": "x:MtaExtensions",
+      "source": "x:MtaExtensions",
+      "value": {
+        "chunking": {
+          "else": "true",
+          "match": {}
+        },
+        "noSoliciting": {
+          "else": "system('domain')",
+          "match": {}
+        },
+        "pipelining": {
+          "else": "sender_domain == 'x'",
+          "match": {}
+        },
+        "requireTls": {
+          "else": "true",
+          "match": {}
+        },
+        "vrfy": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "!is_empty(authenticated_as)",
+              "then": "true"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:MtaHook/c",
+      "source": "x:MtaHook/c",
+      "value": {
+        "allowInvalidCerts": true,
+        "enable": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {
+            "0": {
+              "if": "rcpt_domain",
+              "then": "ip_reverse"
+            }
+          }
+        },
+        "httpAuth": {
+          "@type": "Bearer",
+          "bearerToken": {
+            "@type": "EnvironmentVariable",
+            "variableName": "s8"
+          }
+        },
+        "httpHeaders": {
+          "k": "s9"
+        },
+        "maxResponseSize": 1000,
+        "stages": {
+          "data": true
+        },
+        "tempFailOnError": true,
+        "timeout": 100,
+        "url": "https://x.example/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:MtaInboundSession",
+      "source": "x:MtaInboundSession",
+      "value": {
+        "maxDuration": {
+          "else": "sender_domain == 'x'",
+          "match": {
+            "0": {
+              "if": "'a'",
+              "then": "sender_domain == 'x'"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:MtaInboundThrottle/d",
+      "source": "x:MtaInboundThrottle/d",
+      "value": {
+        "description": "s8",
+        "enable": true,
+        "rate": {
+          "count": 100
+        }
+      }
+    },
+    {
+      "key": "x:MtaMilter/b",
+      "source": "x:MtaMilter/b",
+      "value": {
+        "allowInvalidCerts": true,
+        "commandTimeout": 1000,
+        "connectTimeout": 0,
+        "flagsAction": 100,
+        "flagsProtocol": 1000,
+        "host": "s7",
+        "protocolVersion": "v6",
+        "stages": {
+          "data": true
+        },
+        "tempFailOnError": false,
+        "useTls": true
+      }
+    },
+    {
+      "key": "x:MtaOutboundStrategy",
+      "source": "x:MtaOutboundStrategy",
+      "value": {
+        "schedule": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {
+            "0": {
+              "if": "key_incr('s', 'k', 1)",
+              "then": "sender_domain == 'x'"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:MtaOutboundThrottle/c",
+      "source": "x:MtaOutboundThrottle/c",
+      "value": {
+        "description": "s2",
+        "enable": true,
+        "key": {
+          "localIp": true,
+          "mx": true,
+          "rcptDomain": true,
+          "remoteIp": true,
+          "sender": true,
+          "senderDomain": true
+        },
+        "rate": {
+          "count": 100,
+          "period": 1
+        }
+      }
+    },
+    {
+      "key": "x:MtaQueueQuota/d",
+      "source": "x:MtaQueueQuota/d",
+      "value": {
+        "description": "s4",
+        "enable": false,
+        "key": {
+          "sender": true,
+          "senderDomain": true
+        },
+        "messages": 5,
+        "size": 0
+      }
+    },
+    {
+      "key": "x:MtaRoute/b",
+      "source": "x:MtaRoute/b",
+      "value": {
+        "@type": "Local",
+        "name": "s7"
+      }
+    },
+    {
+      "key": "x:MtaStageAuth",
+      "source": "x:MtaStageAuth",
+      "value": {
+        "mustMatchSender": {
+          "else": "true",
+          "match": {}
+        },
+        "require": {
+          "else": "sender_domain == 'x'",
+          "match": {}
+        },
+        "waitOnFail": {
+          "else": "5s",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaStageConnect",
+      "source": "x:MtaStageConnect",
+      "value": {
+        "hostname": {
+          "else": "system('hostname')",
+          "match": {}
+        },
+        "smtpGreeting": {
+          "else": "system('hostname') + ' Stalwart ESMTP at your service'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaStageData",
+      "source": "x:MtaStageData",
+      "value": {
+        "addAuthResultsHeader": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "true"
+            }
+          }
+        },
+        "addDeliveredToHeader": false,
+        "addMessageIdHeader": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "true"
+            }
+          }
+        },
+        "addReceivedHeader": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "true"
+            }
+          }
+        },
+        "addReceivedSpfHeader": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "true"
+            }
+          }
+        },
+        "addReturnPathHeader": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "true"
+            }
+          }
+        },
+        "dkimSignDomain": {
+          "else": "false",
+          "match": {
+            "0": {
+              "if": "is_local_domain(sender_domain) && !is_empty(authenticated_as)",
+              "then": "sender_domain"
+            }
+          }
+        },
+        "maxMessageSize": {
+          "else": "104857600",
+          "match": {}
+        },
+        "maxReceivedHeaders": {
+          "else": "50",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaStageEhlo",
+      "source": "x:MtaStageEhlo",
+      "value": {
+        "rejectNonFqdn": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {}
+        },
+        "script": {
+          "else": "false",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaStageMail",
+      "source": "x:MtaStageMail",
+      "value": {
+        "script": {
+          "else": "false",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaStageRcpt",
+      "source": "x:MtaStageRcpt",
+      "value": {
+        "allowRelaying": {
+          "else": "system('domain')",
+          "match": {
+            "0": {
+              "if": "sender_domain == 'x'",
+              "then": "system('domain')"
+            }
+          }
+        },
+        "maxFailures": {
+          "else": "5",
+          "match": {}
+        },
+        "maxRecipients": {
+          "else": "ip_reverse",
+          "match": {}
+        },
+        "script": {
+          "else": "rcpt_domain",
+          "match": {
+            "0": {
+              "if": "ip_reverse",
+              "then": "'a'"
+            }
+          }
+        },
+        "waitOnFail": {
+          "else": "5s",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:MtaSts",
+      "source": "x:MtaSts",
+      "value": {
+        "mxHosts": {
+          "a0": true
+        }
+      }
+    },
+    {
+      "key": "x:MtaTlsStrategy/c",
+      "source": "x:MtaTlsStrategy/c",
+      "value": {
+        "allowInvalidCerts": false,
+        "dane": "optional",
+        "description": null,
+        "mtaSts": "optional",
+        "name": "s5",
+        "startTls": "optional",
+        "tlsTimeout": 180000
+      }
+    },
+    {
+      "key": "x:MtaVirtualQueue/d",
+      "source": "x:MtaVirtualQueue/d",
+      "value": {
+        "description": "s8",
+        "name": "s7",
+        "threadsPerNode": 100
+      }
+    },
+    {
+      "key": "x:MtaDeliverySchedule/b",
+      "source": "x:MtaDeliverySchedule/b",
+      "value": {
+        "description": "s6",
+        "expiry": {
+          "@type": "Ttl"
+        },
+        "name": "s5",
+        "notify": {
+          "@type": "Custom",
+          "intervals": {}
+        },
+        "queueId": "d",
+        "retry": {
+          "@type": "Custom",
+          "intervals": {}
+        }
+      }
+    },
+    {
+      "key": "x:NetworkListener/b",
+      "source": "x:NetworkListener/b",
+      "value": {
+        "bind": {
+          "a0": true
+        },
+        "implicitTls": true,
+        "name": "s3",
+        "overrideProxyTrustedNetworks": {
+          "a0": true
+        },
+        "protocol": "smtp",
+        "socketBacklog": 1024,
+        "socketNoDelay": true,
+        "socketReuseAddress": true,
+        "socketReusePort": false,
+        "socketSendBufferSize": 100,
+        "socketTosV4": 100,
+        "socketTtl": null,
+        "tlsDisableCipherSuites": {
+          "tls-ecdhe-ecdsa-with-aes-128-gcm-sha256": true,
+          "tls-ecdhe-rsa-with-chacha20-poly1305-sha256": true,
+          "tls13-aes-128-gcm-sha256": true,
+          "tls13-chacha20-poly1305-sha256": true
+        },
+        "tlsDisableProtocols": {
+          "tls13": true
+        },
+        "tlsIgnoreClientOrder": true,
+        "tlsTimeout": 60000
+      }
+    },
+    {
+      "key": "x:OAuthClient/c",
+      "source": "x:OAuthClient/c",
+      "value": {
+        "clientId": "s1",
+        "contacts": {},
+        "createdAt": "2024-01-01T00:00:00Z",
+        "logo": null,
+        "memberTenantId": null,
+        "secret": "s7"
+      }
+    },
+    {
+      "key": "x:OidcProvider",
+      "source": "x:OidcProvider",
+      "value": {
+        "accessTokenExpiry": 600000,
+        "authCodeExpiry": 600000,
+        "idTokenExpiry": 100,
+        "refreshTokenExpiry": 86400000,
+        "signatureAlgorithm": "hs256",
+        "signatureKey": {
+          "@type": "Text",
+          "secret": "s5"
+        },
+        "userCodeExpiry": 1800000
+      }
+    },
+    {
+      "key": "x:PublicKey/d",
+      "source": "x:PublicKey/d",
+      "value": {
+        "accountId": "d",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "description": "s4",
+        "emailAddresses": {
+          "a0": true,
+          "a1": true
+        },
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "key": "s7"
+      }
+    },
+    {
+      "key": "x:Account/b",
+      "source": "x:Account/b",
+      "value": {
+        "@type": "User",
+        "aliases": {},
+        "credentials": {
+          "0": {
+            "@type": "ApiKey",
+            "credentialId": "s3",
+            "expiresAt": "2024-01-01T00:00:00Z",
+            "permissions": {
+              "@type": "Disable",
+              "permissions": {
+                "actionReloadLookupStores": true
+              }
+            }
+          },
+          "1": {
+            "@type": "ApiKey",
+            "allowedIps": {},
+            "description": "s9",
+            "permissions": {
+              "@type": "Disable",
+              "permissions": {
+                "sysInMemoryStoreUpdate": true,
+                "sysMailingListGet": true,
+                "sysMtaConnectionStrategyQuery": true,
+                "sysMtaInboundThrottleDestroy": true,
+                "sysSpamTrainingSampleQuery": true
+              }
+            }
+          }
+        },
+        "description": null,
+        "domainId": "c",
+        "encryptionAtRest": {
+          "@type": "Aes256Gcm",
+          "allowSpamTraining": false,
+          "encryptOnAppend": false,
+          "publicKey": "d"
+        },
+        "externalId": "s5",
+        "locale": "gd-GB",
+        "memberGroupIds": {
+          "b": true,
+          "d": true
+        },
+        "memberTenantId": "d",
+        "name": "s9",
+        "permissions": {
+          "@type": "Replace",
+          "disabledPermissions": {
+            "jmapParticipantIdentityUpdate": true,
+            "sysAppPasswordGet": true,
+            "sysArfExternalReportDestroy": true,
+            "sysSpamTrainingSampleCreate": true
+          },
+          "enabledPermissions": {
+            "jmapFileNodeQuery": true,
+            "jmapQuotaQuery": true,
+            "sysDmarcInternalReportGet": true,
+            "sysMemoryLookupKeyValueCreate": true,
+            "sysMtaTlsStrategyUpdate": true
+          }
+        },
+        "quotas": {
+          "maxEmails": 0
+        },
+        "roles": {
+          "@type": "Admin"
+        },
+        "timeZone": null
+      }
+    },
+    {
+      "key": "x:QueuedMessage/b",
+      "source": "x:QueuedMessage/b",
+      "value": {
+        "blobId": "blob",
+        "envId": null,
+        "nextRetry": "2024-01-01T00:00:00Z",
+        "recipients": {
+          "k": {
+            "expires": {
+              "@type": "Attempts",
+              "expiresAttempts": 0
+            },
+            "notifyDue": "2024-01-01T00:00:00Z",
+            "orcpt": "s6",
+            "retryCount": 0,
+            "status": {
+              "@type": "PermanentFailure",
+              "errorCommand": null,
+              "errorMessage": "s6",
+              "errorType": "io",
+              "responseCode": 599,
+              "responseHostname": "s0"
+            }
+          }
+        },
+        "returnPath": "s1"
+      }
+    },
+    {
+      "key": "x:ReportSettings",
+      "source": "x:ReportSettings",
+      "value": {
+        "inboundReportAddresses": {},
+        "maxInboundReportSize": 1024,
+        "outboundReportDomain": "s6",
+        "outboundReportSubmitter": {
+          "else": "system('hostname')",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:Search",
+      "source": "x:Search",
+      "value": {
+        "defaultLanguage": "en-US",
+        "indexBatchSize": 100,
+        "indexCalendar": true,
+        "indexContacts": true,
+        "indexEmail": true,
+        "indexEmailFields": {
+          "body": true,
+          "headers": true,
+          "subject": true,
+          "to": true
+        },
+        "indexTelemetry": true,
+        "supportedLanguages": {
+          "ar-TN": true,
+          "ff-SN": true,
+          "ne-NP": true
+        }
+      }
+    },
+    {
+      "key": "x:SearchStore",
+      "source": "x:SearchStore",
+      "value": {
+        "@type": "PostgreSql",
+        "allowInvalidCerts": true,
+        "authSecret": {
+          "@type": "Value",
+          "secret": "s3"
+        },
+        "authUsername": null,
+        "connectTimeout": null,
+        "database": "stalwart",
+        "host": "s9",
+        "options": "s9",
+        "poolRecyclingMethod": "fast",
+        "readReplicas": {},
+        "useTls": false
+      }
+    },
+    {
+      "key": "x:Security",
+      "source": "x:Security",
+      "value": {
+        "abuseBanRate": {},
+        "authBanPeriod": 1001,
+        "authBanRate": {
+          "count": 100,
+          "period": 1
+        },
+        "loiterBanPeriod": 1001,
+        "loiterBanRate": {
+          "count": 150,
+          "period": "1d"
+        },
+        "scanBanPeriod": 5
+      }
+    },
+    {
+      "key": "x:SenderAuth",
+      "source": "x:SenderAuth",
+      "value": {
+        "arcVerify": {
+          "else": "disable",
+          "match": {}
+        },
+        "dkimVerify": {
+          "else": "retry_num > 1",
+          "match": {}
+        },
+        "dmarcVerify": {
+          "else": "disable",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "relaxed"
+            }
+          }
+        },
+        "reverseIpVerify": {
+          "else": "key_incr('s', 'k', 1)",
+          "match": {}
+        },
+        "spfEhloVerify": {
+          "else": "rcpt_domain",
+          "match": {}
+        },
+        "spfFromVerify": {
+          "else": "disable",
+          "match": {
+            "0": {
+              "if": "local_port == 25",
+              "then": "relaxed"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:Sharing",
+      "source": "x:Sharing",
+      "value": {}
+    },
+    {
+      "key": "x:SieveSystemInterpreter",
+      "source": "x:SieveSystemInterpreter",
+      "value": {
+        "defaultFromAddress": {
+          "else": "sender_domain == 'x'",
+          "match": {
+            "0": {
+              "if": "retry_num > 1",
+              "then": "key_incr('s', 'k', 1)"
+            }
+          }
+        },
+        "defaultFromName": {
+          "else": "retry_num > 1",
+          "match": {}
+        },
+        "maxCpuCycles": 5,
+        "maxNestedIncludes": 100,
+        "maxOutMessages": 5,
+        "maxRedirects": 1001,
+        "maxVarSize": 5,
+        "messageIdHostname": "s2",
+        "noCapabilityCheck": true
+      }
+    },
+    {
+      "key": "x:SieveSystemScript/d",
+      "source": "x:SieveSystemScript/d",
+      "value": {
+        "contents": "s4",
+        "description": "s8",
+        "isActive": true,
+        "name": "s1"
+      }
+    },
+    {
+      "key": "x:SieveUserInterpreter",
+      "source": "x:SieveUserInterpreter",
+      "value": {
+        "allowedNotifyUris": {
+          "mailto": true
+        },
+        "defaultExpiryDuplicate": 0,
+        "defaultExpiryVacation": 100,
+        "defaultSubject": "Automated reply",
+        "defaultSubjectPrefix": "s7",
+        "disableCapabilities": {
+          "comparator-elbonia": true,
+          "encoded-character": true,
+          "mime": true,
+          "relational": true,
+          "spamtest": true
+        },
+        "maxCpuCycles": 5,
+        "maxHeaderSize": 1001,
+        "maxIncludes": 3,
+        "maxLocalVars": 128,
+        "maxMatchVars": 30,
+        "maxNestedBlocks": 15,
+        "maxNestedForEvery": 3,
+        "maxNestedIncludes": 100,
+        "maxNestedTests": 15,
+        "maxOutMessages": 1001,
+        "maxReceivedHeaders": 1002,
+        "maxRedirects": 1,
+        "maxScriptNameLength": 512,
+        "maxScriptSize": 102400,
+        "protectedHeaders": {}
+      }
+    },
+    {
+      "key": "x:SieveUserScript/b",
+      "source": "x:SieveUserScript/b",
+      "value": {
+        "contents": "s8",
+        "description": null,
+        "isActive": true,
+        "name": "s5"
+      }
+    },
+    {
+      "key": "x:SpamAi",
+      "source": "x:SpamLlm",
+      "value": {
+        "@type": "Enable",
+        "tiers": {
+          "0": {
+            "modelId": "b"
+          }
+        }
+      }
+    },
+    {
+      "key": "x:SpamClassifier",
+      "source": "x:SpamClassifier",
+      "value": {
+        "learnHamFromCard": true,
+        "learnHamFromReply": false,
+        "learnSpamFromTraps": true,
+        "minHamSamples": 100,
+        "minSpamSamples": 1,
+        "model": {
+          "@type": "FtrlCcfh",
+          "indicatorParameters": {
+            "numFeatures": "18"
+          },
+          "parameters": {
+            "numFeatures": "20"
+          }
+        },
+        "reservoirCapacity": 100
+      }
+    },
+    {
+      "key": "x:SpamDnsblServer/c",
+      "source": "x:SpamDnsblServer/c",
+      "value": {
+        "@type": "Email",
+        "enable": true,
+        "name": "s6",
+        "tag": {
+          "else": "sender_domain == 'x'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:SpamDnsblSettings",
+      "source": "x:SpamDnsblSettings",
+      "value": {
+        "domainLimit": 50,
+        "emailLimit": 50,
+        "ipLimit": 50,
+        "urlLimit": 1001
+      }
+    },
+    {
+      "key": "x:SpamFileExtension/d",
+      "source": "x:SpamFileExtension/d",
+      "value": {
+        "extension": "s7",
+        "isArchive": false,
+        "isBad": false,
+        "isNz": false
+      }
+    },
+    {
+      "key": "x:SpamPyzor",
+      "source": "x:SpamPyzor",
+      "value": {
+        "allowCount": 10,
+        "blockCount": 5,
+        "enable": true,
+        "host": "s4",
+        "port": 100,
+        "ratio": 0.2,
+        "timeout": 100
+      }
+    },
+    {
+      "key": "x:SpamRule/b",
+      "source": "x:SpamRule/b",
+      "value": {
+        "@type": "Ip",
+        "condition": {
+          "else": "system('domain')",
+          "match": {
+            "0": {
+              "if": "retry_num > 1",
+              "then": "'a'"
+            }
+          }
+        },
+        "enable": true,
+        "name": "s2",
+        "priority": 100
+      }
+    },
+    {
+      "key": "x:SpamSettings",
+      "source": "x:SpamSettings",
+      "value": {
+        "enable": true,
+        "greylistFor": 1001,
+        "scoreReject": 0,
+        "scoreSpam": -99.5,
+        "spamFilterRulesUrl": null,
+        "trustContacts": true,
+        "trustReplies": false
+      }
+    },
+    {
+      "key": "x:SpamTag/c",
+      "source": "x:SpamTag/c",
+      "value": {
+        "@type": "Discard",
+        "tag": "s3"
+      }
+    },
+    {
+      "key": "x:SpamTrainingSample/d",
+      "source": "x:SpamTrainingSample/d",
+      "value": {
+        "blobId": "blob",
+        "deleteAfterUse": true,
+        "from": "a@b.c",
+        "isSpam": false
+      }
+    },
+    {
+      "key": "x:SpfReportSettings",
+      "source": "x:SpfReportSettings",
+      "value": {
+        "dkimSignDomain": {
+          "else": "retry_num > 1",
+          "match": {}
+        },
+        "fromName": {
+          "else": "rcpt_domain",
+          "match": {
+            "0": {
+              "if": "rcpt_domain",
+              "then": "sender_domain == 'x'"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "x:StoreLookup/b",
+      "source": "x:StoreLookup/b",
+      "value": {
+        "namespace": "s3"
+      }
+    },
+    {
+      "key": "x:SystemSettings",
+      "source": "x:SystemSettings",
+      "value": {
+        "defaultHostname": "s3",
+        "providerInfo": {
+          "providerShortName": "s7"
+        },
+        "proxyTrustedNetworks": {}
+      }
+    },
+    {
+      "key": "x:TaskManager",
+      "source": "x:TaskManager",
+      "value": {
+        "strategy": {
+          "@type": "FixedDelay",
+          "delay": 300000
+        }
+      }
+    },
+    {
+      "key": "x:TlsExternalReport/b",
+      "source": "x:TlsExternalReport/b",
+      "value": {
+        "expiresAt": "2024-01-01T00:00:00Z",
+        "memberTenantId": null,
+        "receivedAt": "2024-01-01T00:00:00Z",
+        "report": {
+          "contactInfo": "s1",
+          "dateRangeEnd": "2024-01-01T00:00:00Z",
+          "dateRangeStart": "2024-01-01T00:00:00Z",
+          "organizationName": null,
+          "policies": {}
+        },
+        "subject": "s0",
+        "to": {
+          "a0": true,
+          "a1": true
+        }
+      }
+    },
+    {
+      "key": "x:TlsInternalReport/c",
+      "source": "x:TlsInternalReport/c",
+      "value": {
+        "createdAt": "2024-01-01T00:00:00Z",
+        "deliverAt": "2024-01-01T00:00:00Z",
+        "domain": "s6",
+        "httpRua": {
+          "a0": true
+        },
+        "policyIdentifiers": {
+          "a0": true,
+          "a1": true
+        },
+        "report": {
+          "contactInfo": null,
+          "dateRangeEnd": "2024-01-01T00:00:00Z",
+          "dateRangeStart": "2024-01-01T00:00:00Z",
+          "organizationName": "s6",
+          "policies": {
+            "0": {
+              "failureDetails": {
+                "0": {
+                  "additionalInformation": "s6",
+                  "failedSessionCount": 0,
+                  "failureReasonCode": "s8",
+                  "receivingIp": "s3",
+                  "receivingMxHelo": "s6",
+                  "receivingMxHostname": "s4",
+                  "resultType": "certificateExpired"
+                }
+              },
+              "mxHosts": {
+                "a0": true,
+                "a1": true
+              },
+              "policyDomain": "s0",
+              "policyStrings": {
+                "a0": true,
+                "a1": true
+              },
+              "policyType": "noPolicyFound",
+              "totalFailedSessions": 1001,
+              "totalSuccessfulSessions": 0
+            },
+            "1": {
+              "failureDetails": {
+                "0": {
+                  "additionalInformation": "s1",
+                  "failedSessionCount": 100,
+                  "failureReasonCode": null,
+                  "receivingIp": "s6",
+                  "receivingMxHelo": "s1",
+                  "receivingMxHostname": "s9",
+                  "resultType": "daneRequired"
+                },
+                "1": {
+                  "failedSessionCount": 100,
+                  "failureReasonCode": null,
+                  "receivingIp": "s4",
+                  "receivingMxHostname": "s0",
+                  "sendingMtaIp": "s6"
+                }
+              },
+              "mxHosts": {
+                "a0": true
+              },
+              "policyDomain": "s2",
+              "policyStrings": {
+                "a0": true
+              },
+              "policyType": "other",
+              "totalFailedSessions": 0,
+              "totalSuccessfulSessions": 100
+            }
+          },
+          "reportId": "s9"
+        }
+      }
+    },
+    {
+      "key": "x:TlsReportSettings",
+      "source": "x:TlsReportSettings",
+      "value": {
+        "dkimSignDomain": {
+          "else": "sender_domain == 'x'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:Trace/d",
+      "source": "x:Trace/d",
+      "value": {
+        "size": 0
+      }
+    },
+    {
+      "key": "x:Tracer/b",
+      "source": "x:Tracer/b",
+      "value": {
+        "@type": "Stdout",
+        "ansi": true,
+        "buffered": true,
+        "events": {
+          "http.error": true,
+          "pop3.quit": true
+        },
+        "eventsPolicy": "exclude",
+        "lossy": true,
+        "multiline": true
+      }
+    },
+    {
+      "key": "x:TracingStore",
+      "source": "x:TracingStore",
+      "value": {
+        "@type": "Default"
+      }
+    },
+    {
+      "key": "x:WebDav",
+      "source": "x:WebDav",
+      "value": {
+        "enableAssistedDiscovery": true,
+        "maxLivePropertySize": 250
+      }
+    },
+    {
+      "key": "x:WebHook/c",
+      "source": "x:WebHook/c",
+      "value": {
+        "allowInvalidCerts": true,
+        "discardAfter": 1000,
+        "events": {
+          "dkim.signature-invalid": true,
+          "dmarc.temp-error": true,
+          "imap.lsub": true,
+          "outgoing-report.dmarc-report": true,
+          "spam.model-not-found": true,
+          "store.data-store-purged": true
+        },
+        "eventsPolicy": "exclude",
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "level": "error",
+        "lossy": true,
+        "signatureKey": {
+          "@type": "EnvironmentVariable",
+          "variableName": "s5"
+        },
+        "throttle": 1000,
+        "timeout": 0,
+        "url": "https://x.example/v1/chat/completions"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:AiModel/b",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": false,
+      "key": "x:Directory/b",
+      "prompt": "oidc_directory"
+    },
+    {
+      "answered": false,
+      "key": "x:DmarcReportSettings",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaExtensions",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaOutboundStrategy",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaQueueQuota/d",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaStageConnect",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaStageData",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:MtaStageEhlo",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:OidcProvider",
+      "prompt": "oauth_registration"
+    },
+    {
+      "answered": false,
+      "key": "x:OidcProvider",
+      "prompt": "oidc_token_lifetimes"
+    },
+    {
+      "answered": false,
+      "key": "x:SieveSystemInterpreter",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:SieveUserInterpreter",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:SpamDnsblServer/c",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:SpamLlm",
+      "prompt": "spam_ai"
+    },
+    {
+      "answered": false,
+      "key": "x:SpfReportSettings",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": "x:TlsReportSettings",
+      "prompt": "counter_read"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_inherited",
+      "key": "x:SpamPyzor",
+      "level": "info",
+      "path": "enable"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "accounts"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "contacts"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dkimSignatures"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsIpv4"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsIpv6"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsMx"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsRbl"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "dnsTxt"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "domainNames"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "domainNamesNegative"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "domains"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "emailAddresses"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "events"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "files"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "httpAuth"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "messages"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "roles"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "scheduling"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "tenants"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Cache",
+      "source": "x:Cache",
+      "value": {
+        "accounts": 20971520,
+        "contacts": 10485760,
+        "dkimSignatures": 10485760,
+        "dnsIpv4": 5242880,
+        "dnsIpv6": 5242880,
+        "dnsMx": 5242880,
+        "dnsTxt": 5242880,
+        "domainNames": 10485760,
+        "domainNamesNegative": 1048576,
+        "domains": 5242880,
+        "emailAddresses": 10485760,
+        "events": 10485760,
+        "files": 10485760,
+        "httpAuth": 1048576,
+        "messages": 52428800,
+        "roles": 5242880,
+        "scheduling": 1048576,
+        "spamLookup": 5242880,
+        "tenants": 5242880
+      }
+    },
+    {
+      "key": "x:SpamPyzor",
+      "source": "x:SpamPyzor",
+      "value": {}
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

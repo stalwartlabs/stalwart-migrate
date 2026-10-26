@@ -1,0 +1,89 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use super::Session;
+use common::{config::smtp::auth::VerifyStrategy, network::SessionStream};
+use std::time::Duration;
+
+impl<T: SessionStream> Session<T> {
+    pub async fn eval_session_params(&mut self) {
+        let c = &self.server.core.smtp.session;
+        self.data.bytes_left = self
+            .eval_if(&c.transfer_limit)
+            .await
+            .unwrap_or(250 * 1024 * 1024);
+        self.data.valid_until += self
+            .eval_if(&c.duration)
+            .await
+            .unwrap_or_else(|| Duration::from_secs(15 * 60));
+
+        self.params.timeout = self
+            .eval_if(&c.timeout)
+            .await
+            .unwrap_or_else(|| Duration::from_secs(5 * 60));
+        self.params.spf_ehlo = self
+            .eval_if(&self.server.core.smtp.mail_auth.spf.verify_ehlo)
+            .await
+            .unwrap_or(VerifyStrategy::Relaxed);
+        self.params.spf_mail_from = self
+            .eval_if(&self.server.core.smtp.mail_auth.spf.verify_mail_from)
+            .await
+            .unwrap_or(VerifyStrategy::Relaxed);
+        self.params.iprev = self
+            .eval_if(&self.server.core.smtp.mail_auth.iprev.verify)
+            .await
+            .unwrap_or(VerifyStrategy::Relaxed);
+
+        // Ehlo parameters
+        let ec = &self.server.core.smtp.session.ehlo;
+        self.params.ehlo_require = self.eval_if(&ec.require).await.unwrap_or(true);
+        self.params.ehlo_reject_non_fqdn = self.eval_if(&ec.reject_non_fqdn).await.unwrap_or(true);
+
+        // Auth parameters
+        let ac = &self.server.core.smtp.session.auth;
+        self.params.auth_require = self.eval_if(&ac.require).await.unwrap_or(false);
+        self.params.auth_errors_max = self.eval_if(&ac.errors_max).await.unwrap_or(3);
+        self.params.auth_errors_wait = self
+            .eval_if(&ac.errors_wait)
+            .await
+            .unwrap_or_else(|| Duration::from_secs(30));
+
+        // VRFY/EXPN parameters
+        let ec = &self.server.core.smtp.session.extensions;
+        self.params.can_expn = self.eval_if(&ec.expn).await.unwrap_or(false);
+        self.params.can_vrfy = self.eval_if(&ec.vrfy).await.unwrap_or(false);
+    }
+
+    pub async fn eval_post_auth_params(&mut self) {
+        // Refresh VRFY/EXPN parameters
+        let ec = &self.server.core.smtp.session.extensions;
+        self.params.can_expn = self.eval_if(&ec.expn).await.unwrap_or(false);
+        self.params.can_vrfy = self.eval_if(&ec.vrfy).await.unwrap_or(false);
+    }
+
+    pub async fn eval_rcpt_params(&mut self) {
+        let rc = &self.server.core.smtp.session.rcpt;
+        self.params.rcpt_errors_max = self.eval_if(&rc.errors_max).await.unwrap_or(10);
+        self.params.rcpt_errors_wait = self
+            .eval_if(&rc.errors_wait)
+            .await
+            .unwrap_or_else(|| Duration::from_secs(30));
+        self.params.rcpt_max = self.eval_if(&rc.max_recipients).await.unwrap_or(100);
+        self.params.rcpt_dsn = self
+            .eval_if(&self.server.core.smtp.session.extensions.dsn)
+            .await
+            .unwrap_or(true);
+
+        self.params.max_message_size = match self
+            .eval_if::<usize>(&self.server.core.smtp.session.data.max_message_size)
+            .await
+        {
+            Some(0) => usize::MAX,
+            Some(max_message_size) => max_message_size,
+            None => 25 * 1024 * 1024,
+        };
+    }
+}

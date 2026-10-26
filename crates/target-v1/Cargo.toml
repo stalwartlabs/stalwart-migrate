@@ -1,0 +1,71 @@
+[package]
+name = "target-v1"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+arc-swap = "1.9.2"
+bytes = "1"
+calcard = { path = "../../vendor/v1/crates/calcard", features = ["rkyv"] }
+common = { path = "../../vendor/v1/crates/common" }
+directory = { path = "../../vendor/v1/crates/directory" }
+email = { path = "../../vendor/v1/crates/email" }
+futures = "0.3.34"
+foundationdb = { version = "0.11", features = ["embedded-fdb-include", "fdb-7_4"], optional = true }
+groupware = { path = "../../vendor/v1/crates/groupware" }
+hashify = "0.3"
+jmap = { path = "../../vendor/v1/crates/jmap" }
+jmap_proto = { path = "../../vendor/v1/crates/jmap-proto" }
+jmap-tools = { path = "../../vendor/v1/crates/jmap-tools" }
+mail-parser = { version = "1.0", features = ["full_encoding"] }
+model = { path = "../model" }
+registry = { path = "../../vendor/v1/crates/registry" }
+roaring = "0.11.5"
+rusqlite = { version = "0.41", features = ["bundled"], optional = true }
+rustls = { version = "0.23.43", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+serde = "1.0"
+serde_json = "1.0"
+services = { path = "../../vendor/v1/crates/services" }
+smtp = { path = "../../vendor/v1/crates/smtp" }
+smtp-proto = { path = "../../vendor/v1/crates/smtp-proto" }
+source-v1 = { workspace = true }
+sieve-rs = { path = "../../vendor/v1/crates/sieve" }
+store = { path = "../../vendor/v1/crates/store" }
+trc = { path = "../../vendor/v1/crates/trc" }
+types = { path = "../../vendor/v1/crates/types" }
+utils = { path = "../../vendor/v1/crates/utils" }
+tokio = { version = "1.53", features = ["sync"] }
+
+[features]
+failpoints = []
+rocks = ["store/rocks"]
+foundation = ["store/foundation", "common/foundation", "dep:foundationdb"]
+postgres = ["store/postgres", "directory/postgres"]
+mysql = ["store/mysql", "directory/mysql"]
+sqlite = ["store/sqlite", "directory/sqlite", "dep:rusqlite"]
+s3 = ["store/s3"]
+azure = ["store/azure"]
+redis = ["store/redis", "common/redis"]
+enterprise = [
+    "common/enterprise",
+    "directory/enterprise",
+    "email/enterprise",
+    "groupware/enterprise",
+    "jmap/enterprise",
+    "registry/enterprise",
+    "smtp/enterprise",
+    "source-v1/enterprise",
+    "store/enterprise",
+    "trc/enterprise",
+    "utils/enterprise",
+]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+rocksdb = { version = "0.24", features = ["multi-threaded-cf"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+tempfile = "3.27"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }

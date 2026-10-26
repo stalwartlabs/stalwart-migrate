@@ -1,0 +1,37 @@
+{
+  "objects": [
+    {
+      "key": "x:AcmeProvider/a",
+      "value": {
+        "directory": "https://acme-v02.api.letsencrypt.org/directory",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "accountUri": "https://acme-v02.api.letsencrypt.org/acme/acct/123456789"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/b",
+      "value": {
+        "directory": "https://acme.example.org/directory",
+        "challengeType": "Dns01",
+        "contact": {
+          "admin@example.org": true
+        }
+      }
+    },
+    {
+      "key": "x:AcmeProvider/c",
+      "value": {
+        "description": "https://acme.example.net/directory (42)",
+        "directory": "https://acme.example.net/directory",
+        "challengeType": "Http01",
+        "contact": {
+          "admin@example.net": true
+        },
+        "accountUri": "https://acme.example.net/acct/42"
+      }
+    }
+  ]
+}

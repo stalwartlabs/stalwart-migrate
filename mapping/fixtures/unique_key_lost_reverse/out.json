@@ -1,0 +1,49 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/b",
+      "level": "warning",
+      "path": "",
+      "reason": "its unique key is absent or has no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/b",
+      "level": "warning",
+      "path": "event",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/c",
+      "level": "warning",
+      "path": "",
+      "reason": "its unique key is absent or has no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/c",
+      "level": "warning",
+      "path": "event",
+      "reason": "not part of the target schema"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:EventTracingLevel/b",
+    "x:EventTracingLevel/c"
+  ],
+  "objects": [
+    {
+      "key": "x:EventTracingLevel/d",
+      "source": "x:EventTracingLevel/d",
+      "value": {
+        "event": "store.cache-miss",
+        "level": "warn"
+      }
+    }
+  ],
+  "questions": []
+}

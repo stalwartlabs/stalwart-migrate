@@ -1,0 +1,31 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "moved",
+      "key": "x:SenderAuth",
+      "level": "info",
+      "path": "dkimSignDomain"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:MtaStageData",
+      "source": "x:SenderAuth",
+      "value": {
+        "dkimSignDomain": {
+          "else": "'signing.example.com'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:SenderAuth",
+      "source": "x:SenderAuth",
+      "value": {}
+    }
+  ],
+  "questions": []
+}

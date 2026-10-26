@@ -1,0 +1,38 @@
+{
+  "objects": [
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "u",
+        "domainId": "d",
+        "emailAddress": "u@example.com"
+      }
+    },
+    {
+      "key": "x:Domain/d",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:Task/b",
+      "value": {
+        "@type": "IndexDocument",
+        "accountId": "c",
+        "documentId": "d",
+        "documentType": "email"
+      }
+    },
+    {
+      "key": "x:Task/c",
+      "value": {
+        "@type": "MergeThreads",
+        "accountId": "c",
+        "threadName": "t",
+        "messageIds": {}
+      }
+    }
+  ]
+}

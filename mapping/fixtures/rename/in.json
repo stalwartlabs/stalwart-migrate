@@ -1,0 +1,41 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true,
+        "aliases": {
+          "example.net": true
+        }
+      }
+    },
+    {
+      "key": "x:Jmap",
+      "value": {
+        "changesMaxResults": 5000,
+        "getMaxResults": 500,
+        "maxUploadSize": 50000000
+      }
+    },
+    {
+      "key": "x:NetworkListener/c",
+      "value": {
+        "name": "imaps",
+        "tlsImplicit": true,
+        "bind": {
+          "[::]:993": true
+        }
+      }
+    },
+    {
+      "key": "x:MtaRoute/d",
+      "value": {
+        "@type": "Relay",
+        "name": "relay",
+        "address": "smtp.example.com",
+        "port": 25
+      }
+    }
+  ]
+}

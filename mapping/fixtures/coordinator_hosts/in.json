@@ -1,0 +1,15 @@
+{
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "value": {
+        "@type": "Nats",
+        "addresses": {
+          "127.0.0.1:4444": true
+        },
+        "capacityClient": 2048,
+        "timeoutConnection": 5000
+      }
+    }
+  ]
+}

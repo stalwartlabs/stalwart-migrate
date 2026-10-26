@@ -1,0 +1,71 @@
+# Rules that bring JSON written for any Stalwart 0.16.x release to the 0.16.27
+# vocabulary, applied before v016_to_v1.toml. Derived by diffing the compiled
+# schema of every v0.16 tag against v0.16.27:
+#
+#   0.16.0 to 0.16.3   DnsServer and DnsServerBootstrap variant Sig0 (now Deprecated1)
+#   0.16.0 to 0.16.15  S3Store.accessKey was a plain string (now PublicStringOptional)
+#   0.16.0 to 0.16.19  Locale used POSIX names (en_US, de_DE@euro) instead of BCP 47
+#
+# The migration tool reads a 0.16.27 server, where these rules never match; the
+# CLI plan converter needs them for plans written against older servers.
+#
+# Rule forms are the same as in v016_to_v1.toml. `[enum_separators]` rewrites a
+# value that is not a valid 0.16.27 value by replacing one separator with
+# another, and keeps the result only when it is valid.
+
+version = 1
+
+[variants."x:DnsServer"]
+Sig0 = "Deprecated1"
+
+[variants."x:DnsServerBootstrap"]
+Sig0 = "Deprecated1"
+
+[enums.DnsServerType]
+Sig0 = "Deprecated1"
+
+[enums.DnsServerBootstrapType]
+Sig0 = "Deprecated1"
+
+[properties."x:S3Store"]
+accessKey = { convert = "string_to_public_optional" }
+
+[enum_separators.Locale]
+from = "_"
+to = "-"
+
+[enums.Locale]
+POSIX = "en-US"
+"aa_ER@saaho" = "ssy-ER"
+"be_BY@latin" = "be-Latn-BY"
+"br_FR@euro" = "br-FR"
+"ca_ES@euro" = "ca-ES"
+"ca_ES@valencia" = "ca-ES-valencia"
+"de_AT@euro" = "de-AT"
+"de_BE@euro" = "de-BE"
+"de_DE@euro" = "de-DE"
+"de_LU@euro" = "de-LU"
+"el_GR@euro" = "el-GR"
+"en_IE@euro" = "en-IE"
+"es_ES@euro" = "es-ES"
+"eu_ES@euro" = "eu-ES"
+"fi_FI@euro" = "fi-FI"
+"fr_BE@euro" = "fr-BE"
+"fr_FR@euro" = "fr-FR"
+"fr_LU@euro" = "fr-LU"
+"ga_IE@euro" = "ga-IE"
+"gez_ER@abegede" = "gez-ER"
+"gez_ET@abegede" = "gez-ET"
+"gl_ES@euro" = "gl-ES"
+"it_IT@euro" = "it-IT"
+"ks_IN@devanagari" = "ks-Deva-IN"
+"nan_TW@latin" = "nan-Latn-TW"
+"nl_BE@euro" = "nl-BE"
+"nl_NL@euro" = "nl-NL"
+"pt_PT@euro" = "pt-PT"
+"sd_IN@devanagari" = "sd-Deva-IN"
+"sr_RS@latin" = "sr-Latn-RS"
+"sv_FI@euro" = "sv-FI"
+"tt_RU@iqtelif" = "tt-Latn-RU"
+"uz_UZ@cyrillic" = "uz-Cyrl-UZ"
+"wa_BE@euro" = "wa-BE"

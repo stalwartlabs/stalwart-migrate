@@ -1,0 +1,41 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:InMemoryStore",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "source": "x:Coordinator",
+      "value": {
+        "@type": "Kafka",
+        "groupId": "stalwart",
+        "hosts": {
+          "kafka:9092": true
+        }
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Redis",
+        "url": "redis://redis:6379"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:InMemoryStore",
+      "prompt": "in_memory_cluster"
+    }
+  ]
+}

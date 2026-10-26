@@ -1,0 +1,52 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:SpamRule/b",
+      "level": "warning",
+      "path": "condition"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamRule/c",
+      "level": "info",
+      "path": "condition"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:SpamRule/b",
+      "source": "x:SpamRule/b",
+      "value": {
+        "@type": "Any",
+        "enable": true,
+        "name": "rate",
+        "priority": 10
+      }
+    },
+    {
+      "key": "x:SpamRule/c",
+      "source": "x:SpamRule/c",
+      "value": {
+        "@type": "Any",
+        "condition": {
+          "else": "key_incr('redis', 'k', 1) > 5",
+          "match": {}
+        },
+        "enable": true,
+        "name": "incr",
+        "priority": 11
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:SpamRule/b",
+      "prompt": "counter_read"
+    }
+  ]
+}

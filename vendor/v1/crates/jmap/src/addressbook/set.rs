@@ -1,0 +1,728 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::api::acl::{JmapAcl, JmapRights};
+use crate::api::metadata::{
+    MetadataAccess, MetadataPatches, MetadataTarget, MetadataType, MetadataWriter, ObjectMetadata,
+    PreparedMetadata, is_empty_update, reject_uncommitted,
+};
+use crate::api::pending_creates::PendingCreates;
+use crate::changes::state::JmapCacheState;
+use common::{
+    Server,
+    auth::AccessToken,
+    sharing::{EffectiveAcl, grants::ShareUpdate},
+    storage::{batch::MAX_BATCH_DOCUMENTS, index::PresenceFlags, quota::ObjectQuotaUsage},
+};
+use groupware::{
+    DestroyArchive,
+    cache::GroupwareCache,
+    contact::{AddressBook, AddressBookPreferences, ContactCard},
+};
+use http_proto::HttpSessionData;
+use jmap_proto::{
+    error::set::SetError,
+    method::set::{SetRequest, SetResponse},
+    object::addressbook::{self, AddressBookProperty, AddressBookValue},
+    request::{MaybeInvalid, capability::CapabilityIds, reference::MaybeIdReference},
+    types::state::State,
+};
+use jmap_tools::{JsonPointerItem, Key, Value};
+use rand::{RngExt, distr::Alphanumeric};
+use registry::schema::enums::StorageQuota;
+use store::{
+    ValueKey,
+    ahash::AHashSet,
+    write::{Archive, ArchiveBytes, BatchBuilder, PendingId},
+};
+use trc::AddContext;
+use types::{
+    acl::{Acl, AclGrant},
+    collection::{Collection, SyncCollection},
+    field::{ContactField, PrincipalField},
+    id::Id,
+};
+
+pub trait AddressBookSet: Sync + Send {
+    fn address_book_set(
+        &self,
+        request: SetRequest<'_, addressbook::AddressBook>,
+        access_token: &AccessToken,
+        session: &HttpSessionData,
+        using: CapabilityIds,
+    ) -> impl Future<Output = trc::Result<SetResponse<addressbook::AddressBook>>> + Send;
+}
+
+impl AddressBookSet for Server {
+    async fn address_book_set(
+        &self,
+        mut request: SetRequest<'_, addressbook::AddressBook>,
+        access_token: &AccessToken,
+        _session: &HttpSessionData,
+        using: CapabilityIds,
+    ) -> trc::Result<SetResponse<addressbook::AddressBook>> {
+        let account_id = request.account_id.document_id();
+        let metadata = ObjectMetadata::new(self, access_token, using, MetadataType::AddressBook);
+        let sampled = metadata.viewer_change_id(self, account_id).await?;
+        let cache = self
+            .fetch_groupware_resources(
+                access_token.account_id(),
+                account_id,
+                SyncCollection::AddressBook,
+            )
+            .await?;
+        let mut response = SetResponse::from_request(&request, self.core.jmap.set_max_objects)?
+            .with_state(sampled.assert_state(cache.get_state(true), &request.if_in_state)?);
+        let mut metadata_writer = MetadataWriter::new(metadata, account_id);
+        let will_destroy = response.collect_will_destroy(request.unwrap_destroy());
+        let is_shared = access_token.is_shared(account_id);
+        let mut set_default: Option<PendingId> = None;
+        let mut created_slots = PendingCreates::new();
+
+        // Obtain quota
+        let quota = if request.has_creates() && !is_shared {
+            let account = self.account(account_id).await.caused_by(trc::location!())?;
+            self.object_quota_usage(&account, StorageQuota::MaxAddressBooks, || {
+                cache.resources.count(true)
+            })
+        } else {
+            ObjectQuotaUsage::unlimited()
+        };
+
+        // Process creates
+        let mut batch = BatchBuilder::new();
+        'create: for (id, mut object) in request.unwrap_create() {
+            if !quota.has_room(created_slots.len()) {
+                response.not_created.append(
+                    id,
+                    SetError::over_quota().with_description(concat!(
+                        "There are too many address books, ",
+                        "please delete some before adding a new one."
+                    )),
+                );
+                continue 'create;
+            }
+
+            if is_shared {
+                response.not_created.append(
+                    id,
+                    SetError::forbidden()
+                        .with_description("Cannot create address books in a shared account."),
+                );
+                continue 'create;
+            }
+
+            let mut address_book = AddressBook {
+                name: rand::rng()
+                    .sample_iter(Alphanumeric)
+                    .take(10)
+                    .map(char::from)
+                    .collect::<String>(),
+                preferences: vec![AddressBookPreferences {
+                    account_id,
+                    name: "Address Book".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+
+            // Process changes
+            let metadata_patches =
+                match metadata_writer.extract(MetadataPatches::for_create(), &mut object) {
+                    Ok(patches) => patches,
+                    Err(err) => {
+                        response.not_created.append(id, err);
+                        continue 'create;
+                    }
+                };
+            if let Err(err) =
+                update_address_book(None, object, &mut address_book, access_token, account_id)
+            {
+                response.not_created.append(id, err);
+                continue 'create;
+            }
+
+            // Validate ACLs
+            if !address_book.acls.is_empty() {
+                if let Err(err) = JmapRights::validate_shares::<addressbook::AddressBook, _>(
+                    ShareUpdate {
+                        collection: Collection::AddressBook,
+                        owner_id: account_id,
+                        actor: None,
+                        current: &[] as &[AclGrant],
+                        max_shares: self.core.groupware.max_shares_per_item,
+                    },
+                    &address_book.acls,
+                ) {
+                    response.not_created.append(id, err);
+                    continue 'create;
+                }
+                if let Err(err) = self
+                    .acl_validate(
+                        access_token,
+                        account_id,
+                        &address_book.acls,
+                        &[] as &[AclGrant],
+                    )
+                    .await
+                {
+                    response.not_created.append(id, err.into());
+                    continue 'create;
+                }
+            }
+
+            let prepared_metadata = match metadata_patches {
+                Some(patches) => match metadata_writer
+                    .prepare_for(self, patches, MetadataAccess::FULL, MetadataTarget::Create)
+                    .await?
+                {
+                    Ok(prepared) => Some(prepared),
+                    Err(err) => {
+                        response.not_created.append(id, err);
+                        continue 'create;
+                    }
+                },
+                None => None,
+            };
+
+            // Insert record
+            let document_id = batch.reserve_document_id(account_id, Collection::AddressBook);
+            if let Some(kinds) = prepared_metadata
+                .as_ref()
+                .and_then(PreparedMetadata::shared_kinds)
+            {
+                address_book.set_metadata_kinds(kinds);
+            }
+            if let Some(prepared) = prepared_metadata {
+                metadata_writer.write(prepared, document_id, &mut batch)?;
+            }
+            address_book
+                .insert(
+                    access_token.changed_by(),
+                    account_id,
+                    document_id,
+                    &mut batch,
+                )
+                .caused_by(trc::location!())?;
+
+            if let Some(MaybeIdReference::Reference(id_ref)) =
+                &request.arguments.on_success_set_is_default
+                && id_ref == &id
+            {
+                set_default = Some(PendingId::Slot(document_id));
+            }
+
+            created_slots.push(id, document_id);
+        }
+
+        // Process updates
+        metadata_writer
+            .preload_updates(self, request.update.as_ref(), |document_id| {
+                cache
+                    .container_resource_by_id(document_id)
+                    .map(|resource| resource.metadata_kinds())
+            })
+            .await?;
+        'update: for (id, mut object) in request.unwrap_update() {
+            let id = match id {
+                MaybeInvalid::Value(id) => id,
+                invalid => {
+                    response.not_updated.append(invalid, SetError::not_found());
+                    continue 'update;
+                }
+            };
+            // Make sure id won't be destroyed
+            if will_destroy.contains(&id) {
+                response.not_updated.append(id, SetError::will_destroy());
+                continue 'update;
+            }
+            let mut metadata_patches =
+                match metadata_writer.extract(MetadataPatches::for_update(), &mut object) {
+                    Ok(patches) => patches,
+                    Err(err) => {
+                        response.not_updated.append(id, err);
+                        continue 'update;
+                    }
+                };
+
+            // Obtain address book
+            let document_id = id.document_id();
+            let address_book_ = if let Some(address_book_) = self
+                .store()
+                .get_value::<Archive<ArchiveBytes>>(ValueKey::archive(
+                    account_id,
+                    Collection::AddressBook,
+                    document_id,
+                ))
+                .await?
+            {
+                address_book_
+            } else {
+                response.not_updated.append(id, SetError::not_found());
+                continue 'update;
+            };
+            let address_book = address_book_
+                .to_unarchived::<AddressBook>()
+                .caused_by(trc::location!())?;
+
+            let acl = is_shared.then(|| address_book.inner.acls.effective_acl(access_token));
+            if acl.is_some_and(|acl| !acl.contains_any([Acl::Read, Acl::ReadItems].into_iter())) {
+                response.not_updated.append(id, SetError::not_found());
+                continue 'update;
+            }
+            let metadata_access = MetadataAccess {
+                may_write_shared: acl.is_none_or(|acl| acl.contains(Acl::ModifyMetadata)),
+                may_read: true,
+            };
+            if object
+                .as_object()
+                .is_some_and(|object| is_empty_update::<addressbook::AddressBook>(object, id))
+                && let Some(patches) = metadata_patches.take()
+            {
+                match metadata_writer
+                    .write_metadata_only::<AddressBook, _>(
+                        self,
+                        patches,
+                        metadata_access,
+                        &address_book,
+                        document_id,
+                        &mut batch,
+                    )
+                    .await?
+                {
+                    Ok(()) => response.updated.append(id, None),
+                    Err(err) => response.not_updated.append(id, err),
+                }
+                continue 'update;
+            }
+
+            let mut new_address_book = address_book
+                .deserialize::<AddressBook>()
+                .caused_by(trc::location!())?;
+
+            // Apply changes
+            let has_acl_changes = match update_address_book(
+                Some(id),
+                object,
+                &mut new_address_book,
+                access_token,
+                account_id,
+            ) {
+                Ok(has_acl_changes_) => has_acl_changes_,
+                Err(err) => {
+                    response.not_updated.append(id, err);
+                    continue 'update;
+                }
+            };
+
+            // Validate ACL
+            if acl.is_some_and(|acl| has_acl_changes && !acl.contains(Acl::Share)) {
+                response.not_updated.append(
+                    id,
+                    SetError::forbidden()
+                        .with_description("You are not allowed to share this address book."),
+                );
+                continue 'update;
+            }
+            if has_acl_changes {
+                if let Err(err) = JmapRights::validate_shares::<addressbook::AddressBook, _>(
+                    ShareUpdate {
+                        collection: Collection::AddressBook,
+                        owner_id: account_id,
+                        actor: acl,
+                        current: &address_book.inner.acls,
+                        max_shares: self.core.groupware.max_shares_per_item,
+                    },
+                    &new_address_book.acls,
+                ) {
+                    response.not_updated.append(id, err);
+                    continue 'update;
+                }
+                if let Err(err) = self
+                    .acl_validate(
+                        access_token,
+                        account_id,
+                        &new_address_book.acls,
+                        &address_book.inner.acls,
+                    )
+                    .await
+                {
+                    response.not_updated.append(id, err.into());
+                    continue 'update;
+                }
+            }
+
+            let prepared_metadata = match metadata_patches {
+                Some(patches) => match metadata_writer
+                    .prepare_for(
+                        self,
+                        patches,
+                        metadata_access,
+                        MetadataTarget::Update { document_id },
+                    )
+                    .await?
+                {
+                    Ok(prepared) => Some(prepared),
+                    Err(err) => {
+                        response.not_updated.append(id, err);
+                        continue 'update;
+                    }
+                },
+                None => None,
+            };
+
+            // Update record
+            if let Some(kinds) = prepared_metadata
+                .as_ref()
+                .and_then(PreparedMetadata::shared_kinds)
+            {
+                new_address_book.set_metadata_kinds(kinds);
+            }
+            if let Some(prepared) = prepared_metadata {
+                metadata_writer.write(prepared, document_id, &mut batch)?;
+            }
+            new_address_book
+                .update(
+                    access_token.changed_by(),
+                    address_book,
+                    account_id,
+                    document_id,
+                    &mut batch,
+                )
+                .caused_by(trc::location!())?;
+            response.updated.append(id, None);
+        }
+
+        // Process deletions
+        let mut destroyed_books: Vec<u32> = Vec::new();
+        if !will_destroy.is_empty() {
+            let mut destroy_children = AHashSet::new();
+            let mut destroy_parents = AHashSet::new();
+
+            let on_destroy_remove_contents = request
+                .arguments
+                .on_destroy_remove_contents
+                .unwrap_or(false);
+            let book_cleanup = self
+                .preload_container_cleanup(
+                    access_token.changed_by(),
+                    account_id,
+                    Collection::AddressBook,
+                    &will_destroy
+                        .iter()
+                        .map(|id| id.document_id())
+                        .filter(|&document_id| {
+                            cache
+                                .container_resource_by_id(document_id)
+                                .is_some_and(|book| !book.metadata_kinds().is_empty())
+                        })
+                        .collect(),
+                )
+                .await
+                .caused_by(trc::location!())?;
+
+            for id in will_destroy {
+                let document_id = id.document_id();
+
+                if !cache.has_container_id(&document_id) {
+                    response.not_destroyed.append(id, SetError::not_found());
+                    continue;
+                };
+
+                let Some(address_book_) = self
+                    .store()
+                    .get_value::<Archive<ArchiveBytes>>(ValueKey::archive(
+                        account_id,
+                        Collection::AddressBook,
+                        document_id,
+                    ))
+                    .await
+                    .caused_by(trc::location!())?
+                else {
+                    response.not_destroyed.append(id, SetError::not_found());
+                    continue;
+                };
+
+                let address_book = address_book_
+                    .to_unarchived::<AddressBook>()
+                    .caused_by(trc::location!())?;
+
+                // Validate ACLs
+                if is_shared
+                    && !address_book
+                        .inner
+                        .acls
+                        .effective_acl(access_token)
+                        .contains(Acl::Delete)
+                {
+                    response.not_destroyed.append(
+                        id,
+                        SetError::forbidden()
+                            .with_description("You are not allowed to delete this address book."),
+                    );
+                    continue;
+                }
+
+                // Obtain children ids
+                let children_ids = cache.children_ids(document_id).collect::<Vec<_>>();
+                if !children_ids.is_empty() && !on_destroy_remove_contents {
+                    response
+                        .not_destroyed
+                        .append(id, SetError::address_book_has_contents());
+                    continue;
+                }
+                destroy_children.extend(children_ids.iter().copied());
+                destroy_parents.insert(document_id);
+
+                // Delete record
+                let delete_path = cache
+                    .container_resource_path_by_id(document_id)
+                    .map(|resource| cache.format_resource(resource));
+                DestroyArchive(address_book)
+                    .delete_with_cleanup(
+                        self,
+                        access_token.changed_by(),
+                        account_id,
+                        document_id,
+                        delete_path,
+                        &book_cleanup,
+                        &mut batch,
+                    )
+                    .await
+                    .caused_by(trc::location!())?;
+
+                destroyed_books.push(document_id);
+
+                response.destroyed.push(id);
+            }
+
+            // Delete children
+            if !destroy_children.is_empty() {
+                let cleanup = self
+                    .preload_container_cleanup(
+                        access_token.changed_by(),
+                        account_id,
+                        Collection::ContactCard,
+                        &destroy_children
+                            .iter()
+                            .copied()
+                            .filter(|&document_id| {
+                                cache
+                                    .item_by_id(document_id)
+                                    .is_some_and(|item| !item.metadata_kinds().is_empty())
+                            })
+                            .collect(),
+                    )
+                    .await
+                    .caused_by(trc::location!())?;
+                let mut destroy_children = destroy_children.into_iter().collect::<Vec<_>>();
+                destroy_children.sort_unstable();
+                destroy_children.dedup();
+                for chunk in destroy_children.chunks(MAX_BATCH_DOCUMENTS) {
+                    let mut archives = self
+                        .archive_chunk(
+                            account_id,
+                            Collection::ContactCard,
+                            chunk,
+                            Some((ContactField::Content.field(), chunk)),
+                        )
+                        .await
+                        .caused_by(trc::location!())?;
+                    for &document_id in chunk {
+                        if let Some(card_) = archives.take_archive(document_id) {
+                            let card = card_
+                                .to_unarchived::<ContactCard>()
+                                .caused_by(trc::location!())?;
+
+                            if card
+                                .inner
+                                .names
+                                .iter()
+                                .all(|n| destroy_parents.contains(&n.parent_id.to_native()))
+                            {
+                                // Card only belongs to address books being deleted, delete it
+                                DestroyArchive(card)
+                                    .remove_all(
+                                        self,
+                                        access_token.changed_by(),
+                                        account_id,
+                                        document_id,
+                                        archives.take_value(document_id),
+                                        &cleanup,
+                                        &mut batch,
+                                    )
+                                    .await?;
+                            } else {
+                                // Unlink addressbook id from card
+                                let mut new_card = card
+                                    .deserialize::<ContactCard>()
+                                    .caused_by(trc::location!())?;
+                                new_card
+                                    .names
+                                    .retain(|n| !destroy_parents.contains(&n.parent_id));
+                                new_card.update_meta(
+                                    access_token.changed_by(),
+                                    card,
+                                    account_id,
+                                    document_id,
+                                    None,
+                                    &mut batch,
+                                )?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Set default address book
+        if let Some(MaybeIdReference::Id(id)) = &request.arguments.on_success_set_is_default {
+            let document_id = id.document_id();
+            if cache.has_container_id(&document_id) && !destroyed_books.contains(&document_id) {
+                set_default = Some(PendingId::Assigned(document_id));
+            }
+        }
+        if let Some(default_address_book_id) = set_default.filter(|_| !is_shared) {
+            if response.not_created.is_empty()
+                && response.not_updated.is_empty()
+                && response.not_destroyed.is_empty()
+            {
+                batch
+                    .with_account_id(account_id)
+                    .with_collection(Collection::Principal)
+                    .with_document(0)
+                    .set(
+                        PrincipalField::DefaultAddressBookId,
+                        default_address_book_id,
+                    );
+            }
+        } else if !destroyed_books.is_empty() {
+            batch
+                .with_account_id(account_id)
+                .with_collection(Collection::Principal)
+                .with_document(0);
+            for document_id in destroyed_books {
+                batch.clear_if_equals(PrincipalField::DefaultAddressBookId, document_id);
+            }
+        }
+
+        // Write changes
+        if !batch.is_empty() {
+            let assigned_ids = match metadata_writer.commit(self, batch).await {
+                Ok(assigned_ids) => assigned_ids,
+                Err(err) if err.is_assertion_failure() => {
+                    reject_uncommitted(
+                        &mut response,
+                        created_slots.into_create_ids(),
+                        "Another process modified this address book, please try again.",
+                    );
+                    return Ok(response);
+                }
+                Err(err) => return Err(err.caused_by(trc::location!())),
+            };
+
+            created_slots.resolve(&mut response, &assigned_ids);
+
+            if let Some(change_id) = assigned_ids.change_id(account_id, SyncCollection::AddressBook)
+            {
+                response.new_state = State::Exact(change_id).into();
+            }
+        }
+
+        Ok(response)
+    }
+}
+
+fn update_address_book(
+    expected_id: Option<Id>,
+    updates: Value<'_, AddressBookProperty, AddressBookValue>,
+    address_book: &mut AddressBook,
+    access_token: &AccessToken,
+    account_id: u32,
+) -> Result<bool, SetError<AddressBookProperty>> {
+    let personal_id = access_token.personal_id(account_id, Collection::AddressBook);
+    let mut has_acl_changes = false;
+
+    for (property, value) in updates.into_expanded_object() {
+        let Key::Property(property) = property else {
+            return Err(SetError::invalid_properties()
+                .with_property(property.to_owned())
+                .with_description("Invalid property."));
+        };
+
+        match (property, value) {
+            (AddressBookProperty::Name, Value::Str(value)) if (1..=255).contains(&value.len()) => {
+                address_book.preferences_mut(personal_id).name = value.into_owned();
+            }
+            (AddressBookProperty::Description, Value::Str(value)) if value.len() < 255 => {
+                address_book.preferences_mut(personal_id).description = value.into_owned().into();
+            }
+            (AddressBookProperty::Description, Value::Null) => {
+                address_book.preferences_mut(personal_id).description = None;
+            }
+            (AddressBookProperty::SortOrder, Value::Number(value))
+                if let Some(sort_order) = value
+                    .as_u64()
+                    .and_then(|sort_order| u32::try_from(sort_order).ok())
+                    .filter(|sort_order| *sort_order < 1 << 31) =>
+            {
+                address_book.preferences_mut(personal_id).sort_order = sort_order;
+            }
+            (AddressBookProperty::IsSubscribed, Value::Bool(subscribe)) => {
+                if subscribe {
+                    if !address_book.subscribers.contains(&personal_id) {
+                        address_book.subscribers.push(personal_id);
+                    }
+                } else {
+                    address_book.subscribers.retain(|id| *id != personal_id);
+                }
+            }
+            (AddressBookProperty::ShareWith, value) => {
+                address_book.acls = JmapRights::acl_set::<addressbook::AddressBook>(value)?;
+                has_acl_changes = true;
+            }
+            (AddressBookProperty::Pointer(pointer), value)
+                if matches!(
+                    pointer.first(),
+                    Some(JsonPointerItem::Key(Key::Property(
+                        AddressBookProperty::ShareWith
+                    )))
+                ) =>
+            {
+                let mut pointer = pointer.iter();
+                pointer.next();
+
+                address_book.acls = JmapRights::acl_patch::<addressbook::AddressBook>(
+                    std::mem::take(&mut address_book.acls),
+                    pointer,
+                    value,
+                )?;
+                has_acl_changes = true;
+            }
+            (AddressBookProperty::Id, value) => {
+                if !expected_id.is_some_and(|expected| crate::matches_id(&value, expected)) {
+                    return Err(SetError::invalid_properties()
+                        .with_property(AddressBookProperty::Id)
+                        .with_description("The id property is immutable."));
+                }
+            }
+            (property, _) => {
+                return Err(SetError::invalid_properties()
+                    .with_property(property.clone())
+                    .with_description("Field could not be set."));
+            }
+        }
+    }
+
+    // Validate name
+    if address_book.preferences(personal_id).name.is_empty() {
+        return Err(SetError::invalid_properties()
+            .with_property(AddressBookProperty::Name)
+            .with_description("Missing name."));
+    }
+
+    Ok(has_acl_changes)
+}

@@ -1,0 +1,14 @@
+{
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "value": {
+        "@type": "Kafka",
+        "brokers": {
+          "kafka:9092": true
+        },
+        "groupId": "stalwart"
+      }
+    }
+  ]
+}

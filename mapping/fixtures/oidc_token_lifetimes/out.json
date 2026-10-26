@@ -1,0 +1,43 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "clamped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "accessTokenExpiry"
+    },
+    {
+      "change": "clamped",
+      "key": "x:OidcProvider",
+      "level": "warning",
+      "path": "authCodeExpiry"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:OidcProvider",
+      "source": "x:OidcProvider",
+      "value": {
+        "accessTokenExpiry": 3600000,
+        "authCodeExpiry": 600000,
+        "idTokenExpiry": 900000,
+        "refreshTokenExpiry": 2592000000
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:OidcProvider",
+      "prompt": "oauth_registration"
+    },
+    {
+      "answered": true,
+      "key": "x:OidcProvider",
+      "prompt": "oidc_token_lifetimes"
+    }
+  ]
+}

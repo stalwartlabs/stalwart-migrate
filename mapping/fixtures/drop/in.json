@@ -1,0 +1,28 @@
+{
+  "objects": [
+    {
+      "key": "x:SystemSettings",
+      "value": {
+        "threadPoolSize": 8,
+        "defaultHostname": "mx.example.com"
+      }
+    },
+    {
+      "key": "x:OidcProvider",
+      "value": {
+        "authCodeMaxAttempts": 3,
+        "anonymousClientRegistration": true,
+        "requireClientRegistration": false,
+        "refreshTokenRenewal": 345600000,
+        "accessTokenExpiry": 3600000
+      }
+    },
+    {
+      "key": "x:WebDav",
+      "value": {
+        "deadPropertyMaxSize": 1024,
+        "requestMaxSize": 26214400
+      }
+    }
+  ]
+}

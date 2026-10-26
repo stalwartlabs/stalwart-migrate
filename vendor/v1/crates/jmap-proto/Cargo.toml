@@ -1,0 +1,30 @@
+[package]
+name = "jmap_proto"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+utils = { path = "../utils" }
+types = { path = "../types" }
+trc = { path = "../trc" }
+registry = { path = "../registry" }
+jmap-tools = { path = "../jmap-tools" }
+calcard = { path = "../calcard" }
+mail-parser = { version = "1.0", features = ["full_encoding"] } 
+serde = { version = "1.0", features = ["derive"]}
+ahash = { version = "0.8.12", features = ["serde"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+simdutf8 = "0.1.5"
+sonic-rs = "0.5.10"
+hashify = "0.3"
+rkyv.workspace = true
+compact_str = { workspace = true, features = ["rkyv", "serde"] }
+encodify = "1.0"
+
+[dev-dependencies]
+
+[lints]
+workspace = true
+
+[features]
+enterprise = ["utils/enterprise", "trc/enterprise", "registry/enterprise"]

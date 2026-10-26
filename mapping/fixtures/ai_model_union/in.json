@@ -1,0 +1,104 @@
+{
+  "objects": [
+    {
+      "key": "x:AiModel/b",
+      "value": {
+        "name": "gpt",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "model": "gpt-4o",
+        "timeout": 120000,
+        "allowInvalidCerts": false,
+        "temperature": 0.7,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Bearer",
+          "bearerToken": {
+            "@type": "Value",
+            "secret": "sk-123"
+          }
+        },
+        "httpHeaders": {}
+      }
+    },
+    {
+      "key": "x:AiModel/c",
+      "value": {
+        "name": "local",
+        "url": "http://llm:8080/v1/completions",
+        "model": "llama",
+        "timeout": 60000,
+        "allowInvalidCerts": true,
+        "temperature": 0.2,
+        "modelType": "Text",
+        "httpAuth": {
+          "@type": "Basic",
+          "username": "u",
+          "secret": {
+            "@type": "Value",
+            "secret": "p"
+          }
+        },
+        "httpHeaders": {
+          "X-Team": "mail"
+        }
+      }
+    },
+    {
+      "key": "x:AiModel/d",
+      "value": {
+        "name": "old",
+        "url": "http://old/v1/chat/completions",
+        "model": "x",
+        "timeout": 60000,
+        "allowInvalidCerts": false,
+        "temperature": 0.5,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "httpHeaders": {}
+      }
+    },
+    {
+      "key": "x:AiModel/e",
+      "value": {
+        "name": "claude",
+        "url": "https://proxy.example/v1/chat/completions",
+        "model": "claude",
+        "timeout": 60000,
+        "allowInvalidCerts": false,
+        "temperature": 0.5,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Bearer",
+          "bearerToken": {
+            "@type": "Value",
+            "secret": "ant"
+          }
+        },
+        "httpHeaders": {}
+      }
+    },
+    {
+      "key": "x:AiModel/f",
+      "value": {
+        "name": "basic",
+        "url": "https://llm.example/v1/chat/completions",
+        "model": "m",
+        "timeout": 60000,
+        "allowInvalidCerts": false,
+        "temperature": 0.5,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Basic",
+          "username": "u",
+          "secret": {
+            "@type": "Value",
+            "secret": "p"
+          }
+        },
+        "httpHeaders": {}
+      }
+    }
+  ]
+}

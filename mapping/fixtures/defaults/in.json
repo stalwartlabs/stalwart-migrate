@@ -1,0 +1,33 @@
+{
+  "objects": [
+    {
+      "key": "x:Cache",
+      "value": {
+        "messages": 52428800,
+        "events": 10485760,
+        "contacts": 99999999,
+        "dnsRbl": 5242880
+      }
+    },
+    {
+      "key": "x:SpamPyzor",
+      "value": {
+        "enable": true,
+        "host": "public.pyzor.org"
+      }
+    },
+    {
+      "key": "x:DkimReportSettings",
+      "value": {
+        "fromAddress": {
+          "match": {},
+          "else": "'noreply-dkim@' + system('domain')"
+        },
+        "dkimSignDomain": {
+          "match": {},
+          "else": "'example.com'"
+        }
+      }
+    }
+  ]
+}

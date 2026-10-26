@@ -1,0 +1,45 @@
+[package]
+name = "services"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+store = { path = "../store" }
+common = { path =  "../common" }
+coordinator = { path =  "../coordinator" }
+utils = { path =  "../utils" }
+trc = { path = "../trc" }
+email = { path = "../email" }
+smtp = { path = "../smtp" }
+groupware = { path = "../groupware" }
+nlp = { path = "../nlp" }
+text-extract = { path = "../text-extract" }
+spam-filter = { path = "../spam-filter" }
+types = { path = "../types" }
+jmap_proto = { path = "../jmap-proto" }
+jmap-tools = { path = "../jmap-tools" }
+registry = { path =  "../registry" }
+smtp-proto = { path = "../smtp-proto", features = ["rkyv", "serde"] }
+tokio = { version = "1.54", features = ["rt"] }
+mail-parser = { version = "1.0", features = ["full_encoding"] }
+mail-builder = { version = "2.0" }
+aho-corasick = { version = "1.1" }
+calcard = { path = "../calcard", features = ["rkyv"] }
+serde_json = "1.0"
+memory-stats = "1.2.0"
+aes-gcm = "0.11.1"
+p256 = { version = "0.14", features = ["ecdh"] }
+hkdf = "0.13"
+sha2 = "0.11"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"]}
+dns-update = { version = "0.6" }
+psl = "2"
+compact_str.workspace = true
+
+[dev-dependencies]
+
+[features]
+enterprise = ["store/enterprise", "common/enterprise", "coordinator/enterprise", "utils/enterprise", "trc/enterprise", "email/enterprise", "smtp/enterprise", "groupware/enterprise", "spam-filter/enterprise", "jmap_proto/enterprise", "registry/enterprise"]
+
+[lints]
+workspace = true

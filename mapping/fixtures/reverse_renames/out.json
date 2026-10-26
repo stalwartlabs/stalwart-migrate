@@ -1,0 +1,87 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "messages"
+    },
+    {
+      "change": "default_inherited",
+      "key": "x:Cache",
+      "level": "info",
+      "path": "spamLookup"
+    },
+    {
+      "change": "default_pinned",
+      "key": "x:Tracer/d",
+      "level": "info",
+      "path": "prefix"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Metadata",
+      "level": "warning",
+      "path": "",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Role/c",
+      "level": "warning",
+      "path": "enabledPermissions/imapMetadataGet",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Tracer/d",
+      "level": "warning",
+      "path": "events/scim.request",
+      "reason": "not part of the target schema"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:Metadata"
+  ],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "isEnabled": false,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Role/c",
+      "source": "x:Role/c",
+      "value": {
+        "description": "r",
+        "enabledPermissions": {
+          "sysSpamLlmGet": true
+        }
+      }
+    },
+    {
+      "key": "x:Cache",
+      "source": "x:Cache",
+      "value": {}
+    },
+    {
+      "key": "x:Tracer/d",
+      "source": "x:Tracer/d",
+      "value": {
+        "@type": "Log",
+        "events": {
+          "dkim.failed-verification": true,
+          "store.cache-miss": true
+        },
+        "path": "/l",
+        "prefix": "stalwart.log"
+      }
+    }
+  ],
+  "questions": []
+}

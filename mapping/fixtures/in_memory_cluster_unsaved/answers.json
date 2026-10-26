@@ -1,0 +1,13 @@
+{
+  "instance": {
+    "in_memory_cluster": {
+      "x:InMemoryStore": {
+        "action": "replace",
+        "store": {
+          "@type": "Redis",
+          "url": "redis://redis:6379"
+        }
+      }
+    }
+  }
+}

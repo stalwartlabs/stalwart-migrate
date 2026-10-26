@@ -1,0 +1,848 @@
+# Stalwart v0.16.27 -> v1.0 registry mapping.
+#
+# Curated by hand. `scripts/schema_diff.py candidates` proposes entries for new
+# schema differences and `scripts/schema_diff.py --check` fails when a removed
+# object, variant, property, enum value, type change or changed default has no
+# entry here. The same file drives the Rust engine (crates/mapping) and the
+# Python plan converter (cli-plan/convert_plan.py).
+#
+# Keys are compiled schema names: objects, unions and property schemas use the
+# `x:` prefix, enums do not. Property schemas are the flattened schemas of the
+# compiled JSON (one entry per DnsServer provider, for example).
+#
+# Rule forms:
+#   old = "new"                                  rename
+#   old = { to = "new", convert = "..." }        rename with a value conversion
+#   old = { convert = "..." }                    keep the name, convert the value
+#   old = { drop = true }                        drop and report
+#   old = { move = "x:Schema.property" }         move to another singleton
+#   old = { transform = "name", params = {..} }  named transform (both engines)
+#   enum value = { to = ["a", "b"] }             one value becomes several (sets)
+#
+# Conversions: compatible (no value change), string_to_unsigned, scalar_to_set.
+
+version = 1
+
+[objects]
+"x:SpamLlm" = { to = "x:SpamAi", transform = "spam_llm_to_ai" }
+"x:AiModel" = { transform = "ai_model_union" }
+"x:SpamTag" = { transform = "spam_tag" }
+
+[schemas]
+"x:AiModel" = "flat v0.16 AiModel, rebuilt as a provider union by transform ai_model_union"
+"x:SpamLlmProperties" = "payload of SpamLlm.Enable, rebuilt by transform spam_llm_to_ai"
+"x:TaskIndexDocument" = "payload of the dropped Task variant IndexDocument"
+"x:TaskIndexTrace" = "payload of the dropped Task variant IndexTrace"
+
+[retired_enums]
+IndexDocumentType = "only used by the dropped Task variant IndexDocument"
+SearchTracingField = "only used by the dropped property Search.indexTracingFields"
+SpamLlmType = "variant selector of SpamLlm, replaced by SpamAiType through transform spam_llm_to_ai"
+
+[variants."x:DnsServer"]
+Deprecated1 = { transform = "dns_sig0" }
+
+[variants."x:DnsServerBootstrap"]
+Deprecated1 = { drop = true }
+
+[variants."x:Task"]
+IndexDocument = { drop = true }
+UnindexDocument = { drop = true }
+IndexTrace = { drop = true }
+
+[variants."x:Action"]
+ReloadSettings = { payload = "compatible" }
+
+[variants."x:InMemoryStore"]
+Default = { transform = "in_memory_cluster" }
+
+[properties."x:Application"]
+autoUpdateFrequency = "autoUpdateInterval"
+enabled = "enable"
+resourceUrl = { transform = "webui_bundle" }
+
+[properties."x:ArchivedSieveScript"]
+content = "contents"
+
+[properties."x:AsnResource"]
+expires = "refreshInterval"
+
+[properties."x:Authentication"]
+passwordMaxLength = "maxPasswordLength"
+passwordMinLength = "minPasswordLength"
+passwordMinStrength = "minPasswordStrength"
+
+[properties."x:AzureStore"]
+accessKey = { transform = "azure_auth" }
+sasToken = { transform = "azure_auth" }
+
+[properties."x:Bootstrap"]
+serverHostname = "defaultHostname"
+
+[properties."x:Cache"]
+dnsRbl = "spamLookup"
+
+[properties."x:CalendarAlarm"]
+fromEmail = "fromAddress"
+
+[properties."x:CalendarScheduling"]
+itipMaxSize = "maxItipSize"
+
+[properties."x:DmarcReport"]
+dateRangeBegin = "dateRangeStart"
+
+[properties."x:DmarcReportRecord"]
+envelopeFrom = { transform = "dmarc_envelope_from" }
+
+[properties."x:DmarcReportSettings"]
+aggregateMaxReportSize = "maxAggregateReportSize"
+aggregateSubject = { drop = true }
+aggregateDkimSignDomain = { transform = "expression_removed_vars", params = { variables = ["rcpt_domain"] } }
+
+[properties."x:DsnReportSettings"]
+fromAddress = { transform = "expression_removed_vars", params = { variables = ["retry_num", "notify_num", "expires_in", "last_status", "last_error"] } }
+fromName = { transform = "expression_removed_vars", params = { variables = ["retry_num", "notify_num", "expires_in", "last_status", "last_error"] } }
+dkimSignDomain = { transform = "expression_removed_vars", params = { variables = ["retry_num", "notify_num", "expires_in", "last_status", "last_error"] } }
+
+[properties."x:TlsReportSettings"]
+subject = { drop = true }
+contactInfo = { transform = "expression_removed_vars", params = { variables = ["sender", "sender_domain", "rcpt", "recipients", "mx", "priority", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+fromAddress = { transform = "expression_removed_vars", params = { variables = ["sender", "sender_domain", "rcpt", "recipients", "mx", "priority", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+fromName = { transform = "expression_removed_vars", params = { variables = ["sender", "sender_domain", "rcpt", "recipients", "mx", "priority", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+maxReportSize = { transform = "expression_removed_vars", params = { variables = ["sender", "sender_domain", "rcpt", "recipients", "mx", "priority", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+orgName = { transform = "expression_removed_vars", params = { variables = ["sender", "sender_domain", "rcpt", "recipients", "mx", "priority", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+dkimSignDomain = { transform = "expression_removed_vars", params = { variables = ["rcpt_domain", "rcpt", "mx", "remote_ip", "local_ip", "retry_num", "notify_num", "expires_in", "last_status", "last_error", "queue_name", "queue_age", "received_from_ip", "received_via_port", "source", "size"] } }
+
+[properties."x:DmarcTroubleshoot"]
+to = "rcptTo"
+
+[properties."x:DnsResolverCommon"]
+concurrency = "maxConcurrentRequests"
+
+[properties."x:DnsResolverCustom"]
+concurrency = "maxConcurrentRequests"
+
+[properties."x:DnsResolverTls"]
+concurrency = "maxConcurrentRequests"
+
+[properties."x:DnsServerAlidns"]
+accessKey = "accessKeyId"
+securityToken = "sessionToken"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerAutodns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerAzureDns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerBaiduCloud"]
+accessKey = "accessKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerBluecatV2"]
+baseUrl = { to = "url", convert = "compatible" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerClouDns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerCloud"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerCloudflare"]
+email = { drop = true }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerConstellix"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerCpanel"]
+baseUrl = { to = "url", convert = "compatible" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerDnsMadeEasy"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerDnsimple"]
+authToken = "token"
+secret = { drop = true }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerDomeneshop"]
+authToken = "token"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerEasyDns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerEdgeDns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerExoscale"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerGlesys"]
+apiUser = "username"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerGodaddy"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerGoogleCloudDns"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerHuaweiCloud"]
+accessKey = "accessKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerHurricane"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerIbmCloud"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerInfoblox"]
+port = { convert = "string_to_unsigned" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerInwx"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerJoker"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerLightsail"]
+secretAccessKey = "secretKey"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerLuaDns"]
+authToken = "token"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerMythicBeasts"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerNameDotCom"]
+authToken = "token"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerNamecheap"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerNetcup"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerNifcloud"]
+accessKey = "accessKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerOracleCloud"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerOvh"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerPlesk"]
+baseUrl = { to = "url", convert = "compatible" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerPorkbun"]
+apiKey = "apiKeyId"
+secret = { drop = true }
+secretApiKey = "secret"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerPowerDns"]
+endpoint = { to = "url", convert = "compatible" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerRoute53"]
+secretAccessKey = "secretKey"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerSpaceship"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerTencentCloud"]
+secretId = "accessKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerTransip"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerTsig"]
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerUltraDns"]
+endpoint = { to = "url", convert = "compatible" }
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerVercel"]
+authToken = "token"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerVolcengine"]
+accessKey = "accessKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerWebSupport"]
+apiKey = "apiKeyId"
+pollingInterval = "pollInterval"
+
+[properties."x:DnsServerYandexCloud"]
+pollingInterval = "pollInterval"
+
+[properties."x:Domain"]
+isEnabled = "enable"
+
+[properties."x:EmailAlias"]
+enabled = "enable"
+
+[properties."x:Enterprise"]
+logoUrl = { to = "logo", convert = "compatible" }
+
+[properties."x:Http"]
+useXForwarded = { transform = "client_ip_source" }
+
+[properties."x:HttpLookup"]
+refresh = "refreshInterval"
+
+[properties."x:Imap"]
+maxConcurrent = "maxConcurrentConnections"
+maxRequestRate = "rateLimit"
+timeoutAnonymous = "anonymousTimeout"
+timeoutAuthenticated = "authenticatedTimeout"
+timeoutIdle = "idleTimeout"
+
+[properties."x:Jmap"]
+changesMaxResults = "maxChangesResults"
+getMaxResults = "maxGetResults"
+pushMaxAttempts = "maxPushAttempts"
+queryMaxResults = "maxQueryResults"
+setMaxObjects = "maxSetObjects"
+snippetMaxResults = "maxSnippetResults"
+maxUploadSize = { convert = "compatible" }
+maxPushSize = { convert = "compatible" }
+
+[properties."x:KafkaCoordinator"]
+brokers = "hosts"
+timeoutMessage = "messageTimeout"
+timeoutSession = "sessionTimeout"
+
+[properties."x:LdapDirectory"]
+filterMailbox = "filterRecipient"
+
+[properties."x:MaskedEmail"]
+enabled = "enable"
+
+[properties."x:MeilisearchStore"]
+maxRetries = "maxPolls"
+
+[properties."x:MetricsOtelGrpc"]
+endpoint = "url"
+
+[properties."x:MetricsOtelHttp"]
+endpoint = "url"
+
+[properties."x:MtaConnectionIpHost"]
+sourceIp = "localIp"
+
+[properties."x:MtaConnectionStrategy"]
+sourceIps = "localIps"
+
+[properties."x:MtaInboundSession"]
+timeout = "idleTimeout"
+
+[properties."x:MtaMilter"]
+hostname = "host"
+timeoutCommand = "commandTimeout"
+timeoutConnect = "connectTimeout"
+timeoutData = "dataTimeout"
+
+[properties."x:MtaRouteRelay"]
+address = "host"
+
+[properties."x:MySqlStore"]
+timeout = "idleTimeout"
+
+[properties."x:NatsCoordinator"]
+addresses = "hosts"
+capacityClient = "clientCapacity"
+capacityReadBuffer = "readBufferCapacity"
+capacitySubscription = "subscriptionCapacity"
+timeoutConnection = "connectTimeout"
+timeoutRequest = "requestTimeout"
+
+[properties."x:NetworkListener"]
+tlsImplicit = "implicitTls"
+
+[properties."x:OidcDirectory"]
+requireAudience = { transform = "oidc_directory" }
+requireScopes = { transform = "oidc_directory" }
+claimName = { transform = "oidc_directory" }
+
+[properties."x:OidcProvider"]
+anonymousClientRegistration = { transform = "oauth_registration" }
+authCodeMaxAttempts = { drop = true }
+refreshTokenRenewal = { drop = true }
+requireClientRegistration = { transform = "oauth_registration" }
+authCodeExpiry = { transform = "oidc_token_lifetimes" }
+accessTokenExpiry = { transform = "oidc_token_lifetimes" }
+refreshTokenExpiry = { transform = "oidc_token_lifetimes" }
+
+[properties."x:PasswordCredential"]
+otpAuth = "otpUrl"
+
+[properties."x:PostgreSqlStore"]
+timeout = "connectTimeout"
+
+[properties."x:RedisClusterStore"]
+timeout = "connectTimeout"
+
+[properties."x:RedisSentinelStore"]
+timeout = "connectTimeout"
+
+[properties."x:RedisStore"]
+timeout = "connectTimeout"
+
+[properties."x:ReportSettings"]
+inboundReportMaxSize = { to = "maxInboundReportSize", convert = "compatible" }
+
+[properties."x:S3Store"]
+accessKey = "accessKeyId"
+securityToken = { transform = "s3_session_token" }
+sessionToken = { transform = "s3_session_token" }
+
+[properties."x:S3StoreCustomRegion"]
+customEndpoint = "url"
+customRegion = "region"
+
+[properties."x:Search"]
+indexTracingFields = { drop = true }
+indexEmailFields = { transform = "search_fields_filter" }
+indexCalendarFields = { transform = "search_fields_filter" }
+indexContactFields = { transform = "search_fields_filter" }
+
+[properties."x:SenderAuth"]
+dkimSignDomain = { move = "x:MtaStageData.dkimSignDomain" }
+
+[properties."x:SieveUserInterpreter"]
+dkimSignDomain = { transform = "expression_removed_vars", params = { variables = ["retry_num", "notify_num", "expires_in", "last_status", "last_error"] } }
+
+[properties."x:SieveSystemInterpreter"]
+duplicateExpiry = { drop = true }
+
+[properties."x:SieveSystemScript"]
+contents = { convert = "compatible" }
+
+[properties."x:SieveUserScript"]
+contents = { convert = "compatible" }
+
+[properties."x:SpamClassifier"]
+trainFrequency = "trainInterval"
+
+[properties."x:SpamClassify"]
+envFrom = "mailFrom"
+envFromParameters = "mailFromParameters"
+envRcptTo = "rcptTo"
+
+[properties."x:SystemSettings"]
+threadPoolSize = { drop = true }
+
+[properties."x:TracerOtelGrpc"]
+endpoint = "url"
+
+[properties."x:TracerOtelHttp"]
+endpoint = "url"
+
+[properties."x:WebDav"]
+deadPropertyMaxSize = { drop = true }
+livePropertyMaxSize = "maxLivePropertySize"
+requestMaxSize = "maxRequestSize"
+
+[properties."x:AcmeProvider"]
+maxRetries = { drop = true }
+description = { transform = "acme_description" }
+
+[properties."x:RocksDbStore"]
+cacheSize = { convert = "compatible" }
+
+[properties."x:SqliteStore"]
+poolMaxConnections = { convert = "compatible" }
+
+[properties."x:Role"]
+enabledPermissions = { transform = "permissions" }
+disabledPermissions = { transform = "permissions" }
+
+[properties."x:PermissionsList"]
+enabledPermissions = { transform = "permissions" }
+disabledPermissions = { transform = "permissions" }
+
+[properties."x:CredentialPermissionsList"]
+permissions = { transform = "permissions" }
+
+[enums.AiModelType]
+Chat = { drop = true }
+Text = { drop = true }
+
+[enums.Dkim2Flag]
+donotmodify = { drop = true }
+donotexplode = { drop = true }
+
+[enums.DnsServerBootstrapType]
+Deprecated1 = { drop = true }
+
+[enums.DnsServerType]
+Deprecated1 = { drop = true }
+
+[enums.TaskType]
+IndexDocument = { drop = true }
+UnindexDocument = { drop = true }
+IndexTrace = { drop = true }
+
+[enums.TaskStoreMaintenanceType]
+removeSieveId = { drop = true }
+
+[enums.ExpressionConstant]
+optional = { drop = true }
+require = { drop = true }
+ipv4_only = { drop = true }
+ipv6_only = { drop = true }
+ipv6_then_ipv4 = { drop = true }
+ipv4_then_ipv6 = { drop = true }
+
+[enums.ExpressionVariable]
+reverse_ip = "ip_reverse"
+
+[enums.SearchEmailField]
+receivedAt = { drop = true }
+sentAt = { drop = true }
+size = { drop = true }
+hasAttachment = { drop = true }
+
+[enums.SearchCalendarField]
+start = { drop = true }
+uid = { drop = true }
+
+[enums.SearchContactField]
+uid = { drop = true }
+
+[enums.Permission]
+jmapPrincipalCreate = { drop = true }
+jmapPrincipalUpdate = { drop = true }
+jmapPrincipalDestroy = { drop = true }
+oAuthClientRegistration = { drop = true }
+oAuthClientOverride = { drop = true }
+sysActionGet = { drop = true }
+sysActionUpdate = { drop = true }
+sysActionDestroy = { drop = true }
+sysActionQuery = { drop = true }
+sysArchivedItemCreate = { drop = true }
+sysArfExternalReportCreate = { drop = true }
+sysArfExternalReportUpdate = { drop = true }
+sysClusterNodeCreate = { drop = true }
+sysClusterNodeUpdate = { drop = true }
+sysClusterNodeDestroy = { drop = true }
+sysDmarcExternalReportCreate = { drop = true }
+sysDmarcExternalReportUpdate = { drop = true }
+sysDmarcInternalReportCreate = { drop = true }
+sysLogCreate = { drop = true }
+sysLogUpdate = { drop = true }
+sysLogDestroy = { drop = true }
+sysMetricCreate = { drop = true }
+sysMetricUpdate = { drop = true }
+sysMetricDestroy = { drop = true }
+sysQueuedMessageCreate = { drop = true }
+sysSpamLlmGet = "sysSpamAiGet"
+sysSpamLlmUpdate = "sysSpamAiUpdate"
+sysSpamTrainingSampleUpdate = { drop = true }
+taskIndexDocument = { drop = true }
+taskUnindexDocument = { drop = true }
+taskIndexTrace = { drop = true }
+sysTlsExternalReportCreate = { drop = true }
+sysTlsExternalReportUpdate = { drop = true }
+sysTlsInternalReportCreate = { drop = true }
+sysTraceCreate = { drop = true }
+sysTraceUpdate = { drop = true }
+sysTraceDestroy = { drop = true }
+
+# Events: the 1:1 moves are code-verified renames; the DKIM and ARC failure
+# events were folded into umbrella events (v1 crates/trc/src/event/conv.rs maps
+# each mail_auth error to one of them, v0.16 mapped them 1:1). DKIM2 errors were
+# reported as Dkim.* events in v0.16 and as Dkim2.* events in v1, so the shared
+# names expand to both categories in tracer selections.
+[enums.EventType]
+"store.cache-miss" = "cache.miss"
+"store.cache-hit" = "cache.hit"
+"store.cache-stale" = "cache.stale"
+"store.cache-update" = "cache.update"
+"store.cache-entry-too-large" = "cache.entry-too-large"
+"smtp.dkim2-dsn-discarded" = "smtp.dkim2-dsn-rejected"
+"arc.chain-too-long" = "arc.chain-invalid"
+"arc.invalid-instance" = "arc.chain-invalid"
+"arc.invalid-cv" = "arc.chain-invalid"
+"arc.broken-chain" = "arc.chain-invalid"
+"arc.has-header-tag" = "arc.signature-invalid"
+"arc.sealer-not-found" = { drop = true }
+"dkim.unsupported-version" = "dkim.signature-invalid"
+"dkim.unsupported-algorithm" = "dkim.signature-invalid"
+"dkim.unsupported-canonicalization" = "dkim.signature-invalid"
+"dkim.failed-auid-match" = "dkim.signature-invalid"
+"dkim.signature-expired" = { to = ["dkim.signature-invalid", "arc.signature-invalid", "dkim2.timestamp-invalid"] }
+"dkim.signature-length" = { to = ["dkim.signature-invalid", "arc.signature-invalid"] }
+"dkim.unsupported-key-type" = "dkim.public-key-error"
+"dkim.incompatible-algorithms" = "dkim.public-key-error"
+"dkim.revoked-public-key" = { to = ["dkim.public-key-error", "dkim2.public-key-error"] }
+"dkim.failed-body-hash-match" = { to = ["dkim.hash-mismatch", "arc.hash-mismatch", "dkim2.hash-mismatch"] }
+"dkim.failed-verification" = { to = ["dkim.verification-failed", "dkim2.verification-failed"] }
+"dkim.instance-missing" = "dkim2.instance-invalid"
+"dkim.instance-syntax" = "dkim2.instance-invalid"
+"dkim.instance-tag-missing" = "dkim2.instance-invalid"
+"dkim.instance-not-signed" = "dkim2.instance-invalid"
+"dkim.instance-above-signature" = "dkim2.instance-invalid"
+"dkim.signature-missing" = "dkim2.signature-invalid"
+"dkim.signature-syntax" = "dkim2.signature-invalid"
+"dkim.signature-tag-missing" = "dkim2.signature-invalid"
+"dkim.signature-tag-unexpected" = "dkim2.signature-invalid"
+"dkim.no-valid-algorithm" = "dkim2.signature-invalid"
+"dkim.sequence-gap" = "dkim2.chain-invalid"
+"dkim.sequence-overflow" = "dkim2.chain-invalid"
+"dkim.chain-too-long" = "dkim2.chain-invalid"
+"dkim.mail-from-mismatch" = "dkim2.envelope-mismatch"
+"dkim.rcpt-to-mismatch" = "dkim2.envelope-mismatch"
+"dkim.mail-from-domain-mismatch" = "dkim2.custody-broken"
+"dkim.next-domain-mismatch" = "dkim2.custody-broken"
+"dkim.custody-break" = "dkim2.custody-broken"
+"dkim.public-key-fetch" = "dkim2.public-key-error"
+"dkim.public-key-missing" = "dkim2.public-key-error"
+"dkim.public-key-multiple" = "dkim2.public-key-error"
+"dkim.public-key-syntax" = "dkim2.public-key-error"
+"dkim.public-key-algorithm-mismatch" = "dkim2.public-key-error"
+"dkim.header-hash-mismatch" = "dkim2.hash-mismatch"
+"dkim.modified" = { drop = true }
+"dkim.exploded" = { drop = true }
+"dns.build-error" = { drop = true }
+"message-ingest.search-index" = { drop = true }
+"smtp.missing-auth-directory" = { drop = true }
+
+[enums.MetricType]
+"message-ingest.index-time" = "search-index.index-time"
+"smtp.dkim2-dsn-discarded" = "smtp.dkim2-dsn-rejected"
+"arc.chain-too-long" = "arc.chain-invalid"
+"arc.invalid-instance" = "arc.chain-invalid"
+"arc.invalid-cv" = "arc.chain-invalid"
+"arc.broken-chain" = "arc.chain-invalid"
+"arc.has-header-tag" = "arc.signature-invalid"
+"dkim.unsupported-version" = "dkim.signature-invalid"
+"dkim.unsupported-algorithm" = "dkim.signature-invalid"
+"dkim.unsupported-canonicalization" = "dkim.signature-invalid"
+"dkim.failed-auid-match" = "dkim.signature-invalid"
+"dkim.signature-expired" = { to = ["dkim.signature-invalid", "arc.signature-invalid", "dkim2.timestamp-invalid"] }
+"dkim.signature-length" = { to = ["dkim.signature-invalid", "arc.signature-invalid"] }
+"dkim.unsupported-key-type" = "dkim.public-key-error"
+"dkim.incompatible-algorithms" = "dkim.public-key-error"
+"dkim.revoked-public-key" = { to = ["dkim.public-key-error", "dkim2.public-key-error"] }
+"dkim.failed-body-hash-match" = { to = ["dkim.hash-mismatch", "arc.hash-mismatch", "dkim2.hash-mismatch"] }
+"dkim.failed-verification" = { to = ["dkim.verification-failed", "dkim2.verification-failed"] }
+"dkim.instance-missing" = "dkim2.instance-invalid"
+"dkim.instance-syntax" = "dkim2.instance-invalid"
+"dkim.instance-tag-missing" = "dkim2.instance-invalid"
+"dkim.instance-not-signed" = "dkim2.instance-invalid"
+"dkim.instance-above-signature" = "dkim2.instance-invalid"
+"dkim.signature-missing" = "dkim2.signature-invalid"
+"dkim.signature-syntax" = "dkim2.signature-invalid"
+"dkim.signature-tag-missing" = "dkim2.signature-invalid"
+"dkim.signature-tag-unexpected" = "dkim2.signature-invalid"
+"dkim.no-valid-algorithm" = "dkim2.signature-invalid"
+"dkim.sequence-gap" = "dkim2.chain-invalid"
+"dkim.sequence-overflow" = "dkim2.chain-invalid"
+"dkim.chain-too-long" = "dkim2.chain-invalid"
+"dkim.mail-from-mismatch" = "dkim2.envelope-mismatch"
+"dkim.rcpt-to-mismatch" = "dkim2.envelope-mismatch"
+"dkim.mail-from-domain-mismatch" = "dkim2.custody-broken"
+"dkim.next-domain-mismatch" = "dkim2.custody-broken"
+"dkim.custody-break" = "dkim2.custody-broken"
+"dkim.public-key-fetch" = "dkim2.public-key-error"
+"dkim.public-key-missing" = "dkim2.public-key-error"
+"dkim.public-key-multiple" = "dkim2.public-key-error"
+"dkim.public-key-syntax" = "dkim2.public-key-error"
+"dkim.public-key-algorithm-mismatch" = "dkim2.public-key-error"
+"dkim.header-hash-mismatch" = "dkim2.hash-mismatch"
+"dkim.modified" = { drop = true }
+"dkim.exploded" = { drop = true }
+"message-ingest.search-index" = { drop = true }
+
+# Pin keeps the v0.16 default when the stored value equals it (behaviour is
+# preserved); inherit removes the value so the v1 default applies. Values that
+# differ from the old default are always kept. "*" applies to every property of
+# the schema without an own entry. Old and new defaults are read from the schema
+# snapshots. The `changed_defaults` prompt can override every policy.
+[defaults."x:Cache"]
+"*" = "inherit"
+dnsRbl = "inherit"
+
+[defaults."x:DkimReportSettings"]
+"*" = "inherit"
+
+[defaults."x:DmarcReportSettings"]
+"*" = "inherit"
+
+[defaults."x:DsnReportSettings"]
+"*" = "inherit"
+
+[defaults."x:SpfReportSettings"]
+"*" = "inherit"
+
+[defaults."x:TlsReportSettings"]
+"*" = "inherit"
+
+[defaults."x:MtaStageAuth"]
+saslMechanisms = "inherit"
+
+[defaults."x:RocksDbStore"]
+blobSize = "inherit"
+cacheSize = "inherit"
+
+[defaults."x:MySqlStore"]
+poolMaxConnections = "inherit"
+
+[defaults."x:PostgreSqlStore"]
+poolMaxConnections = "inherit"
+
+[defaults."x:SqliteStore"]
+poolMaxConnections = "inherit"
+
+[defaults."x:NetworkListener"]
+maxConnections = "inherit"
+
+[defaults."x:OidcDirectory"]
+claimName = "pin"
+
+[defaults."x:RedisClusterStore"]
+authUsername = "pin"
+
+[defaults."x:RedisSentinelStore"]
+authUsername = "pin"
+
+[defaults."x:Search"]
+"*" = "inherit"
+
+[defaults."x:SpamPyzor"]
+enable = "pin"
+
+[defaults."x:SqlDirectory"]
+queryLogin = "pin"
+
+[defaults."x:TracerLog"]
+prefix = "pin"
+
+[defaults."x:NatsCoordinator"]
+addresses = "pin"
+
+# New v1 properties, and properties v0.16 computed but v1 stores, without a
+# default and without a marker-variant default, with the transform that fills
+# them (checked by schema_diff.py --check).
+[populated]
+"x:AzureStore.auth" = "azure_auth"
+
+# Functions renamed in v1 (crates/common/src/expr/functions/mod.rs in both
+# trees). v1 has no side-effect-free counter read: key_get returns nothing for
+# a counter entry, and key_incr with a zero delta returns the current value but
+# creates the key when it is missing, so that rewrite needs the operator
+# (prompt counter_read).
+[expression_functions]
+counter_incr = "key_incr"
+counter_get = { to = "key_incr", append_args = ["0"], prompt = "counter_read" }
+
+# Grants applied by the `permissions` transform when the `new_permissions`
+# prompt is answered with `grant`: a role or permission list that enables (or
+# disables) any of the listed v0.16 permissions also enables (or disables) the
+# new v1 permission.
+[permission_grants]
+imapMetadataGet = ["imapSelect", "imapExamine"]
+imapMetadataSet = ["imapStore"]
+imapMetadataPrivate = ["imapStore"]
+jmapMetadataGet = ["jmapMailboxGet"]
+jmapMetadataSet = ["jmapMailboxUpdate"]
+jmapMetadataPrivate = ["jmapMailboxUpdate"]
+sysMetadataGet = ["sysImapGet"]
+sysMetadataUpdate = ["sysImapUpdate"]
+sysOAuthGrantGet = ["sysOAuthClientGet"]
+sysOAuthGrantQuery = ["sysOAuthClientQuery"]
+sysOAuthGrantDestroy = ["sysOAuthClientDestroy"]
+sysIndexQueueStatusGet = ["sysTaskGet"]
+sysIndexQueueStatusUpdate = ["sysTaskUpdate"]
+sysIndexQueueStatusQuery = ["sysTaskQuery"]
+taskShareRevokeCleanup = ["taskAccountMaintenance"]
+taskDmarcReportWindow = ["taskDmarcReport"]
+taskTlsReportWindow = ["taskTlsReport"]
+
+# Task manager (v1 Tasks redesign): v1 retries
+# transient failures until the task succeeds or fails permanently and marks a
+# task Stalled after alertAfter attempts, so maxAttempts and totalDeadline have
+# no equivalent and alertAfter takes its v1 default; the retry strategy maps
+# unchanged. TaskStatusRetry.firstFailedAt is v1-only: the tool sets it to the
+# task's createdAt when it copies a Retry task, so no rule is needed here. The
+# other v1-only Task fields (TaskDestroyAccount.memberGroupIds, CalendarAlarm*
+# targetAccountId and recurrenceId) are server-set and need no rule.
+[properties."x:TaskManager"]
+maxAttempts = { drop = true }
+totalDeadline = { drop = true }
+
+[defaults."x:TaskRetryStrategyBackoff"]
+maxDelay = "inherit"
+
+# Stock spam filter tags. v1 imports the spam filter rules only when the store
+# holds no SpamRule, so a migrated deployment keeps the tags of the rules release
+# it imported under v0.16. Transform spam_tag renames the tags whose stock name
+# changed and drops the tags v1 no longer emits; the final run adds every tag of
+# `added` (spam filter rules 3.0.3) that the migrated settings lack, with its
+# stock score. Existing tags keep their scores.
+[spam_tags]
+renamed = { DISPOSABLE_REPLYTO = "DISPOSABLE_REPLY_TO" }
+removed_prefixes = ["LLM_"]
+
+[spam_tags.added]
+AI_BULK_SPAM_HIGH = 5.0
+AI_BULK_SPAM_LOW = 1.0
+AI_BULK_SPAM_MEDIUM = 3.0
+AI_CREDENTIAL_REQUEST = 2.0
+AI_ERROR = 0.0
+AI_IMPERSONATION = 3.0
+AI_LEGITIMATE_HIGH = -3.0
+AI_LEGITIMATE_LOW = -0.5
+AI_LEGITIMATE_MEDIUM = -2.0
+AI_MALWARE_HIGH = 7.0
+AI_MALWARE_LOW = 1.5
+AI_MALWARE_MEDIUM = 4.0
+AI_NEWSLETTER_HIGH = 0.0
+AI_NEWSLETTER_LOW = 0.0
+AI_NEWSLETTER_MEDIUM = 0.0
+AI_PHISHING_HIGH = 7.0
+AI_PHISHING_LOW = 1.5
+AI_PHISHING_MEDIUM = 4.0
+AI_REQUESTED = -1.0
+AI_TRANSACTIONAL_HIGH = -2.0
+AI_TRANSACTIONAL_LOW = 0.0
+AI_TRANSACTIONAL_MEDIUM = -1.0
+AI_UNCERTAIN = 0.0
+AI_UNSOLICITED_SALES_HIGH = 3.0
+AI_UNSOLICITED_SALES_LOW = 0.5
+AI_UNSOLICITED_SALES_MEDIUM = 2.0
+DISPOSABLE_BCC = 0.0
+DISPOSABLE_REPLY_TO = 0.0
+DKIM2_ALLOW = -0.2
+DKIM2_NA = 0.0
+DKIM2_PERMFAIL = 0.0
+DKIM2_REJECT = 1.0
+DKIM2_TEMPFAIL = 0.0
+FREEMAIL_BCC = 0.0
+MIME_LIMIT_EXCEEDED = 8.0
+URL_REDIRECTOR_INSECURE = 2.0

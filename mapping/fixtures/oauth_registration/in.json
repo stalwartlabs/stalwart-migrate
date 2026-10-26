@@ -1,0 +1,12 @@
+{
+  "objects": [
+    {
+      "key": "x:OidcProvider",
+      "value": {
+        "anonymousClientRegistration": false,
+        "requireClientRegistration": true,
+        "accessTokenExpiry": 3600000
+      }
+    }
+  ]
+}

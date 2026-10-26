@@ -1,0 +1,9 @@
+{
+  "instance": {
+    "oauth_registration": {
+      "x:OidcProvider": {
+        "action": "abort"
+      }
+    }
+  }
+}

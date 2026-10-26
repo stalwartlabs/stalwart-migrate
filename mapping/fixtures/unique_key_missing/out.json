@@ -1,0 +1,26 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:MtaVirtualQueue/b",
+      "level": "warning",
+      "path": "",
+      "reason": "its unique key is absent or has no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:MtaVirtualQueue/c",
+      "level": "warning",
+      "path": "",
+      "reason": "its unique key is absent or has no equivalent in the target version"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:MtaVirtualQueue/b",
+    "x:MtaVirtualQueue/c"
+  ],
+  "objects": [],
+  "questions": []
+}

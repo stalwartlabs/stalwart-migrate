@@ -1,0 +1,57 @@
+[package]
+name = "migrate"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+name = "migrate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "stalwart-migrate"
+path = "src/main.rs"
+
+[dependencies]
+bytes = "1.10"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+hashify = "0.3.1"
+libc = "0.2.191"
+mapping = { path = "../mapping" }
+model = { path = "../model" }
+roaring = "0.11.5"
+rustc-hash = "2.1.3"
+rustls = { version = "0.23.43", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+serde_json = "1.0.149"
+source-v016 = { workspace = true }
+source-v1 = { workspace = true }
+state = { path = "../state" }
+target-v016 = { workspace = true }
+target-v1 = { workspace = true }
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["fmt", "json", "std"] }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+tikv-jemallocator = "0.7"
+
+[dev-dependencies]
+mysql_async = { version = "0.37.1", default-features = false, features = ["default-rustls", "minimal"] }
+rusqlite = "0.41"
+source-v016 = { workspace = true, features = ["testkit"] }
+source-v1 = { workspace = true, features = ["testkit"] }
+tempfile = "3.27"
+tokio-postgres = "0.7.18"
+
+[features]
+failpoints = ["target-v1/failpoints", "target-v016/failpoints"]
+default = ["rocks", "enterprise"]
+rocks = ["source-v016/rocks", "target-v1/rocks", "source-v1/rocks", "target-v016/rocks"]
+foundation = ["source-v016/foundation", "target-v1/foundation", "source-v1/foundation", "target-v016/foundation"]
+postgres = ["source-v016/postgres", "target-v1/postgres", "source-v1/postgres", "target-v016/postgres"]
+mysql = ["source-v016/mysql", "target-v1/mysql", "source-v1/mysql", "target-v016/mysql"]
+sqlite = ["source-v016/sqlite", "target-v1/sqlite", "source-v1/sqlite", "target-v016/sqlite"]
+s3 = ["source-v016/s3", "target-v1/s3", "source-v1/s3", "target-v016/s3"]
+azure = ["source-v016/azure", "target-v1/azure", "source-v1/azure", "target-v016/azure"]
+redis = ["source-v016/redis", "target-v1/redis", "source-v1/redis", "target-v016/redis"]
+enterprise = ["source-v016/enterprise", "target-v1/enterprise", "source-v1/enterprise", "target-v016/enterprise"]

@@ -1,0 +1,44 @@
+[package]
+name = "directory"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+utils = { path =  "../utils" }
+store = { path =  "../store" }
+trc = { path = "../trc" }
+registry = { path = "../registry" }
+tokio = { version = "1.54", features = ["net", "rt", "sync", "time"] }
+ldap3 = { version = "0.12", default-features = false, features = ["tls-rustls-aws-lc-rs"] }
+deadpool = { version = "0.13", features = ["managed", "rt_tokio_1"] }
+ahash = { version = "0.8" }
+pwhash = "1"
+argon2 = "0.6.0"
+pbkdf2 = { version = "0.13.0", features = ["phc"] }
+scrypt = { version = "0.12.0", features = ["phc"] }
+sha1 = "0.11"
+sha2 = "0.11"
+md5 = "0.8.1"
+serde = { version = "1.0", features = ["derive"]}
+totp-rs = { version = "6.0.0", features = ["otpauth"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"] }
+serde_json = "1.0"
+encodify = "1.0"
+nohash-hasher = "0.2.0"
+jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
+compact_str.workspace = true
+hashify = "0.3"
+form_urlencoded = "1.2.2"
+parking_lot = "0.13.0"
+
+[dev-dependencies]
+tokio = { version = "1.54", features = ["full"] }
+
+[features]
+enterprise = ["utils/enterprise", "store/enterprise", "trc/enterprise", "registry/enterprise"]
+mysql = []
+postgres = []
+sqlite = []
+
+[lints]
+workspace = true

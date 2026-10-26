@@ -1,0 +1,34 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "alice",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "publicKey": "d",
+          "encryptOnAppend": true,
+          "allowSpamTraining": false
+        }
+      }
+    },
+    {
+      "key": "x:PublicKey/d",
+      "value": {
+        "accountId": "c",
+        "description": "alice",
+        "key": "-----BEGIN PGP-----"
+      }
+    }
+  ]
+}

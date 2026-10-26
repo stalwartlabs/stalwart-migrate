@@ -1,0 +1,164 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:AiModel/d",
+      "level": "warning",
+      "path": "",
+      "reason": "dropped as answered"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/f",
+      "level": "warning",
+      "path": "httpAuth",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/c",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/c",
+      "level": "info",
+      "path": "httpAuth"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/c",
+      "level": "info",
+      "path": "modelType"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/e",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/f",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:AiModel/d"
+  ],
+  "objects": [
+    {
+      "key": "x:AiModel/b",
+      "source": "x:AiModel/b",
+      "value": {
+        "@type": "OpenAi",
+        "allowInvalidCerts": false,
+        "apiKey": {
+          "@type": "Value",
+          "secret": "sk-123"
+        },
+        "httpHeaders": {},
+        "model": "gpt-4o",
+        "name": "gpt",
+        "profile": "OpenAi",
+        "temperature": 0.7,
+        "timeout": 120000,
+        "url": "https://api.openai.com/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:AiModel/c",
+      "source": "x:AiModel/c",
+      "value": {
+        "@type": "OpenAi",
+        "allowInvalidCerts": true,
+        "apiKey": {
+          "@type": "None"
+        },
+        "httpHeaders": {
+          "Authorization": "Basic dTpw",
+          "X-Team": "mail"
+        },
+        "model": "llama",
+        "name": "local",
+        "profile": "LlamaCpp",
+        "temperature": 0.2,
+        "timeout": 60000,
+        "url": "http://llm:8080/v1"
+      }
+    },
+    {
+      "key": "x:AiModel/e",
+      "source": "x:AiModel/e",
+      "value": {
+        "@type": "Anthropic",
+        "allowInvalidCerts": false,
+        "apiKey": {
+          "@type": "Value",
+          "secret": "ant"
+        },
+        "httpHeaders": {},
+        "model": "claude",
+        "name": "claude",
+        "temperature": 0.5,
+        "timeout": 60000,
+        "url": null
+      }
+    },
+    {
+      "key": "x:AiModel/f",
+      "source": "x:AiModel/f",
+      "value": {
+        "@type": "OpenAi",
+        "allowInvalidCerts": false,
+        "apiKey": {
+          "@type": "None"
+        },
+        "httpHeaders": {},
+        "model": "m",
+        "name": "basic",
+        "profile": "Generic",
+        "temperature": 0.5,
+        "timeout": 60000,
+        "url": "https://llm.example/v1/chat/completions"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:AiModel/b",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:AiModel/c",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:AiModel/d",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:AiModel/e",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:AiModel/f",
+      "prompt": "ai_model_provider"
+    }
+  ]
+}

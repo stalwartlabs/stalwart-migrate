@@ -1,0 +1,11 @@
+{
+  "objects": [
+    {
+      "key": "x:Http",
+      "value": {
+        "useXForwarded": true,
+        "enableHsts": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:Role/b",
+      "level": "warning",
+      "path": "disabledPermissions/jmapPrincipalCreate",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Role/b",
+      "level": "warning",
+      "path": "enabledPermissions/taskIndexDocument",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Role/b",
+      "level": "info",
+      "path": "enabledPermissions"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "enable": true,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Role/b",
+      "source": "x:Role/b",
+      "value": {
+        "description": "ops",
+        "disabledPermissions": {},
+        "enabledPermissions": {
+          "imapMetadataGet": true,
+          "imapSelect": true,
+          "sysOAuthClientGet": true,
+          "sysOAuthGrantGet": true,
+          "sysSpamAiGet": true
+        },
+        "roleIds": {}
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "name": "alice",
+        "permissions": {
+          "@type": "Merge",
+          "disabledPermissions": {},
+          "enabledPermissions": {
+            "sysSpamAiUpdate": true
+          }
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "new_permissions"
+    }
+  ]
+}

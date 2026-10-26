@@ -1,0 +1,24 @@
+{
+  "instance": {
+    "ai_model_provider": {
+      "x:AiModel/b": {
+        "provider": "OpenAi"
+      },
+      "x:AiModel/c": {
+        "provider": "OpenAi",
+        "profile": "LlamaCpp",
+        "url": "http://llm:8080/v1",
+        "basic_auth": "header"
+      },
+      "x:AiModel/d": {
+        "provider": "drop"
+      },
+      "x:AiModel/e": {
+        "provider": "Anthropic"
+      },
+      "x:AiModel/f": {
+        "provider": "OpenAi"
+      }
+    }
+  }
+}

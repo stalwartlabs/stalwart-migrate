@@ -1,0 +1,30 @@
+[package]
+name = "trc"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+event_macro = { path = "./event-macro" }
+mail-auth = { version = "0.14", features = ["arc"] }
+mail-parser = { version = "1.0", features = ["full_encoding"] }
+encodify = "1.0"
+serde = "1.0"
+serde_json = "1.0.154"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"]}
+rtrb = "0.4.1"
+parking_lot = "0.13.0"
+tokio = { version = "1.54", features = ["net", "macros"] }
+ahash = "0.8.12"
+rkyv.workspace = true
+compact_str.workspace = true
+hashify = "0.3"
+itoa = "1"
+
+[features]
+dev_mode = []
+enterprise = []
+
+[dev-dependencies]
+
+[lints]
+workspace = true

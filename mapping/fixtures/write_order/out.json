@@ -1,0 +1,73 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "source": "x:Tenant/b",
+      "value": {
+        "name": "acme"
+      }
+    },
+    {
+      "key": "x:Domain/c",
+      "source": "x:Domain/c",
+      "value": {
+        "enable": true,
+        "memberTenantId": "b",
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Role/f",
+      "source": "x:Role/f",
+      "value": {
+        "description": "parent",
+        "roleIds": {}
+      }
+    },
+    {
+      "key": "x:Role/g",
+      "source": "x:Role/g",
+      "value": {
+        "description": "child",
+        "roleIds": {
+          "f": true
+        }
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "source": "x:Account/d",
+      "value": {
+        "@type": "Group",
+        "domainId": "c",
+        "emailAddress": "staff@example.com",
+        "name": "staff"
+      }
+    },
+    {
+      "key": "x:Account/e",
+      "source": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "domainId": "c",
+        "emailAddress": "bob@example.com",
+        "memberGroupIds": {
+          "d": true
+        },
+        "name": "bob"
+      }
+    },
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "clientIpSource": "peer"
+      }
+    }
+  ],
+  "questions": []
+}

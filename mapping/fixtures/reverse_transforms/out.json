@@ -1,0 +1,333 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_inherited",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexFiles"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/b",
+      "level": "warning",
+      "path": "profile",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/c",
+      "level": "warning",
+      "path": "",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/e",
+      "level": "warning",
+      "path": "profile",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/f",
+      "level": "warning",
+      "path": "httpHeaders/api-key",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/g",
+      "level": "warning",
+      "path": "httpHeaders/Api-Key",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/h",
+      "level": "warning",
+      "path": "profile",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:AiModel/i",
+      "level": "warning",
+      "path": "profile",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:BlobStore",
+      "level": "warning",
+      "path": "environment",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Directory/d",
+      "level": "warning",
+      "path": "unscopedTokens",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Http",
+      "level": "warning",
+      "path": "forwardedHops",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamAi",
+      "level": "warning",
+      "path": "",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "moved",
+      "key": "x:MtaStageData",
+      "level": "info",
+      "path": "dkimSignDomain"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/b",
+      "level": "info",
+      "path": "url"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/e",
+      "level": "info",
+      "path": "url"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/f",
+      "level": "info",
+      "path": "apiKey"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/f",
+      "level": "info",
+      "path": "url"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/g",
+      "level": "info",
+      "path": "apiKey"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/g",
+      "level": "info",
+      "path": "url"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/i",
+      "level": "info",
+      "path": "url"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexCalendarFields"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexContactFields"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Search",
+      "level": "info",
+      "path": "indexEmailFields"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:AiModel/c"
+  ],
+  "objects": [
+    {
+      "key": "x:Directory/d",
+      "source": "x:Directory/d",
+      "value": {
+        "@type": "Oidc",
+        "claimName": null,
+        "issuerUrl": "https://sso",
+        "requireAudience": "aud"
+      }
+    },
+    {
+      "key": "x:AiModel/b",
+      "source": "x:AiModel/b",
+      "value": {
+        "httpAuth": {
+          "@type": "Bearer",
+          "bearerToken": {
+            "@type": "Value",
+            "secret": "sk"
+          }
+        },
+        "model": "gpt-4o",
+        "modelType": "Chat",
+        "name": "gpt",
+        "timeout": 60000,
+        "url": "https://api.openai.com/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:AiModel/e",
+      "source": "x:AiModel/e",
+      "value": {
+        "httpAuth": {
+          "@type": "Bearer",
+          "bearerToken": {
+            "@type": "EnvironmentVariable",
+            "variableName": "AZURE_KEY"
+          }
+        },
+        "model": "gpt-4o",
+        "modelType": "Chat",
+        "name": "azure-env",
+        "url": "https://r.openai.azure.com/openai/deployments/d/chat/completions"
+      }
+    },
+    {
+      "key": "x:AiModel/f",
+      "source": "x:AiModel/f",
+      "value": {
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "httpHeaders": {
+          "X-Trace": "1",
+          "api-key": "az"
+        },
+        "model": "gpt-4o",
+        "modelType": "Chat",
+        "name": "azure-key",
+        "url": "https://r.openai.azure.com/openai/deployments/d/chat/completions"
+      }
+    },
+    {
+      "key": "x:AiModel/g",
+      "source": "x:AiModel/g",
+      "value": {
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "httpHeaders": {
+          "api-key": "az"
+        },
+        "model": "gpt-4o",
+        "modelType": "Chat",
+        "name": "azure-query",
+        "url": "https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-02-01"
+      }
+    },
+    {
+      "key": "x:AiModel/h",
+      "source": "x:AiModel/h",
+      "value": {
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "model": "gpt-4o",
+        "modelType": "Chat",
+        "name": "azure-full-query",
+        "url": "https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-02-01"
+      }
+    },
+    {
+      "key": "x:AiModel/i",
+      "source": "x:AiModel/i",
+      "value": {
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "model": "m",
+        "modelType": "Chat",
+        "name": "vllm",
+        "url": "http://vllm:8000/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "Azure",
+        "accessKey": {
+          "@type": "Value",
+          "secret": "k"
+        },
+        "container": "c",
+        "storageAccount": "a"
+      }
+    },
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "useXForwarded": true
+      }
+    },
+    {
+      "key": "x:MtaStageData",
+      "source": "x:MtaStageData",
+      "value": {
+        "maxMessages": {
+          "else": "10",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:Search",
+      "source": "x:Search",
+      "value": {
+        "indexCalendarFields": {
+          "start": true,
+          "uid": true
+        },
+        "indexContactFields": {
+          "uid": true
+        },
+        "indexEmailFields": {
+          "from": true,
+          "hasAttachment": true,
+          "receivedAt": true,
+          "sentAt": true,
+          "size": true,
+          "subject": true
+        }
+      }
+    },
+    {
+      "key": "x:SenderAuth",
+      "source": "x:MtaStageData",
+      "value": {
+        "dkimSignDomain": {
+          "else": "'x.com'",
+          "match": {}
+        }
+      }
+    },
+    {
+      "key": "x:SpamLlm",
+      "source": "x:SpamAi",
+      "value": {
+        "@type": "Disable"
+      }
+    }
+  ],
+  "questions": []
+}

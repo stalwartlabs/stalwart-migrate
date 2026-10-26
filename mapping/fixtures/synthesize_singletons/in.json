@@ -1,0 +1,13 @@
+{
+  "options": {
+    "synthesize": true
+  },
+  "objects": [
+    {
+      "key": "x:Http",
+      "value": {
+        "useXForwarded": false
+      }
+    }
+  ]
+}

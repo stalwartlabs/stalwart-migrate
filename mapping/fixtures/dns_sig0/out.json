@@ -1,0 +1,42 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:DnsServer/b",
+      "level": "warning",
+      "path": "",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "reference_cleared",
+      "key": "x:Domain/c",
+      "level": "warning",
+      "path": "dnsManagement/dnsServerId"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:DnsServer/b"
+  ],
+  "objects": [
+    {
+      "key": "x:Domain/c",
+      "source": "x:Domain/c",
+      "value": {
+        "dnsManagement": {
+          "@type": "Manual"
+        },
+        "enable": true,
+        "name": "example.com"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:DnsServer/b",
+      "prompt": "dns_sig0"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:BlobStore",
+      "level": "info",
+      "path": "auth"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "Azure",
+        "auth": {
+          "@type": "WorkloadIdentity",
+          "clientId": "c",
+          "tenantId": "t",
+          "tokenFile": "/var/run/token"
+        },
+        "container": "c",
+        "storageAccount": "acct"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:BlobStore",
+      "prompt": "azure_auth"
+    }
+  ]
+}

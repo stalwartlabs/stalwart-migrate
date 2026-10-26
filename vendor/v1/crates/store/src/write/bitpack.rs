@@ -1,0 +1,344 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
+use utils::codec::leb128::Leb128;
+
+use super::key::KeySerializer;
+
+const MAX_BLOCK_LEN: usize = BitPacker8x::BLOCK_LEN;
+
+pub struct BitpackIterator<'x> {
+    pub(crate) bytes: &'x [u8],
+    pub(crate) bytes_offset: usize,
+    pub(crate) chunk: [u32; MAX_BLOCK_LEN],
+    pub(crate) chunk_len: usize,
+    pub(crate) chunk_offset: usize,
+    pub items_left: u32,
+}
+
+impl Default for BitpackIterator<'_> {
+    fn default() -> Self {
+        BitpackIterator {
+            bytes: &[],
+            bytes_offset: 0,
+            chunk: [0u32; MAX_BLOCK_LEN],
+            chunk_len: 0,
+            chunk_offset: 0,
+            items_left: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BitBlockPacker {
+    bitpacker_1: BitPacker1x,
+    bitpacker_4: BitPacker4x,
+    bitpacker_8: BitPacker8x,
+    block_len: usize,
+}
+
+impl KeySerializer {
+    pub fn bitpack_sorted(&mut self, items: &[u32]) -> &mut Self {
+        let mut bitpacker = BitBlockPacker::new();
+        let mut compressed = vec![0u8; 4 * BitPacker8x::BLOCK_LEN];
+
+        let mut pos = 0;
+        let len = items.len();
+        let mut initial_value = None;
+
+        self.write_leb128(len as u32);
+
+        while pos < len {
+            let block_len = match len - pos {
+                0..=31 => {
+                    for val in &items[pos..] {
+                        self.write_leb128(*val);
+                    }
+                    break;
+                }
+                32..=127 => BitPacker1x::BLOCK_LEN,
+                128..=255 => BitPacker4x::BLOCK_LEN,
+                _ => BitPacker8x::BLOCK_LEN,
+            };
+
+            let chunk = &items[pos..pos + block_len];
+            bitpacker.block_len(block_len);
+            let num_bits: u8 = bitpacker.num_bits_strictly_sorted(initial_value, chunk);
+            let compressed_len = bitpacker.compress_strictly_sorted(
+                initial_value,
+                chunk,
+                &mut compressed[..],
+                num_bits,
+            );
+            self.write(num_bits).write(&compressed[..compressed_len]);
+            initial_value = chunk[chunk.len() - 1].into();
+
+            pos += block_len;
+        }
+        self
+    }
+}
+
+impl<'x> BitpackIterator<'x> {
+    pub fn from_bytes_and_offset(bytes: &'x [u8], bytes_offset: usize, items_left: u32) -> Self {
+        BitpackIterator {
+            bytes,
+            bytes_offset,
+            items_left,
+            ..Default::default()
+        }
+    }
+
+    pub fn new(bytes: &'x [u8]) -> Option<Self> {
+        u32::from_leb128(bytes).map(|(items_left, bytes_offset)| BitpackIterator {
+            bytes,
+            bytes_offset,
+            items_left,
+            ..Default::default()
+        })
+    }
+}
+
+impl Iterator for BitpackIterator<'_> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.chunk_offset < self.chunk_len {
+            let item = self.chunk[self.chunk_offset];
+            self.chunk_offset += 1;
+            return Some(item);
+        }
+        let block_len = match self.items_left {
+            0 => return None,
+            1..=31 => {
+                self.items_left -= 1;
+                let (item, bytes_read) = u32::from_leb128(self.bytes.get(self.bytes_offset..)?)?;
+                self.bytes_offset += bytes_read;
+                return Some(item);
+            }
+            32..=127 => BitPacker1x::BLOCK_LEN,
+            128..=255 => BitPacker4x::BLOCK_LEN,
+            _ => BitPacker8x::BLOCK_LEN,
+        };
+
+        let bitpacker = BitBlockPacker::with_block_len(block_len);
+        let num_bits = *self.bytes.get(self.bytes_offset)?;
+        let bytes_read = ((num_bits as usize) * block_len / 8) + 1;
+        let initial_value = self.chunk_len.checked_sub(1).map(|last| self.chunk[last]);
+        let compressed = self
+            .bytes
+            .get(self.bytes_offset + 1..self.bytes_offset + bytes_read)?;
+
+        bitpacker.decompress_strictly_sorted(
+            initial_value,
+            compressed,
+            &mut self.chunk[..block_len],
+            num_bits,
+        );
+
+        self.chunk_len = block_len;
+        self.chunk_offset = 1;
+        self.bytes_offset += bytes_read;
+        self.items_left -= block_len as u32;
+        Some(self.chunk[0])
+    }
+}
+
+impl BitBlockPacker {
+    pub fn with_block_len(block_len: usize) -> Self {
+        BitBlockPacker {
+            bitpacker_1: BitPacker1x::new(),
+            bitpacker_4: BitPacker4x::new(),
+            bitpacker_8: BitPacker8x::new(),
+            block_len,
+        }
+    }
+
+    pub fn block_len(&mut self, num: usize) {
+        self.block_len = num;
+    }
+}
+
+impl BitPacker for BitBlockPacker {
+    const BLOCK_LEN: usize = 0;
+
+    fn new() -> Self {
+        BitBlockPacker {
+            bitpacker_1: BitPacker1x::new(),
+            bitpacker_4: BitPacker4x::new(),
+            bitpacker_8: BitPacker8x::new(),
+            block_len: 1,
+        }
+    }
+
+    fn compress(&self, decompressed: &[u32], compressed: &mut [u8], num_bits: u8) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self
+                .bitpacker_8
+                .compress(decompressed, compressed, num_bits),
+            BitPacker4x::BLOCK_LEN => self
+                .bitpacker_4
+                .compress(decompressed, compressed, num_bits),
+            _ => self
+                .bitpacker_1
+                .compress(decompressed, compressed, num_bits),
+        }
+    }
+
+    fn compress_sorted(
+        &self,
+        initial: u32,
+        decompressed: &[u32],
+        compressed: &mut [u8],
+        num_bits: u8,
+    ) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => {
+                self.bitpacker_8
+                    .compress_sorted(initial, decompressed, compressed, num_bits)
+            }
+            BitPacker4x::BLOCK_LEN => {
+                self.bitpacker_4
+                    .compress_sorted(initial, decompressed, compressed, num_bits)
+            }
+            _ => self
+                .bitpacker_1
+                .compress_sorted(initial, decompressed, compressed, num_bits),
+        }
+    }
+
+    fn decompress(&self, compressed: &[u8], decompressed: &mut [u32], num_bits: u8) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => {
+                self.bitpacker_8
+                    .decompress(compressed, decompressed, num_bits)
+            }
+            BitPacker4x::BLOCK_LEN => {
+                self.bitpacker_4
+                    .decompress(compressed, decompressed, num_bits)
+            }
+            _ => self
+                .bitpacker_1
+                .decompress(compressed, decompressed, num_bits),
+        }
+    }
+
+    fn decompress_sorted(
+        &self,
+        initial: u32,
+        compressed: &[u8],
+        decompressed: &mut [u32],
+        num_bits: u8,
+    ) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => {
+                self.bitpacker_8
+                    .decompress_sorted(initial, compressed, decompressed, num_bits)
+            }
+            BitPacker4x::BLOCK_LEN => {
+                self.bitpacker_4
+                    .decompress_sorted(initial, compressed, decompressed, num_bits)
+            }
+            _ => self
+                .bitpacker_1
+                .decompress_sorted(initial, compressed, decompressed, num_bits),
+        }
+    }
+
+    fn num_bits(&self, decompressed: &[u32]) -> u8 {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self.bitpacker_8.num_bits(decompressed),
+            BitPacker4x::BLOCK_LEN => self.bitpacker_4.num_bits(decompressed),
+            _ => self.bitpacker_1.num_bits(decompressed),
+        }
+    }
+
+    fn num_bits_sorted(&self, initial: u32, decompressed: &[u32]) -> u8 {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self.bitpacker_8.num_bits_sorted(initial, decompressed),
+            BitPacker4x::BLOCK_LEN => self.bitpacker_4.num_bits_sorted(initial, decompressed),
+            _ => self.bitpacker_1.num_bits_sorted(initial, decompressed),
+        }
+    }
+
+    fn compress_strictly_sorted(
+        &self,
+        initial: Option<u32>,
+        decompressed: &[u32],
+        compressed: &mut [u8],
+        num_bits: u8,
+    ) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self.bitpacker_8.compress_strictly_sorted(
+                initial,
+                decompressed,
+                compressed,
+                num_bits,
+            ),
+            BitPacker4x::BLOCK_LEN => self.bitpacker_4.compress_strictly_sorted(
+                initial,
+                decompressed,
+                compressed,
+                num_bits,
+            ),
+            _ => self.bitpacker_1.compress_strictly_sorted(
+                initial,
+                decompressed,
+                compressed,
+                num_bits,
+            ),
+        }
+    }
+
+    fn decompress_strictly_sorted(
+        &self,
+        initial: Option<u32>,
+        compressed: &[u8],
+        decompressed: &mut [u32],
+        num_bits: u8,
+    ) -> usize {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self.bitpacker_8.decompress_strictly_sorted(
+                initial,
+                compressed,
+                decompressed,
+                num_bits,
+            ),
+            BitPacker4x::BLOCK_LEN => self.bitpacker_4.decompress_strictly_sorted(
+                initial,
+                compressed,
+                decompressed,
+                num_bits,
+            ),
+            _ => self.bitpacker_1.decompress_strictly_sorted(
+                initial,
+                compressed,
+                decompressed,
+                num_bits,
+            ),
+        }
+    }
+
+    fn num_bits_strictly_sorted(&self, initial: Option<u32>, decompressed: &[u32]) -> u8 {
+        match self.block_len {
+            BitPacker8x::BLOCK_LEN => self
+                .bitpacker_8
+                .num_bits_strictly_sorted(initial, decompressed),
+            BitPacker4x::BLOCK_LEN => self
+                .bitpacker_4
+                .num_bits_strictly_sorted(initial, decompressed),
+            _ => self
+                .bitpacker_1
+                .num_bits_strictly_sorted(initial, decompressed),
+        }
+    }
+}
+
+#[cfg(all(test, stalwart_tests))]
+#[rustfmt::skip]
+#[path = "../../../../../stalwart-tests/unit/store/src/write/bitpack/tests.rs"]
+mod tests;

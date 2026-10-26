@@ -1,0 +1,25 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "alice",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "publicKey": "z",
+          "encryptOnAppend": true
+        }
+      }
+    }
+  ]
+}

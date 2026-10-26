@@ -1,0 +1,10 @@
+{
+  "global": {
+    "edition": {
+      "edition": "oss"
+    },
+    "enterprise_on_oss": {
+      "action": "drop"
+    }
+  }
+}

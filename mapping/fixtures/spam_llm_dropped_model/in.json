@@ -1,0 +1,28 @@
+{
+  "objects": [
+    {
+      "key": "x:AiModel/b",
+      "value": {
+        "name": "gpt",
+        "url": "https://x/v1/chat/completions",
+        "model": "m",
+        "timeout": 1000,
+        "allowInvalidCerts": false,
+        "temperature": 0.7,
+        "modelType": "Chat",
+        "httpAuth": {
+          "@type": "Unauthenticated"
+        },
+        "httpHeaders": {}
+      }
+    },
+    {
+      "key": "x:SpamLlm",
+      "value": {
+        "@type": "Enable",
+        "modelId": "b",
+        "prompt": "p"
+      }
+    }
+  ]
+}

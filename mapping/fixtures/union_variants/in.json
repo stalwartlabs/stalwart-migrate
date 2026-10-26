@@ -1,0 +1,60 @@
+{
+  "objects": [
+    {
+      "key": "x:DnsServer/b",
+      "value": {
+        "@type": "Cloudflare",
+        "description": "cf",
+        "secret": {
+          "@type": "Value",
+          "secret": "cf-token"
+        },
+        "email": null,
+        "pollingInterval": 15000
+      }
+    },
+    {
+      "key": "x:DnsServer/c",
+      "value": {
+        "@type": "Porkbun",
+        "description": "pb",
+        "apiKey": "pk1",
+        "secretApiKey": {
+          "@type": "Value",
+          "secret": "sk1"
+        },
+        "secret": {
+          "@type": "Value",
+          "secret": "retired"
+        },
+        "pollingInterval": 30000
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "bucket": "mail",
+        "region": {
+          "@type": "Custom",
+          "customEndpoint": "https://minio:9000",
+          "customRegion": "eu"
+        },
+        "accessKey": {
+          "@type": "Value",
+          "value": "AKIA"
+        },
+        "secretKey": {
+          "@type": "Value",
+          "secret": "s3secret"
+        },
+        "securityToken": {
+          "@type": "None"
+        },
+        "sessionToken": {
+          "@type": "None"
+        }
+      }
+    }
+  ]
+}

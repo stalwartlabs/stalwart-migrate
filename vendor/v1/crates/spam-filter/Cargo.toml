@@ -1,0 +1,42 @@
+[package]
+name = "spam-filter"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+utils = { path = "../utils" }
+types = { path = "../types" }
+nlp = { path = "../nlp" }
+store = { path = "../store" }
+trc = { path = "../trc" }
+common = { path =  "../common" }
+registry = { path =  "../registry" }
+smtp-proto = { path = "../smtp-proto", features = ["rkyv"] }
+mail-parser = { version = "1.0", features = ["full_encoding"] } 
+mail-auth = { version = "0.14" }
+tokio = { version = "1.54", features = ["net", "macros"] }
+psl = "2"
+hyper = { version = "1.12.0", features = ["server", "http1", "http2"] }
+idna = "1.1"
+decancer = "4.0.0"
+unicode-security = "0.1.2"
+infer = "0.22"
+hashify = "0.3"
+memchr = "2.8"
+sha1 = "0.11"
+compact_str.workspace = true
+rkyv.workspace = true
+serde = { version = "1.0", features = ["derive"]}
+unicode-general-category = "1.1.0"
+unicode-normalization = "0.1.26"
+sync_wrapper = "1.0.2"
+serde_json = { version = "1.0", features = ["raw_value"], optional = true }
+
+[features]
+enterprise = ["common/enterprise", "dep:serde_json", "utils/enterprise", "store/enterprise", "trc/enterprise", "registry/enterprise"]
+
+[dev-dependencies]
+tokio = { version = "1.54", features = ["full"] }
+
+[lints]
+workspace = true

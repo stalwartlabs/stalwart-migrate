@@ -1,0 +1,76 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:EventTracingLevel/c",
+      "level": "warning",
+      "path": "event",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Metrics",
+      "level": "warning",
+      "path": "metrics/dkim.exploded",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Tracer/e",
+      "level": "warning",
+      "path": "events/dns.build-error",
+      "reason": "no equivalent in the target version"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:EventTracingLevel/c"
+  ],
+  "objects": [
+    {
+      "key": "x:EventTracingLevel/b",
+      "source": "x:EventTracingLevel/b",
+      "value": {
+        "event": "cache.miss",
+        "level": "debug"
+      }
+    },
+    {
+      "key": "x:EventTracingLevel/d",
+      "source": "x:EventTracingLevel/d",
+      "value": {
+        "event": "dkim.verification-failed",
+        "level": "warn"
+      }
+    },
+    {
+      "key": "x:Metrics",
+      "source": "x:Metrics",
+      "value": {
+        "metrics": {
+          "arc.chain-invalid": true,
+          "search-index.index-time": true
+        }
+      }
+    },
+    {
+      "key": "x:Tracer/e",
+      "source": "x:Tracer/e",
+      "value": {
+        "@type": "Log",
+        "enable": true,
+        "events": {
+          "arc.hash-mismatch": true,
+          "cache.hit": true,
+          "dkim.hash-mismatch": true,
+          "dkim2.hash-mismatch": true,
+          "smtp.connection-start": true
+        },
+        "path": "/var/log",
+        "prefix": "custom"
+      }
+    }
+  ],
+  "questions": []
+}

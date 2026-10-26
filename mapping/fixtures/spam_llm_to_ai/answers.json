@@ -1,0 +1,16 @@
+{
+  "instance": {
+    "ai_model_provider": {
+      "x:AiModel/b": {
+        "provider": "OpenAi",
+        "profile": "OpenAi"
+      }
+    },
+    "spam_ai": {
+      "x:SpamLlm": {
+        "action": "custom",
+        "instructions": "Classify this email"
+      }
+    }
+  }
+}

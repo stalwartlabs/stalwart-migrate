@@ -1,0 +1,50 @@
+{
+  "objects": [
+    {
+      "key": "x:EventTracingLevel/b",
+      "value": {
+        "event": "store.cache-miss",
+        "level": "debug"
+      }
+    },
+    {
+      "key": "x:EventTracingLevel/c",
+      "value": {
+        "event": "dkim.modified",
+        "level": "info"
+      }
+    },
+    {
+      "key": "x:EventTracingLevel/d",
+      "value": {
+        "event": "dkim.failed-verification",
+        "level": "warn"
+      }
+    },
+    {
+      "key": "x:Tracer/e",
+      "value": {
+        "@type": "Log",
+        "path": "/var/log",
+        "prefix": "custom",
+        "enable": true,
+        "events": {
+          "store.cache-hit": true,
+          "dkim.failed-body-hash-match": true,
+          "dns.build-error": true,
+          "smtp.connection-start": true
+        }
+      }
+    },
+    {
+      "key": "x:Metrics",
+      "value": {
+        "metrics": {
+          "message-ingest.index-time": true,
+          "arc.broken-chain": true,
+          "dkim.exploded": true
+        }
+      }
+    }
+  ]
+}

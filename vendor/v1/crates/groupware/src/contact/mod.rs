@@ -1,0 +1,162 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+pub mod index;
+pub mod storage;
+
+use crate::metadata::tracked_kinds;
+use calcard::vcard::VCard;
+use common::{DavName, storage::dav::PresenceBits};
+use types::{acl::AclGrant, metadata::MetadataKinds};
+
+#[derive(
+    rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone, PartialEq, Eq,
+)]
+#[rkyv(derive(Debug))]
+pub struct AddressBook {
+    pub name: String,
+    pub preferences: Vec<AddressBookPreferences>,
+    pub subscribers: Vec<u32>,
+    pub presence: u8,
+    pub acls: Vec<AclGrant>,
+    pub created: i64,
+    pub modified: i64,
+}
+
+#[derive(
+    rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone, PartialEq, Eq,
+)]
+#[rkyv(derive(Debug))]
+pub struct AddressBookPreferences {
+    pub account_id: u32,
+    pub name: String,
+    pub description: Option<String>,
+    pub sort_order: u32,
+}
+
+pub const CARD_META_DAV: u16 = PresenceBits::CONTACT_CARD.dav();
+pub const CARD_META_JMAP: u16 = PresenceBits::CONTACT_CARD.jmap();
+
+#[derive(
+    rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone, PartialEq, Eq,
+)]
+pub struct ContactCard {
+    pub names: Vec<DavName>,
+    pub uid: String,
+    pub display_name: Option<String>,
+    pub created: i64,
+    pub modified: i64,
+    pub size: u32,
+    pub etag: u32,
+    pub flags: u16,
+}
+
+#[derive(
+    rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone, PartialEq, Eq,
+)]
+pub struct ContactCardContent {
+    pub card: VCard,
+}
+
+impl AddressBook {
+    pub fn metadata_kinds(&self) -> MetadataKinds {
+        tracked_kinds(self.presence)
+    }
+
+    pub fn preferences(&self, account_id: u32) -> &AddressBookPreferences {
+        if self.preferences.len() == 1 {
+            &self.preferences[0]
+        } else {
+            self.preferences
+                .iter()
+                .find(|p| p.account_id == account_id)
+                .or_else(|| self.preferences.first())
+                .unwrap()
+        }
+    }
+
+    pub fn preferences_mut(&mut self, account_id: u32) -> &mut AddressBookPreferences {
+        let idx = if let Some(idx) = self
+            .preferences
+            .iter()
+            .position(|p| p.account_id == account_id)
+        {
+            idx
+        } else {
+            let mut preferences = self.preferences[0].clone();
+            preferences.account_id = account_id;
+            self.preferences.push(preferences);
+            self.preferences.len() - 1
+        };
+
+        &mut self.preferences[idx]
+    }
+}
+
+impl ArchivedAddressBook {
+    pub fn metadata_kinds(&self) -> MetadataKinds {
+        tracked_kinds(self.presence)
+    }
+
+    pub fn preferences(&self, account_id: u32) -> &ArchivedAddressBookPreferences {
+        if self.preferences.len() == 1 {
+            &self.preferences[0]
+        } else {
+            self.preferences
+                .iter()
+                .find(|p| p.account_id == account_id)
+                .or_else(|| self.preferences.first())
+                .unwrap()
+        }
+    }
+}
+
+impl ContactCard {
+    pub fn metadata_kinds(&self) -> MetadataKinds {
+        PresenceBits::CONTACT_CARD.kinds(self.flags)
+    }
+
+    pub fn set_metadata_kinds(&mut self, kinds: MetadataKinds) {
+        self.flags = PresenceBits::CONTACT_CARD.apply(self.flags, kinds);
+    }
+
+    pub fn added_addressbook_ids(
+        &self,
+        prev_data: &ArchivedContactCard,
+    ) -> impl Iterator<Item = u32> {
+        self.names
+            .iter()
+            .filter(|m| prev_data.names.iter().all(|pm| pm.parent_id != m.parent_id))
+            .map(|m| m.parent_id)
+    }
+
+    pub fn removed_addressbook_ids(
+        &self,
+        prev_data: &ArchivedContactCard,
+    ) -> impl Iterator<Item = u32> {
+        prev_data
+            .names
+            .iter()
+            .filter(|m| self.names.iter().all(|pm| pm.parent_id != m.parent_id))
+            .map(|m| m.parent_id.to_native())
+    }
+
+    pub fn unchanged_addressbook_ids(
+        &self,
+        prev_data: &ArchivedContactCard,
+    ) -> impl Iterator<Item = u32> {
+        self.names
+            .iter()
+            .filter(|m| prev_data.names.iter().any(|pm| pm.parent_id == m.parent_id))
+            .map(|m| m.parent_id)
+    }
+}
+
+impl ArchivedContactCard {
+    pub fn metadata_kinds(&self) -> MetadataKinds {
+        PresenceBits::CONTACT_CARD.kinds(self.flags.to_native())
+    }
+}

@@ -1,0 +1,120 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "categories",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "confidence",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "prompt",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosCategory",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosConfidence",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "responsePosExplanation",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "separator",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SpamLlm",
+      "level": "warning",
+      "path": "temperature",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AiModel/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamLlm",
+      "level": "info",
+      "path": ""
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:AiModel/b",
+      "source": "x:AiModel/b",
+      "value": {
+        "@type": "OpenAi",
+        "allowInvalidCerts": false,
+        "apiKey": {
+          "@type": "None"
+        },
+        "httpHeaders": {},
+        "model": "gpt-4o",
+        "name": "gpt",
+        "profile": "OpenAi",
+        "temperature": 0.7,
+        "timeout": 120000,
+        "url": "https://api.openai.com/v1/chat/completions"
+      }
+    },
+    {
+      "key": "x:SpamAi",
+      "source": "x:SpamLlm",
+      "value": {
+        "@type": "Enable",
+        "instructions": "Classify this email",
+        "tiers": {
+          "0": {
+            "modelId": "b"
+          }
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": "x:AiModel/b",
+      "prompt": "ai_model_provider"
+    },
+    {
+      "answered": true,
+      "key": "x:SpamLlm",
+      "prompt": "spam_ai"
+    }
+  ]
+}

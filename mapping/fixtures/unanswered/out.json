@@ -1,0 +1,70 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "default_pinned",
+      "key": "x:Directory/b",
+      "level": "info",
+      "path": "claimName"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Directory/b",
+      "level": "info",
+      "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:Http",
+      "level": "info",
+      "path": "clientIpSource"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Directory/b",
+      "source": "x:Directory/b",
+      "value": {
+        "@type": "Oidc",
+        "acceptedAudiences": {
+          "aud": true
+        },
+        "allowIdTokenClaims": false,
+        "allowInvalidCerts": false,
+        "claimName": "name",
+        "issuerUrl": "https://sso",
+        "lenientIssuerMatch": false,
+        "opaqueTokenValidation": "userInfo",
+        "skipAudienceValidation": false,
+        "unscopedTokens": "interoperable"
+      }
+    },
+    {
+      "key": "x:Http",
+      "source": "x:Http",
+      "value": {
+        "clientIpSource": "xForwardedFor",
+        "forwardedHops": 1
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": "x:Directory/b",
+      "prompt": "oidc_directory"
+    },
+    {
+      "answered": false,
+      "key": "x:Http",
+      "prompt": "http_forwarded"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "changed_defaults"
+    }
+  ]
+}

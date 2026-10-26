@@ -1,0 +1,25 @@
+{
+ "objects": [
+  {
+   "key": "x:EventTracingLevel/b",
+   "value": {
+    "event": "arc.chain-too-long",
+    "level": "debug"
+   }
+  },
+  {
+   "key": "x:EventTracingLevel/c",
+   "value": {
+    "event": "arc.invalid-cv",
+    "level": "trace"
+   }
+  },
+  {
+   "key": "x:EventTracingLevel/d",
+   "value": {
+    "event": "arc.has-header-tag",
+    "level": "warn"
+   }
+  }
+ ]
+}

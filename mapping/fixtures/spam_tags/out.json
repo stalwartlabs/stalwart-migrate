@@ -1,0 +1,51 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:SpamTag/b",
+      "level": "warning",
+      "path": "",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "transformed",
+      "key": "x:SpamTag/a",
+      "level": "info",
+      "path": "tag"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:SpamTag/b"
+  ],
+  "objects": [
+    {
+      "key": "x:SpamTag/a",
+      "source": "x:SpamTag/a",
+      "value": {
+        "@type": "Score",
+        "score": 0.0,
+        "tag": "DISPOSABLE_REPLY_TO"
+      }
+    },
+    {
+      "key": "x:SpamTag/c",
+      "source": "x:SpamTag/c",
+      "value": {
+        "@type": "Score",
+        "score": 6.5,
+        "tag": "DBL_SPAM"
+      }
+    },
+    {
+      "key": "x:SpamTag/d",
+      "source": "x:SpamTag/d",
+      "value": {
+        "@type": "Reject",
+        "tag": "SPAM_TRAP"
+      }
+    }
+  ],
+  "questions": []
+}

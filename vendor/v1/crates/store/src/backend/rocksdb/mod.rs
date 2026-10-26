@@ -1,0 +1,107 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{Subspace, backend::worker::BlockingPermits};
+use rocksdb::{BoundColumnFamily, DBWithThreadMode, MultiThreaded, OptimisticTransactionDB};
+use std::sync::Arc;
+
+pub mod blob;
+mod blob_gc;
+mod cache;
+pub mod main;
+#[cfg(stalwart_tests)]
+#[rustfmt::skip]
+#[path = "../../../../../../stalwart-tests/unit/store/src/backend/rocksdb/probe.rs"]
+pub mod probe;
+pub mod read;
+mod slots;
+pub mod write;
+
+static CF_BLOBS: &str = Subspace::Blobs.name();
+
+pub(crate) trait CfHandle {
+    fn subspace_handle(&self, subspace: Subspace) -> Arc<BoundColumnFamily<'_>>;
+}
+
+impl CfHandle for OptimisticTransactionDB<MultiThreaded> {
+    #[inline(always)]
+    fn subspace_handle(&self, subspace: Subspace) -> Arc<BoundColumnFamily<'_>> {
+        self.cf_handle(subspace.name()).unwrap()
+    }
+}
+
+impl CfHandle for DBWithThreadMode<MultiThreaded> {
+    #[inline(always)]
+    fn subspace_handle(&self, subspace: Subspace) -> Arc<BoundColumnFamily<'_>> {
+        self.cf_handle(subspace.name()).unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum RocksDbInstance {
+    ReadWrite(Arc<OptimisticTransactionDB<MultiThreaded>>),
+    ReadOnly(Arc<DBWithThreadMode<MultiThreaded>>),
+}
+
+impl RocksDbInstance {
+    pub(crate) fn read_write(&self) -> trc::Result<&Arc<OptimisticTransactionDB<MultiThreaded>>> {
+        match self {
+            RocksDbInstance::ReadWrite(db) => Ok(db),
+            RocksDbInstance::ReadOnly(_) => Err(trc::StoreEvent::NotSupported
+                .into_err()
+                .details("RocksDB store is opened read-only")),
+        }
+    }
+}
+
+macro_rules! with_db {
+    ($instance:expr, $db:ident => $body:expr) => {
+        match $instance {
+            $crate::backend::rocksdb::RocksDbInstance::ReadWrite($db) => $body,
+            $crate::backend::rocksdb::RocksDbInstance::ReadOnly($db) => $body,
+        }
+    };
+}
+
+pub(crate) use with_db;
+
+const CF_SLOTS: usize = u8::MAX as usize + 1;
+
+pub(crate) struct CfCache<'db> {
+    db: &'db OptimisticTransactionDB<MultiThreaded>,
+    handles: [Option<Arc<BoundColumnFamily<'db>>>; CF_SLOTS],
+}
+
+impl<'db> CfCache<'db> {
+    pub(crate) fn new(db: &'db OptimisticTransactionDB<MultiThreaded>) -> Self {
+        Self {
+            db,
+            handles: [const { None }; CF_SLOTS],
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get(&mut self, subspace: Subspace) -> &Arc<BoundColumnFamily<'db>> {
+        let db = self.db;
+
+        self.handles[subspace.byte() as usize].get_or_insert_with(|| db.subspace_handle(subspace))
+    }
+}
+
+pub struct RocksDbStore {
+    db: RocksDbInstance,
+    worker_pool: rayon::ThreadPool,
+    blocking: BlockingPermits,
+    blob_gc: blob_gc::BlobGcState,
+    counter_slots: slots::CounterSlots,
+    #[cfg(stalwart_tests)]
+    probe: probe::RocksDbProbe,
+}
+
+#[inline(always)]
+fn into_error(err: rocksdb::Error) -> trc::Error {
+    trc::StoreEvent::RocksdbError.reason(err)
+}

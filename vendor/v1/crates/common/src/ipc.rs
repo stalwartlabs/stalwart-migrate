@@ -1,0 +1,464 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::config::smtp::{
+    queue::QueueName,
+    report::AggregateFrequency,
+    resolver::{Policy, Tlsa},
+};
+use ahash::RandomState;
+use mail_auth::{dmarc::DmarcRecord, mta_sts::TlsRptRecord};
+use registry::{schema::prelude::ObjectType, types::id::ObjectId};
+use smtp_report::{dmarc::Record, tlsrpt::FailureDetails};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU32, Ordering},
+};
+use store::write::TaskTypes;
+use tinyvec::TinyVec;
+use tokio::sync::{Notify, Semaphore, SemaphorePermit, futures::Notified, mpsc};
+use types::type_state::{DataType, StateChange};
+use utils::map::bitmap::Bitmap;
+
+pub mod subscribers;
+
+#[derive(Debug)]
+pub enum PushEvent {
+    Publish {
+        notification: PushNotification,
+    },
+    PushServerRegister {
+        activate: Vec<u32>,
+        expired: Vec<u32>,
+    },
+    PushServerUpdate {
+        account_id: u32,
+        broadcast: bool,
+    },
+    Stop,
+}
+
+#[derive(Debug, Clone)]
+pub enum PushNotification {
+    StateChange(StateChange),
+    ViewerStateChange(ViewerStateChange),
+    CalendarAlert(CalendarAlert),
+    EmailPush(EmailPush),
+}
+
+const _: () = assert!(size_of::<PushNotification>() <= 80);
+
+#[derive(Debug, Clone, Copy)]
+pub struct ViewerStateChange {
+    pub viewer_id: u32,
+    pub change: StateChange,
+}
+
+#[derive(Debug, Clone)]
+pub struct EmailPush {
+    pub account_id: u32,
+    pub email_id: u32,
+    pub change_id: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CalendarAlert {
+    pub account_id: u32,
+    pub event_account_id: u32,
+    pub event_id: u32,
+    pub recurrence_id: Option<i64>,
+    pub uid: String,
+    pub alert_id: String,
+}
+
+#[derive(Debug)]
+pub enum BroadcastEvent {
+    PushNotification(PushNotification),
+    PushServerUpdate(u32),
+    RegistryChange(RegistryChange),
+    CacheInvalidate(Vec<CacheInvalidation>),
+    CacheInvalidateAll,
+    CacheInvalidateNegative,
+    MtaQueueStatus { is_running: bool },
+    QueueRefresh(QueueNames),
+    TaskQueueRefresh(TaskTypes),
+    IndexQueueRefresh,
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexQueueNotify {
+    notify: Arc<Notify>,
+    broadcast: Option<mpsc::Sender<BroadcastEvent>>,
+}
+
+impl IndexQueueNotify {
+    pub fn new(notify: Arc<Notify>, broadcast: Option<mpsc::Sender<BroadcastEvent>>) -> Self {
+        Self { notify, broadcast }
+    }
+
+    pub fn notify(&self) {
+        self.notify.notify_one();
+
+        if let Some(broadcast) = &self.broadcast {
+            let _ = broadcast.try_send(BroadcastEvent::IndexQueueRefresh);
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TaskQueueNotify {
+    notify: Notify,
+    task_types: AtomicU32,
+}
+
+impl TaskQueueNotify {
+    pub fn notify(&self, task_types: TaskTypes) {
+        if !task_types.is_empty() {
+            self.task_types
+                .fetch_or(task_types.bits(), Ordering::Release);
+        }
+        self.notify.notify_one();
+    }
+
+    pub fn take(&self) -> TaskTypes {
+        TaskTypes::from_bits(self.task_types.swap(0, Ordering::Acquire))
+    }
+
+    pub fn notified(&self) -> Notified<'_> {
+        self.notify.notified()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RegistryChange {
+    Insert(ObjectId),
+    Delete(ObjectId),
+    Reload(ObjectType),
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum CacheInvalidation {
+    AccessToken(u32),
+    GroupwareResources(u32),
+    MessageCache(u32),
+    Domain(u32),
+    Account(u32),
+    DkimSignature(u32),
+    // SPDX-SnippetBegin
+    // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+    // SPDX-License-Identifier: LicenseRef-SEL
+    #[cfg(feature = "enterprise")]
+    Tenant(u32),
+    // SPDX-SnippetEnd
+    Role(u32),
+    List(u32),
+    DomainLogo(u32),
+    // SPDX-SnippetBegin
+    // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+    // SPDX-License-Identifier: LicenseRef-SEL
+    #[cfg(feature = "enterprise")]
+    TenantLogo(u32),
+    // SPDX-SnippetEnd
+    EmailNegative {
+        domain_id: u32,
+        local_part_hash: u32,
+    },
+    DomainNegative,
+    PrivateMetadata(u32),
+    OAuthGrant {
+        account_id: u32,
+        grant_id: u64,
+    },
+    ActiveSieveScript(u32),
+}
+
+#[derive(Debug)]
+pub enum QueueEvent {
+    Refresh(QueueRefresh),
+    WorkerDone {
+        queue_id: u64,
+        queue_name: QueueName,
+        status: QueueEventStatus,
+    },
+    Paused(bool),
+    ReloadSettings,
+    Stop,
+}
+
+#[derive(Debug)]
+pub enum QueueRefresh {
+    Queued(QueuedEvents),
+    Queues(QueueNames),
+    All,
+}
+
+pub type QueuedEvents = TinyVec<[QueuedEvent; 2]>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct QueueNames(TinyVec<[QueueName; 2]>);
+
+impl QueueNames {
+    pub fn insert(&mut self, name: QueueName) {
+        if !self.0.contains(&name) {
+            self.0.push(name);
+        }
+    }
+
+    pub fn merge(&mut self, other: &QueueNames) {
+        for name in other.iter() {
+            self.insert(name);
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = QueueName> + '_ {
+        self.0.iter().copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl FromIterator<QueueName> for QueueNames {
+    fn from_iter<I: IntoIterator<Item = QueueName>>(iter: I) -> Self {
+        let mut names = QueueNames::default();
+        for name in iter {
+            names.insert(name);
+        }
+        names
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QueuedEvent {
+    pub queue_name: QueueName,
+    pub due: u64,
+    pub queue_id: u64,
+}
+
+#[derive(Debug)]
+pub enum QueueEventStatus {
+    Completed,
+    Locked,
+    Deferred,
+}
+
+#[derive(Debug)]
+pub enum ReportingEvent {
+    Dmarc(Box<DmarcEvent>),
+    Tls(Box<TlsEvent>),
+    Stop,
+}
+
+#[derive(Debug)]
+pub struct DmarcEvent {
+    pub domain: String,
+    pub report_record: Record,
+    pub dmarc_record: Arc<DmarcRecord>,
+    pub interval: AggregateFrequency,
+    pub span_id: u64,
+}
+
+#[derive(Debug)]
+pub struct TlsEvent {
+    pub domain: String,
+    pub policy: PolicyType,
+    pub failure: Option<FailureDetails>,
+    pub tls_record: Arc<TlsRptRecord>,
+    pub interval: AggregateFrequency,
+    pub span_id: u64,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub enum PolicyType {
+    Tlsa(Option<Arc<Tlsa>>),
+    Sts(Option<Arc<Policy>>),
+    None,
+}
+
+pub struct TrainTaskController {
+    semaphore: Semaphore,
+    stop_flag: AtomicBool,
+}
+
+impl Default for TrainTaskController {
+    fn default() -> Self {
+        Self {
+            semaphore: Semaphore::new(1),
+            stop_flag: AtomicBool::new(false),
+        }
+    }
+}
+
+impl TrainTaskController {
+    pub fn try_run(&self) -> Option<SemaphorePermit<'_>> {
+        let permit = self.semaphore.try_acquire().ok()?;
+
+        self.stop_flag.store(false, Ordering::SeqCst);
+
+        Some(permit)
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.semaphore.available_permits() == 0
+    }
+
+    pub fn stop(&self) {
+        self.stop_flag.store(true, Ordering::SeqCst);
+    }
+
+    pub fn should_stop(&self) -> bool {
+        self.stop_flag.load(Ordering::SeqCst)
+    }
+}
+
+impl BroadcastEvent {
+    pub fn reload(object: ObjectType) -> Self {
+        BroadcastEvent::RegistryChange(RegistryChange::Reload(object))
+    }
+}
+
+pub trait ToHash {
+    fn to_hash(&self) -> u64;
+}
+
+impl ToHash for DmarcRecord {
+    fn to_hash(&self) -> u64 {
+        RandomState::with_seeds(1, 9, 7, 9).hash_one(self)
+    }
+}
+
+impl ToHash for PolicyType {
+    fn to_hash(&self) -> u64 {
+        RandomState::with_seeds(1, 9, 7, 9).hash_one(self)
+    }
+}
+
+impl From<DmarcEvent> for ReportingEvent {
+    fn from(value: DmarcEvent) -> Self {
+        ReportingEvent::Dmarc(Box::new(value))
+    }
+}
+
+impl From<TlsEvent> for ReportingEvent {
+    fn from(value: TlsEvent) -> Self {
+        ReportingEvent::Tls(Box::new(value))
+    }
+}
+
+impl From<Arc<Tlsa>> for PolicyType {
+    fn from(value: Arc<Tlsa>) -> Self {
+        PolicyType::Tlsa(Some(value))
+    }
+}
+
+impl From<Arc<Policy>> for PolicyType {
+    fn from(value: Arc<Policy>) -> Self {
+        PolicyType::Sts(Some(value))
+    }
+}
+
+impl From<&Arc<Tlsa>> for PolicyType {
+    fn from(value: &Arc<Tlsa>) -> Self {
+        PolicyType::Tlsa(Some(value.clone()))
+    }
+}
+
+impl From<&Arc<Policy>> for PolicyType {
+    fn from(value: &Arc<Policy>) -> Self {
+        PolicyType::Sts(Some(value.clone()))
+    }
+}
+
+impl From<(&Option<Arc<Policy>>, &Option<Arc<Tlsa>>)> for PolicyType {
+    fn from(value: (&Option<Arc<Policy>>, &Option<Arc<Tlsa>>)) -> Self {
+        match value {
+            (Some(value), _) => PolicyType::Sts(Some(value.clone())),
+            (_, Some(value)) => PolicyType::Tlsa(Some(value.clone())),
+            _ => PolicyType::None,
+        }
+    }
+}
+
+impl PushNotification {
+    pub fn recipient(&self) -> u32 {
+        match self {
+            PushNotification::StateChange(state_change) => state_change.account_id,
+            PushNotification::ViewerStateChange(viewer_change) => viewer_change.viewer_id,
+            PushNotification::CalendarAlert(calendar_alert) => calendar_alert.account_id,
+            PushNotification::EmailPush(email_push) => email_push.account_id,
+        }
+    }
+
+    pub fn filter_types(&self, types: &Bitmap<DataType>) -> Option<PushNotification> {
+        match self {
+            PushNotification::StateChange(state_change) => {
+                filter_state_change(state_change, types).map(PushNotification::StateChange)
+            }
+            PushNotification::ViewerStateChange(viewer_change) => {
+                filter_state_change(&viewer_change.change, types).map(|change| {
+                    PushNotification::ViewerStateChange(ViewerStateChange {
+                        viewer_id: viewer_change.viewer_id,
+                        change,
+                    })
+                })
+            }
+            PushNotification::CalendarAlert(_) => {
+                if types.contains(DataType::CalendarAlert) {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            PushNotification::EmailPush(_) => {
+                if types.contains_any(
+                    [
+                        DataType::EmailDelivery,
+                        DataType::Email,
+                        DataType::Mailbox,
+                        DataType::Thread,
+                    ]
+                    .into_iter(),
+                ) {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
+fn filter_state_change(
+    state_change: &StateChange,
+    types: &Bitmap<DataType>,
+) -> Option<StateChange> {
+    let mut filtered_types = state_change.types;
+    filtered_types.intersection(types);
+    (!filtered_types.is_empty()).then_some(StateChange {
+        types: filtered_types,
+        ..*state_change
+    })
+}
+
+impl EmailPush {
+    pub fn to_state_change(&self) -> StateChange {
+        StateChange {
+            account_id: self.account_id,
+            change_id: self.change_id,
+            types: Bitmap::from_iter([
+                DataType::EmailDelivery,
+                DataType::Email,
+                DataType::Mailbox,
+                DataType::Thread,
+            ]),
+        }
+    }
+}

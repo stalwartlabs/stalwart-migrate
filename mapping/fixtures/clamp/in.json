@@ -1,0 +1,21 @@
+{
+  "objects": [
+    {
+      "key": "x:AcmeProvider/b",
+      "value": {
+        "directory": "https://acme.example/dir",
+        "maxRetries": 500,
+        "contact": {
+          "a@example.com": true
+        }
+      }
+    },
+    {
+      "key": "x:AcmeProvider/c",
+      "value": {
+        "directory": "https://acme.example/dir",
+        "maxRetries": -5
+      }
+    }
+  ]
+}

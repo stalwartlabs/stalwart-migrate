@@ -1,0 +1,20 @@
+{
+  "objects": [
+    {
+      "key": "x:Http",
+      "value": {
+        "useXForwarded": true
+      }
+    },
+    {
+      "key": "x:Directory/b",
+      "value": {
+        "@type": "Oidc",
+        "issuerUrl": "https://sso",
+        "requireAudience": "aud",
+        "requireScopes": {},
+        "claimName": "name"
+      }
+    }
+  ]
+}

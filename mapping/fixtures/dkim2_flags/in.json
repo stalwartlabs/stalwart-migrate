@@ -1,0 +1,28 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/c",
+      "value": {
+        "name": "example.com",
+        "isEnabled": true
+      }
+    },
+    {
+      "key": "x:DkimSignature/b",
+      "value": {
+        "@type": "Dkim2Ed25519Sha256",
+        "domainId": "c",
+        "selector": "s1",
+        "privateKey": {
+          "@type": "Text",
+          "secret": "key"
+        },
+        "flags": {
+          "donotmodify": true,
+          "donotexplode": true,
+          "feedback": true
+        }
+      }
+    }
+  ]
+}

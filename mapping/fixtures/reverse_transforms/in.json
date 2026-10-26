@@ -1,0 +1,175 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {
+      "key": "x:Http",
+      "value": {
+        "clientIpSource": "xForwardedFor",
+        "forwardedHops": 2
+      }
+    },
+    {
+      "key": "x:BlobStore",
+      "value": {
+        "@type": "Azure",
+        "storageAccount": "a",
+        "container": "c",
+        "auth": {
+          "@type": "SharedKey",
+          "accountKey": {
+            "@type": "Value",
+            "secret": "k"
+          }
+        },
+        "environment": "public"
+      }
+    },
+    {
+      "key": "x:AiModel/b",
+      "value": {
+        "@type": "OpenAi",
+        "name": "gpt",
+        "model": "gpt-4o",
+        "url": "https://api.openai.com/v1",
+        "apiKey": {
+          "@type": "Value",
+          "secret": "sk"
+        },
+        "profile": "OpenAi",
+        "timeout": 60000
+      }
+    },
+    {
+      "key": "x:AiModel/c",
+      "value": {
+        "@type": "Anthropic",
+        "name": "claude",
+        "model": "m"
+      }
+    },
+    {
+      "key": "x:AiModel/e",
+      "value": {
+        "@type": "OpenAi",
+        "name": "azure-env",
+        "model": "gpt-4o",
+        "url": "https://r.openai.azure.com/openai/deployments/d",
+        "apiKey": {
+          "@type": "EnvironmentVariable",
+          "variableName": "AZURE_KEY"
+        },
+        "profile": "Azure"
+      }
+    },
+    {
+      "key": "x:AiModel/f",
+      "value": {
+        "@type": "OpenAi",
+        "name": "azure-key",
+        "model": "gpt-4o",
+        "url": "https://r.openai.azure.com/openai/deployments/d",
+        "apiKey": {
+          "@type": "Value",
+          "secret": "az"
+        },
+        "httpHeaders": {
+          "api-key": "old",
+          "X-Trace": "1"
+        },
+        "profile": "Azure"
+      }
+    },
+    {
+      "key": "x:AiModel/g",
+      "value": {
+        "@type": "OpenAi",
+        "name": "azure-query",
+        "model": "gpt-4o",
+        "url": "https://r.openai.azure.com/openai/deployments/d?api-version=2024-02-01",
+        "apiKey": {
+          "@type": "Value",
+          "secret": "az"
+        },
+        "httpHeaders": {
+          "Api-Key": "old"
+        },
+        "profile": "Azure"
+      }
+    },
+    {
+      "key": "x:AiModel/h",
+      "value": {
+        "@type": "OpenAi",
+        "name": "azure-full-query",
+        "model": "gpt-4o",
+        "url": "https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-02-01",
+        "apiKey": {
+          "@type": "Value",
+          "secret": ""
+        },
+        "profile": "Azure"
+      }
+    },
+    {
+      "key": "x:AiModel/i",
+      "value": {
+        "@type": "OpenAi",
+        "name": "vllm",
+        "model": "m",
+        "url": "http://vllm:8000",
+        "apiKey": {
+          "@type": "None"
+        },
+        "profile": "Vllm"
+      }
+    },
+    {
+      "key": "x:SpamAi",
+      "value": {
+        "@type": "Enable",
+        "tiers": {
+          "0": {
+            "modelId": "b"
+          }
+        }
+      }
+    },
+    {
+      "key": "x:Directory/d",
+      "value": {
+        "@type": "Oidc",
+        "issuerUrl": "https://sso",
+        "acceptedAudiences": {
+          "aud": true
+        },
+        "unscopedTokens": "reject",
+        "claimName": null
+      }
+    },
+    {
+      "key": "x:MtaStageData",
+      "value": {
+        "dkimSignDomain": {
+          "match": {},
+          "else": "'x.com'"
+        },
+        "maxMessages": {
+          "match": {},
+          "else": "10"
+        }
+      }
+    },
+    {
+      "key": "x:Search",
+      "value": {
+        "indexEmailFields": {
+          "from": true,
+          "subject": true
+        },
+        "indexCalendarFields": {},
+        "indexContactFields": {},
+        "indexFiles": true
+      }
+    }
+  ]
+}

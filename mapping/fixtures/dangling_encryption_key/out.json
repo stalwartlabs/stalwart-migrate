@@ -1,0 +1,39 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dangling",
+      "key": "x:Account/c",
+      "level": "error",
+      "path": "encryptionAtRest/publicKey"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "enable": true,
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "alice@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "encryptOnAppend": true,
+          "publicKey": "z"
+        },
+        "name": "alice"
+      }
+    }
+  ],
+  "questions": []
+}

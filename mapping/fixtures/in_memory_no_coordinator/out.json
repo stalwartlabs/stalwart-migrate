@@ -1,0 +1,23 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "source": "x:Coordinator",
+      "value": {
+        "@type": "Disabled"
+      }
+    },
+    {
+      "key": "x:InMemoryStore",
+      "source": "x:InMemoryStore",
+      "value": {
+        "@type": "Default"
+      }
+    }
+  ],
+  "questions": []
+}

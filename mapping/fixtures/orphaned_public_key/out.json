@@ -1,0 +1,26 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:PublicKey/d",
+      "level": "warning",
+      "path": "",
+      "reason": "its owner x:Account/c is not listed by the source"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:PublicKey/d"
+  ],
+  "objects": [
+    {
+      "key": "x:Role/e",
+      "source": "x:Role/e",
+      "value": {
+        "description": "unrelated"
+      }
+    }
+  ],
+  "questions": []
+}

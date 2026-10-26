@@ -1,0 +1,16 @@
+{
+  "objects": [
+    {
+      "key": "x:Coordinator",
+      "value": {
+        "@type": "Kafka",
+        "brokers": {
+          "k1:9092": true,
+          "k2:9092": true
+        },
+        "timeoutMessage": 30000,
+        "timeoutSession": 45000
+      }
+    }
+  ]
+}

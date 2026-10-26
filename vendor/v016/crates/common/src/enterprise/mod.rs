@@ -1,0 +1,263 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: LicenseRef-SEL
+ *
+ * This file is subject to the Stalwart Enterprise License Agreement (SEL) and
+ * is NOT open source software.
+ *
+ */
+
+pub mod alerts;
+pub mod config;
+pub mod license;
+pub mod llm;
+pub mod masked;
+
+use crate::{
+    Core, LogoCache, Server, USER_AGENT, config::groupware::CalendarTemplateVariable,
+    expr::Expression, manager::application::Resource,
+};
+use ahash::{AHashMap, AHashSet};
+use license::LicenseKey;
+use llm::AiApiConfig;
+use mail_parser::DateTime;
+use registry::{
+    schema::structs::{Domain, Tenant},
+    types::id::ObjectId,
+};
+use std::{sync::Arc, time::Duration};
+use trc::{AddContext, MetricType};
+use utils::{HttpLimitResponse, cron::SimpleCron, template::Template};
+
+#[derive(Clone)]
+pub struct Enterprise {
+    pub license: LicenseKey,
+    pub logo_url: Option<String>,
+    pub deleted_items_retention: Option<Duration>,
+    pub deleted_accounts_retention: Option<Duration>,
+    pub trace_retention: Option<Duration>,
+    pub metrics_retention: Option<Duration>,
+    pub metrics_interval: SimpleCron,
+    pub metrics_alerts: Vec<MetricAlert>,
+    pub ai_apis: AHashMap<String, Arc<AiApiConfig>>,
+    pub spam_filter_llm: Option<SpamFilterLlmConfig>,
+    pub template_calendar_alarm: Option<Template<CalendarTemplateVariable>>,
+    pub template_scheduling_email: Option<Template<CalendarTemplateVariable>>,
+    pub template_scheduling_web: Option<Arc<str>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpamFilterLlmConfig {
+    pub model: Arc<AiApiConfig>,
+    pub temperature: f64,
+    pub prompt: String,
+    pub separator: char,
+    pub index_category: usize,
+    pub index_confidence: Option<usize>,
+    pub index_explanation: Option<usize>,
+    pub categories: AHashSet<String>,
+    pub confidence: AHashSet<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MetricAlert {
+    pub id: ObjectId,
+    pub condition: Expression,
+    pub method: Vec<AlertMethod>,
+}
+
+#[derive(Clone, Debug)]
+pub enum AlertMethod {
+    Email {
+        from_name: Option<String>,
+        from_addr: String,
+        to: Vec<String>,
+        subject: AlertContent,
+        body: AlertContent,
+    },
+    Event {
+        message: Option<AlertContent>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub struct AlertContent(pub Vec<AlertContentToken>);
+
+#[derive(Clone, Debug)]
+pub enum AlertContentToken {
+    Text(String),
+    Metric(MetricType),
+}
+
+impl Core {
+    pub fn is_enterprise_edition(&self) -> bool {
+        self.enterprise
+            .as_ref()
+            .is_some_and(|e| !e.license.is_expired())
+    }
+}
+
+impl Server {
+    // WARNING: TAMPERING WITH THIS FUNCTION IS STRICTLY PROHIBITED
+    // Any attempt to modify, bypass, or disable this license validation mechanism
+    // constitutes a severe violation of the Stalwart Enterprise License Agreement.
+    // Such actions may result in immediate termination of your license, legal action,
+    // and substantial financial penalties. Stalwart Labs LLC actively monitors for
+    // unauthorized modifications and will pursue all available legal remedies against
+    // violators to the fullest extent of the law, including but not limited to claims
+    // for copyright infringement, breach of contract, and fraud.
+
+    #[inline]
+    pub fn is_enterprise_edition(&self) -> bool {
+        self.core.is_enterprise_edition()
+    }
+
+    pub fn licensed_accounts(&self) -> u32 {
+        self.core
+            .enterprise
+            .as_ref()
+            .map_or(0, |e| e.license.accounts)
+    }
+
+    pub fn log_license_details(&self) {
+        if let Some(enterprise) = &self.core.enterprise {
+            trc::event!(
+                Server(trc::ServerEvent::Licensing),
+                Details = "Stalwart Enterprise Edition license key is valid",
+                Domain = enterprise.license.domain.clone(),
+                Total = enterprise.license.accounts,
+                ValidFrom =
+                    DateTime::from_timestamp(enterprise.license.valid_from as i64).to_rfc3339(),
+                ValidTo = DateTime::from_timestamp(enterprise.license.valid_to as i64).to_rfc3339(),
+            );
+        }
+    }
+
+    pub async fn can_create_account(&self) -> trc::Result<bool> {
+        if let Some(enterprise) = &self.core.enterprise {
+            let total_accounts = self.total_accounts().await.caused_by(trc::location!())?;
+
+            if total_accounts + 1 > enterprise.license.accounts as usize {
+                trc::event!(
+                    Server(trc::ServerEvent::Licensing),
+                    Details = "Account creation not possible: license key account limit reached",
+                    Domain = enterprise.license.domain.clone(),
+                    Total = total_accounts,
+                    Limit = enterprise.license.accounts,
+                );
+
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    pub async fn logo_resource(&self, domain: &str) -> trc::Result<Option<Resource<Vec<u8>>>> {
+        const MAX_IMAGE_SIZE: usize = 1024 * 1024;
+
+        if !self.is_enterprise_edition() {
+            return Ok(None);
+        }
+
+        let mut domain = psl::domain_str(domain).unwrap_or(domain);
+        let logo_cache = { self.inner.data.logos.lock().get(domain).cloned() };
+        if let Some(logo) = logo_cache {
+            return Ok(logo.data);
+        }
+
+        let mut logo_url = None;
+        let mut domain_id = u32::MAX;
+        let mut tenant_id = None;
+        if let Some((d_id, t_id)) = self.domain(domain).await?.map(|d| (d.id, d.id_tenant))
+            && let Some(domain_record) = self.registry().object::<Domain>(d_id.into()).await?
+        {
+            logo_url = domain_record.logo;
+            domain_id = d_id;
+            tenant_id = t_id;
+
+            if logo_url.is_none()
+                && let Some(tenant_id) = tenant_id
+            {
+                logo_url = self
+                    .registry()
+                    .object::<Tenant>(tenant_id.into())
+                    .await?
+                    .and_then(|t| t.logo);
+            }
+        } else {
+            domain = "*";
+        }
+
+        // Try fetching the default logo
+        if logo_url.is_none()
+            && let Some(default_logo_url) = self.default_logo_url()
+        {
+            let logo = { self.inner.data.logos.lock().get("*").cloned() };
+            if let Some(logo) = logo {
+                return Ok(logo.data);
+            }
+            logo_url = Some(default_logo_url);
+        }
+
+        let mut logo = None;
+        if let Some(logo_url) = logo_url {
+            let response = utils::http::http_client_builder(false)
+                .user_agent(USER_AGENT)
+                .build()
+                .unwrap_or_default()
+                .get(logo_url.as_str())
+                .send()
+                .await
+                .map_err(|err| {
+                    trc::ResourceEvent::DownloadExternal
+                        .into_err()
+                        .details("Failed to download logo")
+                        .reason(err)
+                })?;
+
+            let content_type = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|ct| ct.to_str().ok())
+                .unwrap_or("image/svg+xml")
+                .to_string();
+
+            let contents = response
+                .bytes_with_limit(MAX_IMAGE_SIZE)
+                .await
+                .map_err(|err| {
+                    trc::ResourceEvent::DownloadExternal
+                        .into_err()
+                        .details("Failed to download logo")
+                        .reason(err)
+                })?
+                .ok_or_else(|| {
+                    trc::ResourceEvent::DownloadExternal
+                        .into_err()
+                        .details("Download exceeded maximum size")
+                })?;
+
+            logo = Resource::new(content_type, contents).into();
+        }
+
+        self.inner.data.logos.lock().insert(
+            domain.into(),
+            LogoCache {
+                domain_id,
+                tenant_id,
+                data: logo.clone(),
+            },
+        );
+
+        Ok(logo)
+    }
+
+    fn default_logo_url(&self) -> Option<String> {
+        self.core
+            .enterprise
+            .as_ref()
+            .and_then(|e| e.logo_url.as_ref().map(|l| l.into()))
+    }
+}

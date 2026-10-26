@@ -1,0 +1,616 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
+ */
+
+use crate::{
+    object::{
+        AnyId, JmapObject, JmapObjectId, JmapRight, JmapSharedObject, MaybeReference,
+        metadata::{MetadataFilter, MetadataProperty, MetadataRoot, property_names},
+        parse_ref,
+    },
+    request::{
+        deserialize::{CowStr, DeserializeArguments},
+        reference::MaybeIdReference,
+    },
+};
+use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, PointerDepth, Property};
+use serde::{Serialize, Serializer};
+use std::{borrow::Cow, str::FromStr};
+use types::{acl::Acl, id::Id, special_use::SpecialUse, text::Text};
+
+#[derive(Debug, Clone, Default)]
+pub struct Mailbox;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MailboxProperty {
+    Id,
+    Name,
+    ParentId,
+    Role,
+    SortOrder,
+    TotalEmails,
+    UnreadEmails,
+    TotalThreads,
+    UnreadThreads,
+    ShareWith,
+    MyRights,
+    IsSubscribed,
+    Metadata,
+    PrivateMetadata,
+
+    // Other
+    IdValue(Id),
+    Rights(MailboxRight),
+    Pointer(JsonPointer<MailboxProperty>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MailboxRight {
+    MayReadItems,
+    MayAddItems,
+    MayRemoveItems,
+    MaySetSeen,
+    MaySetKeywords,
+    MayCreateChild,
+    MayRename,
+    MaySubmit,
+    MayDelete,
+    MayShare,
+    MaySetMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MailboxValue {
+    Id(Id),
+    IdReference(String),
+    Role(SpecialUse),
+}
+
+impl Property for MailboxProperty {
+    fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
+        Self::try_parse_nested(key, value, PointerDepth::default())
+    }
+
+    fn try_parse_nested(
+        key: Option<&Key<'_, Self>>,
+        value: &str,
+        depth: PointerDepth,
+    ) -> Option<Self> {
+        match key {
+            Some(Key::Property(key)) => match key.patch_or_prop() {
+                MailboxProperty::ShareWith => {
+                    Id::from_str(value).ok().map(MailboxProperty::IdValue)
+                }
+                _ => MailboxProperty::parse_nested_name(value),
+            },
+            Some(_) => MailboxProperty::parse_nested_name(value),
+            None => MailboxProperty::parse(value, Some(depth)),
+        }
+    }
+
+    fn is_opaque(&self) -> bool {
+        self.metadata_root().is_some()
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.text().to_cow()
+    }
+
+    fn key_eq(&self, other: &Self) -> bool {
+        if self.has_dynamic_text() || other.has_dynamic_text() {
+            self.text().eq_text(other.text())
+        } else {
+            self == other
+        }
+    }
+
+    fn key_eq_str(&self, other: &str) -> bool {
+        self.text().eq_str(other)
+    }
+
+    fn serialize_text<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.text().serialize(serializer)
+    }
+}
+
+impl MailboxRight {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MailboxRight::MayReadItems => "mayReadItems",
+            MailboxRight::MayAddItems => "mayAddItems",
+            MailboxRight::MayRemoveItems => "mayRemoveItems",
+            MailboxRight::MaySetSeen => "maySetSeen",
+            MailboxRight::MaySetKeywords => "maySetKeywords",
+            MailboxRight::MayCreateChild => "mayCreateChild",
+            MailboxRight::MayRename => "mayRename",
+            MailboxRight::MaySubmit => "maySubmit",
+            MailboxRight::MayDelete => "mayDelete",
+            MailboxRight::MayShare => "mayShare",
+            MailboxRight::MaySetMetadata => "maySetMetadata",
+        }
+    }
+}
+
+impl Element for MailboxValue {
+    type Property = MailboxProperty;
+
+    fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
+        if let Key::Property(prop) = key {
+            match prop.patch_or_prop() {
+                MailboxProperty::Id | MailboxProperty::ParentId => match parse_ref(value) {
+                    MaybeReference::Value(v) => Some(MailboxValue::Id(v)),
+                    MaybeReference::Reference(v) => Some(MailboxValue::IdReference(v)),
+                    MaybeReference::ParseError => None,
+                },
+                MailboxProperty::Role => SpecialUse::parse(value).map(MailboxValue::Role),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.text().to_cow()
+    }
+
+    fn serialize_text<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.text().serialize(serializer)
+    }
+}
+
+impl MailboxValue {
+    pub fn text(&self) -> Text<'_> {
+        match self {
+            MailboxValue::Id(id) => Text::Id(*id),
+            MailboxValue::IdReference(r) => Text::Reference(r),
+            MailboxValue::Role(special_use) => {
+                Text::Static(special_use.as_str().unwrap_or_default())
+            }
+        }
+    }
+}
+
+impl MailboxProperty {
+    pub fn text(&self) -> Text<'_> {
+        Text::Static(match self {
+            MailboxProperty::Id => "id",
+            MailboxProperty::IsSubscribed => "isSubscribed",
+            MailboxProperty::MyRights => "myRights",
+            MailboxProperty::Name => "name",
+            MailboxProperty::ParentId => "parentId",
+            MailboxProperty::Role => "role",
+            MailboxProperty::SortOrder => "sortOrder",
+            MailboxProperty::TotalEmails => "totalEmails",
+            MailboxProperty::TotalThreads => "totalThreads",
+            MailboxProperty::UnreadEmails => "unreadEmails",
+            MailboxProperty::UnreadThreads => "unreadThreads",
+            MailboxProperty::ShareWith => "shareWith",
+            MailboxProperty::Metadata => "metadata",
+            MailboxProperty::PrivateMetadata => "privateMetadata",
+            MailboxProperty::Rights(mailbox_right) => mailbox_right.as_str(),
+            MailboxProperty::Pointer(json_pointer) => return Text::Display(json_pointer),
+            MailboxProperty::IdValue(id) => return Text::Id(*id),
+        })
+    }
+
+    fn has_dynamic_text(&self) -> bool {
+        matches!(
+            self,
+            MailboxProperty::Pointer(_) | MailboxProperty::IdValue(_)
+        )
+    }
+
+    property_names!(
+        MailboxProperty,
+        "id" => MailboxProperty::Id,
+        "name" => MailboxProperty::Name,
+        "parentId" => MailboxProperty::ParentId,
+        "role" => MailboxProperty::Role,
+        "sortOrder" => MailboxProperty::SortOrder,
+        "totalEmails" => MailboxProperty::TotalEmails,
+        "unreadEmails" => MailboxProperty::UnreadEmails,
+        "totalThreads" => MailboxProperty::TotalThreads,
+        "unreadThreads" => MailboxProperty::UnreadThreads,
+        "shareWith" => MailboxProperty::ShareWith,
+        "myRights" => MailboxProperty::MyRights,
+        "mayReadItems" => MailboxProperty::Rights(MailboxRight::MayReadItems),
+        "mayAddItems" => MailboxProperty::Rights(MailboxRight::MayAddItems),
+        "mayRemoveItems" => MailboxProperty::Rights(MailboxRight::MayRemoveItems),
+        "maySetSeen" => MailboxProperty::Rights(MailboxRight::MaySetSeen),
+        "maySetKeywords" => MailboxProperty::Rights(MailboxRight::MaySetKeywords),
+        "mayCreateChild" => MailboxProperty::Rights(MailboxRight::MayCreateChild),
+        "mayRename" => MailboxProperty::Rights(MailboxRight::MayRename),
+        "maySubmit" => MailboxProperty::Rights(MailboxRight::MaySubmit),
+        "mayDelete" => MailboxProperty::Rights(MailboxRight::MayDelete),
+        "mayShare" => MailboxProperty::Rights(MailboxRight::MayShare),
+        "maySetMetadata" => MailboxProperty::Rights(MailboxRight::MaySetMetadata),
+        "isSubscribed" => MailboxProperty::IsSubscribed,
+    );
+
+    fn parse(value: &str, patch_depth: Option<PointerDepth>) -> Option<Self> {
+        MailboxProperty::parse_name(value).or_else(|| {
+            patch_depth
+                .filter(|_| value.contains('/'))
+                .and_then(|depth| JsonPointer::parse_nested(value, depth))
+                .map(MailboxProperty::Pointer)
+        })
+    }
+
+    fn patch_or_prop(&self) -> &MailboxProperty {
+        if let MailboxProperty::Pointer(ptr) = self
+            && let Some(JsonPointerItem::Key(Key::Property(prop))) = ptr.last()
+        {
+            prop
+        } else {
+            self
+        }
+    }
+}
+
+impl MetadataProperty for MailboxProperty {
+    fn as_metadata_root(&self) -> Option<MetadataRoot> {
+        match self {
+            MailboxProperty::Metadata => Some(MetadataRoot::Shared),
+            MailboxProperty::PrivateMetadata => Some(MetadataRoot::Private),
+            _ => None,
+        }
+    }
+
+    fn as_pointer(&self) -> Option<&JsonPointer<Self>> {
+        match self {
+            MailboxProperty::Pointer(pointer) => Some(pointer),
+            _ => None,
+        }
+    }
+
+    fn from_metadata_root(root: MetadataRoot) -> Self {
+        match root {
+            MetadataRoot::Shared => MailboxProperty::Metadata,
+            MetadataRoot::Private => MailboxProperty::PrivateMetadata,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MailboxSetArguments {
+    pub on_destroy_remove_emails: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MailboxQueryArguments {
+    pub sort_as_tree: Option<bool>,
+    pub filter_as_tree: Option<bool>,
+}
+
+impl<'de> DeserializeArguments<'de> for MailboxSetArguments {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        if key == "onDestroyRemoveEmails" {
+            self.on_destroy_remove_emails = map.next_value()?;
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeArguments<'de> for MailboxQueryArguments {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        hashify::fnc_map!(key.as_bytes(),
+            b"sortAsTree" => {
+                self.sort_as_tree = map.next_value()?;
+            },
+            b"filterAsTree" => {
+                self.filter_as_tree = map.next_value()?;
+            },
+            _ => {
+                let _ = map.next_value::<serde::de::IgnoredAny>()?;
+            }
+        );
+
+        Ok(())
+    }
+}
+
+impl FromStr for MailboxProperty {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        MailboxProperty::parse(s, None)
+            .or_else(|| {
+                MetadataRoot::from_selector(s)
+                    .map(|_| MailboxProperty::Pointer(JsonPointer::parse(s)))
+            })
+            .ok_or(())
+    }
+}
+
+impl JmapObject for Mailbox {
+    type Property = MailboxProperty;
+
+    type Element = MailboxValue;
+
+    type Id = Id;
+
+    type Filter = MailboxFilter;
+
+    type Comparator = MailboxComparator;
+
+    type GetArguments = ();
+
+    type SetArguments<'de> = MailboxSetArguments;
+
+    type QueryArguments = MailboxQueryArguments;
+
+    type CopyArguments = ();
+
+    type ParseArguments = ();
+
+    const ID_PROPERTY: Self::Property = MailboxProperty::Id;
+}
+
+impl JmapSharedObject for Mailbox {
+    type Right = MailboxRight;
+
+    const SHARE_WITH_PROPERTY: Self::Property = MailboxProperty::ShareWith;
+}
+
+impl From<Id> for MailboxProperty {
+    fn from(id: Id) -> Self {
+        MailboxProperty::IdValue(id)
+    }
+}
+
+impl TryFrom<MailboxProperty> for Id {
+    type Error = ();
+
+    fn try_from(value: MailboxProperty) -> Result<Self, Self::Error> {
+        if let MailboxProperty::IdValue(id) = value {
+            Ok(id)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<MailboxProperty> for MailboxRight {
+    type Error = ();
+
+    fn try_from(value: MailboxProperty) -> Result<Self, Self::Error> {
+        if let MailboxProperty::Rights(right) = value {
+            Ok(right)
+        } else {
+            Err(())
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MailboxFilter {
+    Name(String),
+    ParentId(Option<MaybeIdReference<Id>>),
+    Role(Option<SpecialUse>),
+    HasAnyRole(bool),
+    IsSubscribed(bool),
+    Metadata(MetadataFilter),
+    _T(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MailboxComparator {
+    SortOrder,
+    Name,
+    ParentId,
+    _T(String),
+}
+
+impl<'de> DeserializeArguments<'de> for MailboxFilter {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        hashify::fnc_map!(key.as_bytes(),
+            b"name" => {
+                *self = MailboxFilter::Name(map.next_value()?);
+            },
+            b"parentId" => {
+                *self = MailboxFilter::ParentId(map.next_value()?);
+            },
+            b"role" => {
+                *self = MailboxFilter::Role(map.next_value::<Option<RoleWrapper>>()?.map(|r| r.0));
+            },
+            b"hasAnyRole" => {
+                *self = MailboxFilter::HasAnyRole(map.next_value()?);
+            },
+            b"isSubscribed" => {
+                *self = MailboxFilter::IsSubscribed(map.next_value()?);
+            },
+            _ => {
+                *self = match MetadataFilter::try_deserialize(key, map)? {
+                    Some(filter) => MailboxFilter::Metadata(filter),
+                    None => {
+                        let _ = map.next_value::<serde::de::IgnoredAny>()?;
+                        MailboxFilter::_T(key.to_string())
+                    }
+                };
+            }
+        );
+
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeArguments<'de> for MailboxComparator {
+    fn deserialize_argument<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        if key == "property" {
+            let value = map.next_value::<CowStr>()?.0;
+            hashify::fnc_map!(value.as_bytes(),
+                b"sortOrder" => {
+                    *self = MailboxComparator::SortOrder;
+                },
+                b"name" => {
+                    *self = MailboxComparator::Name;
+                },
+                b"parentId" => {
+                    *self = MailboxComparator::ParentId;
+                },
+                _ => {
+                    *self = MailboxComparator::_T(value.into_owned());
+                }
+            );
+        } else {
+            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for MailboxFilter {
+    fn default() -> Self {
+        MailboxFilter::_T("".to_string())
+    }
+}
+
+impl Default for MailboxComparator {
+    fn default() -> Self {
+        MailboxComparator::_T("".to_string())
+    }
+}
+
+struct RoleWrapper(SpecialUse);
+
+impl<'de> serde::Deserialize<'de> for RoleWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        SpecialUse::parse(<&str>::deserialize(deserializer)?)
+            .map(RoleWrapper)
+            .ok_or_else(|| serde::de::Error::custom("invalid JMAP role"))
+    }
+}
+
+impl From<Id> for MailboxValue {
+    fn from(id: Id) -> Self {
+        MailboxValue::Id(id)
+    }
+}
+
+impl JmapObjectId for MailboxValue {
+    fn as_id(&self) -> Option<Id> {
+        if let MailboxValue::Id(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        if let MailboxValue::Id(id) = self {
+            Some(AnyId::Id(*id))
+        } else {
+            None
+        }
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        if let MailboxValue::IdReference(r) = self {
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    fn try_set_id(&mut self, new_id: AnyId) -> bool {
+        if let AnyId::Id(id) = new_id {
+            *self = MailboxValue::Id(id);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl JmapRight for MailboxRight {
+    fn to_acl(&self) -> &'static [Acl] {
+        match self {
+            MailboxRight::MayReadItems => &[Acl::Read, Acl::ReadItems],
+            MailboxRight::MayAddItems => &[Acl::AddItems],
+            MailboxRight::MayRemoveItems => &[Acl::RemoveItems],
+            MailboxRight::MaySetSeen => &[Acl::ModifyItems],
+            MailboxRight::MaySetKeywords => &[Acl::ModifyItems],
+            MailboxRight::MayCreateChild => &[Acl::CreateChild],
+            MailboxRight::MayRename => &[Acl::Modify],
+            MailboxRight::MaySubmit => &[Acl::Submit],
+            MailboxRight::MayDelete => &[Acl::Delete],
+            MailboxRight::MayShare => &[Acl::Share],
+            MailboxRight::MaySetMetadata => &[Acl::ModifyMetadata],
+        }
+    }
+
+    fn all_rights() -> &'static [Self] {
+        &[
+            MailboxRight::MayReadItems,
+            MailboxRight::MayAddItems,
+            MailboxRight::MayRemoveItems,
+            MailboxRight::MaySetSeen,
+            MailboxRight::MaySetKeywords,
+            MailboxRight::MayCreateChild,
+            MailboxRight::MayRename,
+            MailboxRight::MaySubmit,
+            MailboxRight::MayDelete,
+            MailboxRight::MayShare,
+            MailboxRight::MaySetMetadata,
+        ]
+    }
+}
+
+impl From<MailboxRight> for MailboxProperty {
+    fn from(right: MailboxRight) -> Self {
+        MailboxProperty::Rights(right)
+    }
+}
+
+impl JmapObjectId for MailboxProperty {
+    fn as_id(&self) -> Option<Id> {
+        if let MailboxProperty::IdValue(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+
+    fn as_any_id(&self) -> Option<AnyId> {
+        if let MailboxProperty::IdValue(id) = self {
+            Some(AnyId::Id(*id))
+        } else {
+            None
+        }
+    }
+
+    fn as_id_ref(&self) -> Option<&str> {
+        None
+    }
+
+    fn try_set_id(&mut self, new_id: AnyId) -> bool {
+        if let AnyId::Id(id) = new_id {
+            *self = MailboxProperty::IdValue(id);
+            true
+        } else {
+            false
+        }
+    }
+}

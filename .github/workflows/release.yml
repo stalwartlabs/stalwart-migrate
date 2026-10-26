@@ -1,0 +1,538 @@
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_NET_RETRY: "10"
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  ZIG_VERSION: "0.17.0"
+  CARGO_ZIGBUILD_REV: d9f7fd32fbac13cc26d23847835f7f23a5ed3a25
+  BINDGEN_VERSION: "0.73.2"
+  FDB_VERSION: "7.4.6"
+  FDB_SHA256_AMD64: 7e29df033c3d1d27701d094651cf87a36fa5b0afc2896c8e4aaf47f549e68365
+  FDB_SHA256_AARCH64: 4a92b7c66aea2ded08047fddacbe0e9d921fc5c3e7ce33bbafa98cca5744236e
+  GHCR_IMAGE: ghcr.io/stalwartlabs/stalwart-migrate
+  DOCKERHUB_IMAGE: index.docker.io/stalwartlabs/stalwart-migrate
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      publishing: ${{ steps.version.outputs.publishing }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - id: version
+        name: Check the tag against the crate version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = push ]; then
+            if [ "$REF_NAME" != "v$version" ]; then
+              echo "::error::tag $REF_NAME does not match the workspace version $version"
+              exit 1
+            fi
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "publishing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "publishing=false" >> "$GITHUB_OUTPUT"
+          fi
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  build:
+    name: Build ${{ matrix.variant }} / ${{ matrix.target }}
+    needs: plan
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    continue-on-error: ${{ matrix.optional }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, oss, fdb]
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-musleabihf
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+            optional: false
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            optional: false
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            optional: false
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+            optional: false
+          - target: armv7-unknown-linux-gnueabihf
+            runner: ubuntu-24.04
+            optional: true
+          - target: armv7-unknown-linux-musleabihf
+            runner: ubuntu-24.04
+            optional: true
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            optional: false
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            optional: false
+        exclude:
+          - variant: fdb
+            target: x86_64-unknown-linux-musl
+          - variant: fdb
+            target: aarch64-unknown-linux-musl
+          - variant: fdb
+            target: armv7-unknown-linux-gnueabihf
+          - variant: fdb
+            target: armv7-unknown-linux-musleabihf
+          - variant: fdb
+            target: aarch64-apple-darwin
+          - variant: fdb
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/.ghcup /usr/local/share/powershell /usr/share/swift /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Install zig and cargo-zigbuild
+        if: runner.os == 'Linux'
+        run: |
+          case "$(uname -m)" in
+            x86_64) zig_sha256=1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026 ;;
+            aarch64) zig_sha256=9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8 ;;
+            *) exit 1 ;;
+          esac
+          curl --retry 5 -fsSLo "$RUNNER_TEMP/zig.tar.xz" "https://ziglang.org/download/${ZIG_VERSION}/zig-$(uname -m)-linux-${ZIG_VERSION}.tar.xz"
+          echo "${zig_sha256}  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          tar -J -x -C "$RUNNER_TEMP" -f "$RUNNER_TEMP/zig.tar.xz"
+          echo "$RUNNER_TEMP/zig-$(uname -m)-linux-${ZIG_VERSION}" >> "$GITHUB_PATH"
+          cargo install --locked --git https://github.com/rust-cross/cargo-zigbuild --rev "$CARGO_ZIGBUILD_REV" cargo-zigbuild
+
+      - name: Install bindgen for armv7
+        if: startsWith(matrix.target, 'armv7-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq --no-install-recommends libclang-dev
+          cargo install --locked bindgen-cli --version "$BINDGEN_VERSION"
+          case "$TARGET" in
+            *-gnueabihf) zig_target="arm-linux-gnueabihf.${GLIBC_VERSION:-2.28}" ;;
+            *-musleabihf) zig_target=arm-linux-musleabihf ;;
+            *) exit 1 ;;
+          esac
+          includes=$(zig cc -target "$zig_target" -E -v -x c /dev/null -o /dev/null 2>&1 \
+            | sed -n '/<...> search starts here/,/End of search/p' \
+            | grep '^ ' | grep -v '/lib/include$' \
+            | sed 's/^ */-isystem /' | tr '\n' ' ')
+          [ -n "$includes" ]
+          echo "BINDGEN_EXTRA_CLANG_ARGS_$(echo "$TARGET" | tr '-' '_')=$includes" >> "$GITHUB_ENV"
+
+      - name: Install the FoundationDB client library
+        if: matrix.variant == 'fdb'
+        run: |
+          case "${{ matrix.target }}" in
+            x86_64-*) fdb_arch=amd64; fdb_sha256="$FDB_SHA256_AMD64" ;;
+            aarch64-*) fdb_arch=aarch64; fdb_sha256="$FDB_SHA256_AARCH64" ;;
+          esac
+          deb="foundationdb-clients_${FDB_VERSION}-1_${fdb_arch}.deb"
+          curl --retry 5 -fsSLo "$RUNNER_TEMP/$deb" "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/$deb"
+          echo "${fdb_sha256}  $RUNNER_TEMP/$deb" | sha256sum -c -
+          dpkg -x "$RUNNER_TEMP/$deb" "$RUNNER_TEMP/fdb"
+          echo "FDB_LIB_DIR=$RUNNER_TEMP/fdb/usr/lib" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: sh .github/scripts/build-release.sh "${{ matrix.variant }}" "${{ matrix.target }}" dist
+
+      - name: Attest
+        if: needs.plan.outputs.publishing == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.tar.xz
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-${{ matrix.variant }}-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ needs.plan.outputs.publishing == 'true' && 7 || 1 }}
+
+  release:
+    name: Create or update the draft release
+    needs: [plan, build]
+    if: needs.plan.outputs.publishing == 'true'
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Fetch the archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Report missing archives
+        run: |
+          missing=()
+          for target in x86_64-unknown-linux-gnu x86_64-unknown-linux-musl aarch64-unknown-linux-gnu aarch64-unknown-linux-musl armv7-unknown-linux-gnueabihf armv7-unknown-linux-musleabihf aarch64-apple-darwin x86_64-apple-darwin; do
+            for app in stalwart-migrate stalwart-migrate-oss; do
+              [ -f "artifacts/$app-$target.tar.xz" ] || missing+=("$app-$target.tar.xz")
+            done
+          done
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            [ -f "artifacts/stalwart-migrate-fdb-$target.tar.xz" ] || missing+=("stalwart-migrate-fdb-$target.tar.xz")
+          done
+          for name in "${missing[@]}"; do
+            echo "::warning::archive $name was not built"
+            echo "- missing: \`$name\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+          for name in "${missing[@]}"; do
+            case "$name" in
+              *armv7*) ;;
+              *) echo "::error::a required archive is missing"; exit 1 ;;
+            esac
+          done
+
+      - name: Add the installer and the checksum list
+        run: |
+          cp install.sh artifacts/stalwart-migrate-installer.sh
+          (cd artifacts && sha256sum stalwart-migrate-installer.sh > stalwart-migrate-installer.sh.sha256)
+          (cd artifacts && sha256sum -- *.tar.xz stalwart-migrate-installer.sh > sha256.sum)
+          ls -l artifacts
+
+      - name: Attest the installer
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: artifacts/stalwart-migrate-installer.sh
+
+      - name: Create the draft release, or refresh the assets of an existing draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::release $TAG is already published"
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber artifacts/*
+            exit 0
+          fi
+          flags=(--draft --verify-tag --target "$RELEASE_COMMIT" --title "$TAG")
+          if [ "$PRERELEASE" = true ]; then
+            flags+=(--prerelease)
+          fi
+          if [ -f CHANGELOG.md ]; then
+            awk '/^## \[/{c++} c==1' CHANGELOG.md > "$RUNNER_TEMP/notes.txt"
+          fi
+          if [ -s "$RUNNER_TEMP/notes.txt" ]; then
+            gh release create "$TAG" "${flags[@]}" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          else
+            gh release create "$TAG" "${flags[@]}" --generate-notes artifacts/*
+          fi
+
+  docker:
+    name: Docker image ${{ matrix.variant }}
+    needs: [plan, release]
+    if: needs.plan.outputs.publishing == 'true'
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: default
+            suffix: ""
+            stage: default
+          - variant: oss
+            suffix: "-oss"
+            stage: default
+          - variant: fdb
+            suffix: "-fdb"
+            stage: fdb
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Fetch the Linux gnu archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-${{ matrix.variant }}-*-unknown-linux-gnu
+          path: dl/
+          merge-multiple: true
+
+      - name: Stage the binaries per architecture
+        env:
+          APP: stalwart-migrate${{ matrix.suffix }}
+        run: |
+          set -eux
+          for pair in amd64:x86_64 arm64:aarch64; do
+            docker_arch=${pair%%:*}
+            name="$APP-${pair#*:}-unknown-linux-gnu"
+            (cd dl && sha256sum -c "$name.tar.xz.sha256")
+            mkdir -p "bin/$docker_arch"
+            tar -xJf "dl/$name.tar.xz" -C "bin/$docker_arch" --strip-components=1 "$name/stalwart-migrate"
+          done
+
+      - name: Stage the FoundationDB client library
+        if: matrix.variant == 'fdb'
+        run: |
+          set -eux
+          for pair in amd64:amd64:$FDB_SHA256_AMD64 arm64:aarch64:$FDB_SHA256_AARCH64; do
+            docker_arch=$(echo "$pair" | cut -d: -f1)
+            fdb_arch=$(echo "$pair" | cut -d: -f2)
+            fdb_sha256=$(echo "$pair" | cut -d: -f3)
+            deb="foundationdb-clients_${FDB_VERSION}-1_${fdb_arch}.deb"
+            curl --retry 5 -fsSLo "$RUNNER_TEMP/$deb" "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/$deb"
+            echo "${fdb_sha256}  $RUNNER_TEMP/$deb" | sha256sum -c -
+            dpkg -x "$RUNNER_TEMP/$deb" "$RUNNER_TEMP/fdb-$docker_arch"
+            cp "$RUNNER_TEMP/fdb-$docker_arch/usr/lib/libfdb_c.so" "bin/$docker_arch/libfdb_c.so"
+          done
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push the image by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.stage }}
+          platforms: linux/amd64,linux/arm64
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.title=stalwart-migrate${{ matrix.suffix }}
+            org.opencontainers.image.source=https://github.com/stalwartlabs/stalwart-migrate
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}${{ matrix.suffix }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=AGPL-3.0-only OR LicenseRef-SEL
+          outputs: type=image,"name=${{ env.GHCR_IMAGE }},${{ env.DOCKERHUB_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
+
+      - name: Sign the image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -eux
+          cosign sign --yes "${GHCR_IMAGE}@${DIGEST}"
+          cosign sign --yes "${DOCKERHUB_IMAGE}@${DIGEST}"
+
+      - name: Attest the GHCR image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.GHCR_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the Docker Hub image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.DOCKERHUB_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p digest
+          printf '%s\n' "$DIGEST" > "digest/${{ matrix.variant }}"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.variant }}
+          path: digest/
+          if-no-files-found: error
+
+  announce:
+    name: Tag the images and publish the release
+    needs: [plan, release, docker]
+    if: needs.plan.outputs.publishing == 'true'
+    runs-on: ubuntu-24.04
+    environment: release
+    concurrency:
+      group: release-announce
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Fetch the image digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          path: digest/
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Decide which tags move
+        id: tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          gh release list --repo "${{ github.repository }}" --exclude-drafts --exclude-pre-releases --limit 500 --json tagName --jq '.[].tagName' > "$RUNNER_TEMP/releases.txt"
+          published=$(sed 's/^v//' "$RUNNER_TEMP/releases.txt" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          minor="${VERSION%.*}"
+          latest=false
+          move_minor=false
+          if [ "$PRERELEASE" != true ]; then
+            if [ "$(printf '%s\n%s\n' "$VERSION" "$published" | sort -V | tail -n 1)" = "$VERSION" ]; then
+              latest=true
+            fi
+            in_line=$(printf '%s\n' "$published" | awk -v prefix="$minor." 'index($0, prefix) == 1')
+            if [ "$(printf '%s\n%s\n' "$VERSION" "$in_line" | sort -V | tail -n 1)" = "$VERSION" ]; then
+              move_minor=true
+            fi
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "move_minor=$move_minor" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest move_minor=$move_minor" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check every image digest
+        run: |
+          set -eux
+          for variant in default oss fdb; do
+            digest=$(cat "digest/$variant")
+            for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+              docker buildx imagetools inspect "${image}@${digest}" > /dev/null
+            done
+          done
+
+      - name: Tag the images
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          LATEST: ${{ steps.tags.outputs.latest }}
+          MOVE_MINOR: ${{ steps.tags.outputs.move_minor }}
+        run: |
+          set -eux
+          minor="${VERSION%.*}"
+          for variant in default oss fdb; do
+            digest=$(cat "digest/$variant")
+            case "$variant" in
+              default) suffix="" ;;
+              *) suffix="-$variant" ;;
+            esac
+            tags=("${VERSION}${suffix}")
+            if [ "$MOVE_MINOR" = true ]; then
+              tags+=("${minor}${suffix}")
+            fi
+            if [ "$LATEST" = true ]; then
+              tags+=("latest${suffix}")
+            fi
+            for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+              args=()
+              for tag in "${tags[@]}"; do
+                args+=(-t "${image}:${tag}")
+              done
+              docker buildx imagetools create "${args[@]}" "${image}@${digest}"
+            done
+          done
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.tags.outputs.latest }}
+        run: gh release edit "${{ needs.plan.outputs.tag }}" --draft=false --latest="$LATEST" --repo "${{ github.repository }}"

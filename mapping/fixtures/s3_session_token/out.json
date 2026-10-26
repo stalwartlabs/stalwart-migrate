@@ -1,0 +1,39 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:BlobStore",
+      "level": "info",
+      "path": "sessionToken"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:BlobStore",
+      "source": "x:BlobStore",
+      "value": {
+        "@type": "S3",
+        "accessKeyId": {
+          "@type": "Value",
+          "value": "AK"
+        },
+        "bucket": "b",
+        "region": {
+          "@type": "UsEast1"
+        },
+        "secretKey": {
+          "@type": "Value",
+          "secret": "sk"
+        },
+        "sessionToken": {
+          "@type": "Value",
+          "secret": "legacy"
+        }
+      }
+    }
+  ],
+  "questions": []
+}

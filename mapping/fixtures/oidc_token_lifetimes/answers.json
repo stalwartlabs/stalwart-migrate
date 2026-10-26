@@ -1,0 +1,10 @@
+{
+  "instance": {
+    "oidc_token_lifetimes": {
+      "x:OidcProvider": {
+        "action": "set",
+        "access_token_expiry": 3600000
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "instance": {
+    "azure_auth": {
+      "x:BlobStore": {
+        "mode": "WorkloadIdentity",
+        "tenant_id": "t",
+        "client_id": "c",
+        "token_file": "/var/run/token"
+      }
+    }
+  }
+}

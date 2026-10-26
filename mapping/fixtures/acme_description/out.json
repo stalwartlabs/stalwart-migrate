@@ -1,0 +1,60 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:AcmeProvider/a",
+      "level": "info",
+      "path": "description"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AcmeProvider/b",
+      "level": "info",
+      "path": "description"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:AcmeProvider/a",
+      "source": "x:AcmeProvider/a",
+      "value": {
+        "accountUri": "https://acme-v02.api.letsencrypt.org/acme/acct/123456789",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "description": "https://acme-v02.api.letsencrypt.org/directory (123456789)",
+        "directory": "https://acme-v02.api.letsencrypt.org/directory"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/b",
+      "source": "x:AcmeProvider/b",
+      "value": {
+        "challengeType": "Dns01",
+        "contact": {
+          "admin@example.org": true
+        },
+        "description": "https://acme.example.org/directory",
+        "directory": "https://acme.example.org/directory"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/c",
+      "source": "x:AcmeProvider/c",
+      "value": {
+        "accountUri": "https://acme.example.net/acct/42",
+        "challengeType": "Http01",
+        "contact": {
+          "admin@example.net": true
+        },
+        "description": "https://acme.example.net/directory (42)",
+        "directory": "https://acme.example.net/directory"
+      }
+    }
+  ],
+  "questions": []
+}
