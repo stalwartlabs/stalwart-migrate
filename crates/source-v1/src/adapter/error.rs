@@ -6,9 +6,10 @@
 
 use std::fmt;
 
-use trc::{EventType, RegistryEvent, StoreEvent};
+use trc::{EventType, Key, RegistryEvent, StoreEvent};
 
-pub fn trc_error(err: trc::Error) -> model::Error {
+pub fn trc_error(mut err: trc::Error) -> model::Error {
+    err.take_value(Key::Value);
     let message = format!("{err}");
     match err.event_type() {
         EventType::Store(

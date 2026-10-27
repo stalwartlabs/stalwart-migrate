@@ -58,7 +58,8 @@ async fn email_replace_with_a_small_pool_finishes() {
             source
                 .registry_page(&name, None, 1000)
                 .await
-                .expect("registry page"),
+                .expect("registry page")
+                .records,
         );
     }
     let mailboxes = source

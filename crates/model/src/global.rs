@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
+use std::ops::Range;
+
 use crate::{
     category::Category,
     error::{Error, Result},
@@ -90,6 +92,8 @@ pub enum TelemetryKind {
     Span,
     Metric,
 }
+
+pub const TEXT_TIMESTAMPS: Range<i64> = 0..32_535_216_000;
 
 const SNOWFLAKE_TIME_SHIFT: u32 = 21;
 const SPAN_LOOKBACK_MILLIS: u64 = 6 * 3_600_000;

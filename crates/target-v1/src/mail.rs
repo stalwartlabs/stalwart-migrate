@@ -628,6 +628,9 @@ fn email_keywords(
     let mut keywords = Vec::with_capacity(record.keywords.len());
     for name in &record.keywords {
         let keyword = Keyword::parse(name);
+        if matches!(keyword, Keyword::HasAttachment | Keyword::HasNoAttachment) {
+            continue;
+        }
         if limits.is_keyword_allowed(&keyword) {
             keywords.push(keyword);
         } else {

@@ -316,7 +316,8 @@ async fn reads_registry_objects_as_json() {
     let domains = source
         .registry_page("Domain", None, 10)
         .await
-        .expect("domains");
+        .expect("domains")
+        .records;
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].key.id, RegistryId::Id(5));
     assert_eq!(domains[0].json["name"], "example.org");
@@ -325,12 +326,14 @@ async fn reads_registry_objects_as_json() {
             .registry_page("Domain", Some(5), 10)
             .await
             .expect("page")
+            .records
             .is_empty()
     );
     let http = source
         .registry_page("x:Http", None, 10)
         .await
-        .expect("http");
+        .expect("http")
+        .records;
     assert_eq!(http[0].key.id, RegistryId::Singleton);
 }
 
@@ -413,7 +416,8 @@ async fn canonical_registry_round_trips_through_v016_types() {
     let accounts = source
         .registry_page("Account", None, 10)
         .await
-        .expect("accounts");
+        .expect("accounts")
+        .records;
     let stored = accounts.first().expect("account").clone();
     assert_eq!(
         source

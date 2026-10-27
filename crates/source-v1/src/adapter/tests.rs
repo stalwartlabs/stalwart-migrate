@@ -543,7 +543,8 @@ async fn source_reads_what_the_target_wrote() {
     let accounts = source
         .registry_page("Account", None, 10)
         .await
-        .expect("accounts page");
+        .expect("accounts page")
+        .records;
     let written = target
         .read_registry(&[RegistryKey::new("x:Account", u64::from(ACCOUNT_ID))])
         .await
@@ -1038,7 +1039,8 @@ async fn external_reports_without_index_entries_are_unlisted() {
     let records = source
         .registry_page("x:DmarcExternalReport", None, 10)
         .await
-        .expect("reports");
+        .expect("reports")
+        .records;
     assert_eq!(records.len(), 3);
     assert!(matches!(
         ObjectInner::deserialize(ObjectType::DmarcExternalReport, &records[0].json),
@@ -1314,4 +1316,33 @@ async fn account_counters_match_point_reads() {
             }
         ]
     );
+}
+
+// Certificates expire on notValidAfter unless file-backed, whose metadata Stalwart refreshes from the file when it starts.
+#[test]
+fn certificate_expiry_and_refresh() {
+    let certificate = |certificate: serde_json::Value| RegistryRecord {
+        key: RegistryKey::new("x:Certificate", 3),
+        json: json!({"certificate": certificate, "privateKey": {"@type": "Text", "secret": "key"}, "notValidAfter": "2024-01-01T00:00:00Z"}),
+    };
+    let text = certificate(json!({"@type": "Text", "value": "pem"}));
+    let file = certificate(json!({"@type": "File", "filePath": "/etc/cert.pem"}));
+    assert_eq!(
+        super::registry_object_expired_at(&text),
+        Some("2024-01-01T00:00:00Z")
+    );
+    assert!(!super::registry_object_refreshed_on_start(
+        &text.key.object,
+        &text.json
+    ));
+    assert_eq!(super::registry_object_expired_at(&file), None);
+    assert!(super::registry_object_refreshed_on_start(
+        &file.key.object,
+        &file.json
+    ));
+    let ip = RegistryRecord {
+        key: RegistryKey::new("x:BlockedIp", 4),
+        json: json!({"notValidAfter": "2024-01-01T00:00:00Z", "expiresAt": "2999-01-01T00:00:00Z"}),
+    };
+    assert_eq!(super::registry_object_expired_at(&ip), None);
 }

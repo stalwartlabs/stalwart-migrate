@@ -6,8 +6,12 @@
 
 use common::{Server, auth::ChangedBy};
 use store::{Store, write::BatchBuilder};
+use trc::{AuthEvent, EventType};
 
-use crate::{error::trc_error, target::V1Target};
+use crate::{
+    error::{account, trc_error},
+    target::V1Target,
+};
 
 pub(crate) const IMPORT_CHANGE_ID: u64 = 1;
 const DEFAULT_COMMIT_BYTES: u64 = 4_000_000;
@@ -86,7 +90,15 @@ impl V1Target {
         server: &Server,
         account_id: u32,
     ) -> model::Result<AccountContext> {
-        let account = server.account(account_id).await.map_err(trc_error)?;
+        let account = server.account(account_id).await.map_err(|err| {
+            if err.matches(EventType::Auth(AuthEvent::Error)) {
+                account(format!(
+                    "account {account_id} does not exist in v1 because its Account object was not written; fix the registry errors reported for it and run again"
+                ))
+            } else {
+                trc_error(err)
+            }
+        })?;
         Ok(AccountContext {
             changed_by: account.changed_by(),
             #[cfg(feature = "enterprise")]

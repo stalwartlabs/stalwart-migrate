@@ -7,6 +7,7 @@
 use crate::failpoint::failpoint;
 use model::{ClaimId, RegistryKey, Source, Target, TargetProbe};
 use rustc_hash::FxHashMap;
+use source_v1::{registry_object_expires_on_start, registry_object_refreshed_on_start};
 use state::{ContentHash, MetaKey, StateStore};
 
 use super::{
@@ -262,6 +263,9 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         let mut buf = Vec::new();
         for (entry, record) in sample.iter().zip(records) {
             let Some(record) = record else {
+                if registry_object_expires_on_start(&entry.key.object) {
+                    continue;
+                }
                 return Err(RunError::preflight(format!(
                     "registry object {} recorded in the state database is missing from the target",
                     entry.key
@@ -271,7 +275,9 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
             serde_json::to_writer(&mut buf, &record.json).map_err(|err| {
                 RunError::preflight(format!("cannot serialize {}: {err}", entry.key))
             })?;
-            if entry.stored_hash != Some(ContentHash::of(&buf)) {
+            if entry.stored_hash != Some(ContentHash::of(&buf))
+                && !registry_object_refreshed_on_start(&record.key.object, &record.json)
+            {
                 return Err(RunError::preflight(format!(
                     "registry object {} in the target differs from the one this tool wrote; is this the right target store?",
                     entry.key

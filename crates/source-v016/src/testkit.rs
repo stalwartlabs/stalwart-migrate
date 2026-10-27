@@ -1033,6 +1033,47 @@ pub async fn put_span(path: &Path, span_id: u64, events: &[&str], nested: Option
     .await;
 }
 
+pub async fn put_dated_span(path: &Path, span_id: u64, timestamps: &[i64]) {
+    let date = |timestamp: i64| {
+        structs::TraceValue::UTCDateTime(structs::TraceValueUTCDateTime {
+            value: UTCDateTime::from_timestamp(timestamp),
+        })
+    };
+    let trace = structs::Trace {
+        events: timestamps
+            .iter()
+            .map(|&timestamp| structs::TraceEvent {
+                event: trc::EventType::Queue(trc::QueueEvent::Rescheduled),
+                timestamp: UTCDateTime::from_timestamp(timestamp),
+                key_values: vec![
+                    structs::TraceKeyValue {
+                        key: trc::Key::NextDsn,
+                        value: date(timestamp),
+                    },
+                    structs::TraceKeyValue {
+                        key: trc::Key::Details,
+                        value: structs::TraceValue::List(structs::TraceValueList {
+                            value: vec![date(timestamp)].into(),
+                        }),
+                    },
+                ]
+                .into(),
+            })
+            .collect::<Vec<_>>()
+            .into(),
+    };
+    let store = Store::build(rocks(path))
+        .await
+        .expect("open writable store");
+    commit(&store, |batch| {
+        batch.set(
+            ValueClass::Telemetry(TelemetryClass::Span(span_id)),
+            trace.to_pickled_vec(),
+        );
+    })
+    .await;
+}
+
 pub async fn put_metric(path: &Path, metric_id: u64, metric: &str, count: u64) {
     let metric = structs::Metric::Counter(structs::MetricCount {
         count,

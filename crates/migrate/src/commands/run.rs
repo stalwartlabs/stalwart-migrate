@@ -16,8 +16,8 @@ use mapping::{
     Answers, Direction, Mapping, Normalize, Options, PromptId, Singletons, ToolQuestions,
 };
 use model::{
-    Category, CategorySet, Edition, RegistryId, RegistryKey, RegistryRecord, SharedDeletes,
-    SharedPlan, SharedService, Target, TargetClaim,
+    Category, CategorySet, Edition, RegistryEntries, RegistryId, RegistryKey, RegistryRecord,
+    SharedDeletes, SharedPlan, SharedService, Target, TargetClaim,
 };
 use source_v1::V1Source;
 use source_v016::V016Source;
@@ -240,13 +240,14 @@ pub(super) async fn prepare(
     check_edition(&answers)?;
     answers.remove(PromptId::Edition, None);
     let source = adapters::open_source(&args.source.source, &args.source.path_map()).await?;
-    let objects = source_objects(&source, RetryPolicy::default(), REGISTRY_PAGE)
+    let (objects, unreadable) = source_objects(&source, RetryPolicy::default(), REGISTRY_PAGE)
         .await
         .map_err(|err| CommandError::Adapter(err.to_string().into_boxed_str()))?;
     tracing::info!(
         source = %args.source.source.display(),
         state = %args.state.state.display(),
         objects = objects.len(),
+        unreadable = unreadable.len(),
         "prepare"
     );
     let blobs = BlobLocation::of(&source);
@@ -257,6 +258,7 @@ pub(super) async fn prepare(
         mapping: &mapping,
         options: mapping_options(EDITION, blobs),
         objects,
+        unreadable,
     };
     let prepared = if args.non_interactive {
         let prepared = prepare.validate(&answers);
@@ -780,11 +782,17 @@ async fn rollback_settings(
     options: &RunOptions,
 ) -> Result<Vec<RegistryRecord>, CommandError> {
     let adapter = |err: model::Error| CommandError::Adapter(err.to_string().into_boxed_str());
-    let objects = read_registry(source, options.retry, options.tuning.batch_ops)
+    let RegistryEntries {
+        records,
+        unreadable,
+    } = read_registry(source, options.retry, options.tuning.batch_ops)
         .await
         .map_err(adapter)?;
+    for key in &unreadable {
+        tracing::warn!(%key, "unreadable settings object in the v1 store; not rolled back");
+    }
     let converted = converter
-        .convert(objects, registry_categories(options.categories))
+        .convert(records, registry_categories(options.categories))
         .map_err(|err| CommandError::Adapter(err.to_string().into_boxed_str()))?;
     let mut settings = converted.deferred;
     settings.extend(

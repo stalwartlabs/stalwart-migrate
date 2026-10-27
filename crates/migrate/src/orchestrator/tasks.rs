@@ -204,7 +204,9 @@ impl<'x, S: Source, C: RegistryConverter> TaskConversion<'x, S, C> {
         let graph = match &mut self.graph {
             Some(graph) => graph,
             empty => {
-                let objects = read_registry(self.source, self.policy, self.limit).await?;
+                let objects = read_registry(self.source, self.policy, self.limit)
+                    .await?
+                    .records;
                 empty.insert(TaskGraph::new(objects, self.converter))
             }
         };

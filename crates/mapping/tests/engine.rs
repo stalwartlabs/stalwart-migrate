@@ -543,3 +543,84 @@ fn event_tracing_levels_merge_at_the_most_verbose_level() {
         "{text:?}"
     );
 }
+
+#[test]
+fn references_outside_the_tenant_fall_back_like_missing_ones() {
+    // A tenant domain using an ACME provider of no tenant or another tenant falls back to manual certificates; one of its own tenant is kept.
+    let mapping = Mapping::embedded().expect("mapping");
+    let answers = Answers::default();
+    let provider = |id: u64, tenant: Option<&str>| {
+        let mut value = json!({
+            "directory": "https://acme.example.org/directory",
+            "challengeType": "TlsAlpn01",
+            "contact": {"postmaster@example.org": true},
+            "accountUri": "https://acme.example.org/acct/42",
+            "accountKey": "key",
+        });
+        if let Some(tenant) = tenant {
+            value["memberTenantId"] = tenant.into();
+        }
+        SourceObject {
+            key: ObjectKey::with_id("x:AcmeProvider", id),
+            value,
+        }
+    };
+    let domain = |id: u64, provider: &str| SourceObject {
+        key: ObjectKey::with_id("x:Domain", id),
+        value: json!({
+            "name": format!("d{id}.example.org"),
+            "memberTenantId": "b",
+            "certificateManagement": {"@type": "Automatic", "acmeProviderId": provider},
+        }),
+    };
+    let outcome = mapping
+        .session(Direction::Forward, &answers, options())
+        .convert_all(vec![
+            SourceObject {
+                key: ObjectKey::with_id("x:Tenant", 1),
+                value: json!({"name": "first"}),
+            },
+            SourceObject {
+                key: ObjectKey::with_id("x:Tenant", 2),
+                value: json!({"name": "second"}),
+            },
+            provider(10, None),
+            provider(11, Some("b")),
+            provider(12, Some("c")),
+            domain(20, "k"),
+            domain(21, "l"),
+            domain(22, "m"),
+        ]);
+    assert!(outcome.is_complete(), "{:?}", outcome.report.entries);
+    let management = |id: u64| {
+        outcome
+            .objects
+            .iter()
+            .find(|o| o.key == ObjectKey::with_id("x:Domain", id))
+            .map(|o| o.value["certificateManagement"].clone())
+    };
+    assert_eq!(management(20), Some(json!({"@type": "Manual"})));
+    assert_eq!(
+        management(21),
+        Some(json!({"@type": "Automatic", "acmeProviderId": "l"}))
+    );
+    assert_eq!(management(22), Some(json!({"@type": "Manual"})));
+    let outside: Vec<&ObjectKey> = outcome
+        .report
+        .entries
+        .iter()
+        .filter_map(|e| match &e.change {
+            Change::ReferenceOutsideTenant { target } => Some(target),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        outside,
+        [
+            &ObjectKey::with_id("x:AcmeProvider", 10),
+            &ObjectKey::with_id("x:AcmeProvider", 12)
+        ],
+        "{:?}",
+        outcome.report.entries
+    );
+}

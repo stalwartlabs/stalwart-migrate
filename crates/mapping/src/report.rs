@@ -93,6 +93,9 @@ pub enum Change {
     ReferenceCleared {
         target: ObjectKey,
     },
+    ReferenceOutsideTenant {
+        target: ObjectKey,
+    },
     Dangling {
         target: ObjectKey,
     },
@@ -128,7 +131,8 @@ impl Entry {
             Change::Dropped { .. }
             | Change::Unknown
             | Change::Clamped { .. }
-            | Change::ReferenceCleared { .. } => Level::Warning,
+            | Change::ReferenceCleared { .. }
+            | Change::ReferenceOutsideTenant { .. } => Level::Warning,
             Change::Transformed { transform, .. } if WARNING_TRANSFORMS.contains(transform) => {
                 Level::Warning
             }
@@ -182,6 +186,10 @@ impl fmt::Display for Entry {
             Change::ReferenceCleared { target } => {
                 write!(f, ": reference to {target} removed (target not migrated)")
             }
+            Change::ReferenceOutsideTenant { target } => write!(
+                f,
+                ": reference to {target} removed (it is not in the same tenant, which v1 requires)"
+            ),
             Change::Dangling { target } => {
                 write!(
                     f,

@@ -781,3 +781,60 @@ async fn drifted_quota_usage_is_reported() {
         messages(&rows)
     );
 }
+
+// Unreadable source registry entries yield one warning per run, no errors and no verify mismatches.
+#[tokio::test]
+async fn unreadable_registry_entries_are_warnings() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = FakeSource::new();
+    let target = FakeTarget::new();
+    seed(&source);
+    source.put_registry(
+        "WebHook",
+        2,
+        serde_json::json!({"url": "https://a.example"}),
+    );
+    source.put_registry(
+        "WebHook",
+        9,
+        serde_json::json!({"url": "https://b.example"}),
+    );
+    source
+        .world
+        .lock()
+        .expect("lock")
+        .unreadable_registry
+        .insert(RegistryKey::new("WebHook", 9));
+    migrate(&source, &target, dir.path()).await;
+    migrate(&source, &target, dir.path()).await;
+    {
+        let world = target.world.lock().expect("lock");
+        assert!(world.registry.contains_key(&RegistryKey::new("WebHook", 2)));
+        assert!(!world.registry.contains_key(&RegistryKey::new("WebHook", 9)));
+    }
+    let state = SqliteState::open(dir.path()).expect("open state");
+    let rows = state
+        .reports(ReportFilter::default())
+        .await
+        .expect("reports");
+    let warnings: Vec<&ReportRow> = rows
+        .iter()
+        .filter(|row| row.object.as_deref() == Some("WebHook") && row.object_id == Some(9))
+        .collect();
+    assert_eq!(warnings.len(), 2, "{:#?}", messages(&rows));
+    assert!(warnings.iter().all(|row| {
+        row.severity == Severity::Warning
+            && &*row.category == "skipped"
+            && row.message.contains("ignored by v0.16.27")
+    }));
+    assert_ne!(warnings[0].run_id, warnings[1].run_id);
+    assert!(
+        rows.iter().all(|row| row.severity != Severity::Error),
+        "{:#?}",
+        messages(&rows)
+    );
+    drop(state);
+    let (summary, rows) = check(&source, &target, dir.path(), VerifyScope::Full).await;
+    assert_eq!(summary.status, RunStatus::Ok, "{:#?}", messages(&rows));
+    assert_eq!(summary.mismatches, 0);
+}

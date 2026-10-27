@@ -15,7 +15,9 @@ use types::acl::ArchivedAclGrant;
 
 pub use adapter::{
     OpenError, PathRewrite, SourceConfig, V1Source, is_derived_task_id, is_singleton_task,
-    is_singleton_task_id, registry_object_is_stored, singleton_task_id, trc_error,
+    is_singleton_task_id, registry_object_expired_at, registry_object_expires_on_start,
+    registry_object_is_certificate, registry_object_is_stored, registry_object_refreshed_on_start,
+    singleton_task_id, trc_error,
 };
 pub use compare::{same_icalendar, same_vcard};
 

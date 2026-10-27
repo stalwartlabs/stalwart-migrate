@@ -12,18 +12,116 @@ use model::{Issue, TelemetryKind, TelemetryRecord};
 use registry::{
     schema::{
         prelude::{ObjectInner, ObjectType},
-        structs::{Metric, MetricsStore, Search, Trace, TracingStore},
+        structs::{
+            Metric, MetricsStore, Search, Trace, TraceEvent, TraceKeyValue, TraceValue,
+            TraceValueEvent, TraceValueList, TraceValueUTCDateTime, TracingStore,
+        },
     },
-    types::ObjectImpl,
+    types::{ObjectImpl, datetime::UTCDateTime, list::List},
 };
-use serde::Deserialize;
+use serde::{
+    Deserialize,
+    de::{DeserializeOwned, Error},
+};
+use serde_json::Value;
 use store::write::{TelemetryClass, ValueClass};
+use utils::map::vec_map::VecMap;
 
 use super::skipped;
 use crate::target::V1Target;
 
 const SHARED_STORE: &str = "the v1 telemetry store is not the target data store and may be shared with v0.16; the record was not copied";
 const DISABLED_STORE: &str = "the v1 telemetry store is disabled; the record was not copied";
+
+const SPAN_EVENTS: &str = "events";
+const EVENT_NAME: &str = "event";
+const EVENT_TIMESTAMP: &str = "timestamp";
+const EVENT_KEY_VALUES: &str = "keyValues";
+const KEY: &str = "key";
+const VALUE: &str = "value";
+const VALUE_TYPE: &str = "@type";
+
+fn span(json: &Value) -> serde_json::Result<Trace> {
+    Ok(Trace {
+        events: list(json.get(SPAN_EVENTS), event)?,
+    })
+}
+
+fn list<T>(
+    json: Option<&Value>,
+    item: fn(&Value) -> serde_json::Result<T>,
+) -> serde_json::Result<List<T>> {
+    let Some(json) = json else {
+        return Ok(List(VecMap::new()));
+    };
+    let Value::Object(entries) = json else {
+        return Err(serde_json::Error::custom(
+            "expected a map of string keys to values",
+        ));
+    };
+    let mut items = VecMap::with_capacity(entries.len());
+    for (key, value) in entries {
+        let id: u32 = key
+            .parse()
+            .map_err(|_| serde_json::Error::custom(format!("invalid integer key: {key}")))?;
+        items.append(id, item(value)?);
+    }
+    items.sort_unstable_by_key();
+    Ok(List(items))
+}
+
+fn field<T: DeserializeOwned + Default>(json: &Value, name: &str) -> serde_json::Result<T> {
+    json.get(name)
+        .map(T::deserialize)
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
+fn timestamp(json: &Value, name: &str) -> serde_json::Result<UTCDateTime> {
+    match json.get(name) {
+        Some(Value::Number(number)) => number
+            .as_i64()
+            .map(UTCDateTime::from_timestamp)
+            .ok_or_else(|| serde_json::Error::custom("invalid DateTime")),
+        Some(value) => UTCDateTime::deserialize(value),
+        None => Ok(UTCDateTime::default()),
+    }
+}
+
+fn event(json: &Value) -> serde_json::Result<TraceEvent> {
+    Ok(TraceEvent {
+        event: field(json, EVENT_NAME)?,
+        timestamp: timestamp(json, EVENT_TIMESTAMP)?,
+        key_values: list(json.get(EVENT_KEY_VALUES), key_value)?,
+    })
+}
+
+fn key_value(json: &Value) -> serde_json::Result<TraceKeyValue> {
+    Ok(TraceKeyValue {
+        key: field(json, KEY)?,
+        value: json.get(VALUE).map(value).transpose()?.unwrap_or_default(),
+    })
+}
+
+fn value(json: &Value) -> serde_json::Result<TraceValue> {
+    let kind = json
+        .get(VALUE_TYPE)
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    hashify::fnc_map!(kind.as_bytes(),
+        "UTCDateTime" => Ok(TraceValue::UTCDateTime(TraceValueUTCDateTime {
+            value: timestamp(json, VALUE)?,
+        })),
+        "Event" => Ok(TraceValue::Event(TraceValueEvent {
+            event: field(json, EVENT_NAME)?,
+            value: list(json.get(VALUE), key_value)?,
+        })),
+        "List" => Ok(TraceValue::List(TraceValueList {
+            value: list(json.get(VALUE), value)?,
+        })),
+        _ => TraceValue::deserialize(json)
+    )
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Destination {
@@ -89,8 +187,7 @@ impl V1Target {
                 continue;
             }
             let value = match record.kind {
-                TelemetryKind::Span => <Trace as Deserialize>::deserialize(&record.json)
-                    .map(|trace| trace.to_pickled_vec()),
+                TelemetryKind::Span => span(&record.json).map(|trace| trace.to_pickled_vec()),
                 TelemetryKind::Metric => <Metric as Deserialize>::deserialize(&record.json)
                     .map(|metric| metric.to_pickled_vec()),
             };

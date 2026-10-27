@@ -23,18 +23,38 @@ const WRITE_RANK: &[&str] = &[
 
 const MARKER_FALLBACK: &[&str] = &["x:DnsManagement", "x:CertificateManagement", "x:SpamAi"];
 
-type Present = FxHashMap<Box<str>, FxHashSet<u64>>;
+const TENANT_OBJECT: &str = "x:Tenant";
+const TENANT_REFERENCE: &str = "memberTenantId";
+
+type Present = FxHashMap<Box<str>, FxHashMap<u64, Option<u64>>>;
 type Ready = Reverse<(usize, Box<str>, Instance, usize)>;
 
 struct Fixer<'s, 'r> {
     schema: &'s Schema,
     present: &'s Present,
+    scoped: &'s FxHashSet<&'s str>,
+    tenant: Option<u64>,
     owners: &'s Owners,
     orphan: Option<ObjectKey>,
     report: &'r mut Report,
     key: &'r ObjectKey,
     path: Path,
-    pending: Vec<(String, ObjectKey)>,
+    pending: Vec<(String, ObjectKey, Gap)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Gap {
+    Missing,
+    OtherTenant,
+}
+
+impl Gap {
+    fn cleared(self, target: ObjectKey) -> Change {
+        match self {
+            Gap::Missing => Change::ReferenceCleared { target },
+            Gap::OtherTenant => Change::ReferenceOutsideTenant { target },
+        }
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -44,20 +64,44 @@ enum Fix {
 }
 
 pub(super) fn fix_dangling(session: &Session, outcome: &mut Outcome) {
+    let tenants: FxHashSet<u64> = outcome
+        .objects
+        .iter()
+        .filter(|object| &*object.key.object == TENANT_OBJECT)
+        .filter_map(|object| match object.key.instance {
+            Instance::Id(id) => Some(id),
+            _ => None,
+        })
+        .collect();
+    let member_tenant = |value: &Value| {
+        value
+            .get(TENANT_REFERENCE)
+            .and_then(Value::as_str)
+            .and_then(JmapId::parse)
+            .map(|id| id.0)
+            .filter(|id| tenants.contains(id))
+    };
     let mut present = Present::default();
     for object in &outcome.objects {
         if let Instance::Id(id) = object.key.instance {
             present
                 .entry(object.key.object.clone())
                 .or_default()
-                .insert(id);
+                .insert(id, member_tenant(&object.value));
         }
     }
+    let scoped: FxHashSet<&str> = present
+        .keys()
+        .map(|object| &**object)
+        .filter(|object| tenant_scoped(session.target, object))
+        .collect();
     let mut orphans: Vec<ObjectKey> = Vec::new();
     for object in &mut outcome.objects {
         let mut fixer = Fixer {
             schema: session.target,
             present: &present,
+            scoped: &scoped,
+            tenant: member_tenant(&object.value),
             owners: &session.owners,
             orphan: None,
             report: &mut outcome.report,
@@ -79,10 +123,12 @@ pub(super) fn fix_dangling(session: &Session, outcome: &mut Outcome) {
                 orphans.push(object.source.clone());
                 continue;
             }
-            for (path, target) in pending {
-                fixer
-                    .report
-                    .push(fixer.key, &path, Change::Dangling { target });
+            for (path, target, gap) in pending {
+                if gap == Gap::Missing {
+                    fixer
+                        .report
+                        .push(fixer.key, &path, Change::Dangling { target });
+                }
             }
         }
     }
@@ -107,7 +153,7 @@ impl Fixer<'_, '_> {
         let (Type::ObjectId(target), Some(id)) = (&ty.ty, value.as_str()) else {
             return Owner::Satisfied;
         };
-        let Some(missing) = self.missing(target, id) else {
+        let Some((missing, Gap::Missing)) = self.missing(target, id) else {
             return Owner::Satisfied;
         };
         let Instance::Id(id) = missing.instance else {
@@ -124,20 +170,26 @@ impl Fixer<'_, '_> {
     }
 
     fn absorb(&mut self) {
-        for (path, target) in std::mem::take(&mut self.pending) {
-            self.report
-                .push(self.key, &path, Change::ReferenceCleared { target });
+        for (path, target, gap) in std::mem::take(&mut self.pending) {
+            self.report.push(self.key, &path, gap.cleared(target));
         }
     }
 
-    fn missing(&self, object: &str, id: &str) -> Option<ObjectKey> {
+    fn missing(&self, object: &str, id: &str) -> Option<(ObjectKey, Gap)> {
         let object = self.schema.reference_target(object)?;
         let id = JmapId::parse(id)?.0;
-        let found = self
-            .present
-            .get(object)
-            .is_some_and(|ids| ids.contains(&id));
-        (!found).then(|| ObjectKey::with_id(object, id))
+        let gap = match self.present.get(object).and_then(|ids| ids.get(&id)) {
+            None => Gap::Missing,
+            Some(tenant)
+                if self.tenant.is_some()
+                    && *tenant != self.tenant
+                    && self.scoped.contains(object) =>
+            {
+                Gap::OtherTenant
+            }
+            Some(_) => return None,
+        };
+        Some((ObjectKey::with_id(object, id), gap))
     }
 
     fn schema(&mut self, name: &str, value: &mut Value) -> Fix {
@@ -188,6 +240,7 @@ impl Fixer<'_, '_> {
             return Fix::Keep;
         };
         let top = self.path.as_str().is_empty();
+        let mut outside = Vec::new();
         for (name, value) in map.iter_mut() {
             let Some(prop) = fields.property(name) else {
                 continue;
@@ -200,7 +253,9 @@ impl Fixer<'_, '_> {
                         return Fix::Remove;
                     }
                     Owner::Missing(account) => {
-                        self.pending.push((OWNER_REFERENCE.to_string(), account));
+                        self.pending
+                            .push((OWNER_REFERENCE.to_string(), account, Gap::Missing));
+                        self.pending.append(&mut outside);
                         return Fix::Remove;
                     }
                 }
@@ -212,19 +267,33 @@ impl Fixer<'_, '_> {
                 if prop.ty.nullable {
                     *value = Value::Null;
                     self.absorb();
+                } else if self
+                    .pending
+                    .iter()
+                    .all(|(_, _, gap)| *gap == Gap::OtherTenant)
+                {
+                    outside.append(&mut self.pending);
                 } else {
+                    self.pending.append(&mut outside);
                     return Fix::Remove;
                 }
             }
         }
-        Fix::Keep
+        if outside.is_empty() {
+            Fix::Keep
+        } else {
+            self.pending.append(&mut outside);
+            Fix::Remove
+        }
     }
 
     fn value(&mut self, ty: &TypeDef, value: &mut Value) -> Fix {
         match &ty.ty {
             Type::ObjectId(target) => {
-                if let Some(missing) = value.as_str().and_then(|id| self.missing(target, id)) {
-                    self.pending.push((self.path.as_str().to_string(), missing));
+                if let Some((missing, gap)) = value.as_str().and_then(|id| self.missing(target, id))
+                {
+                    self.pending
+                        .push((self.path.as_str().to_string(), missing, gap));
                     return Fix::Remove;
                 }
                 Fix::Keep
@@ -292,19 +361,27 @@ impl Fixer<'_, '_> {
     }
 
     fn remove_missing_keys(&mut self, target: &str, members: &mut Map<String, Value>) {
-        let missing: Vec<(String, ObjectKey)> = members
+        let missing: Vec<(String, ObjectKey, Gap)> = members
             .keys()
-            .filter_map(|k| self.missing(target, k).map(|m| (k.clone(), m)))
+            .filter_map(|k| self.missing(target, k).map(|(m, gap)| (k.clone(), m, gap)))
             .collect();
-        for (member, target_key) in missing {
+        for (member, target_key, gap) in missing {
             members.remove(&member);
             let path = self.path.child(&member);
-            self.report.push(
-                self.key,
-                &path,
-                Change::ReferenceCleared { target: target_key },
-            );
+            self.report.push(self.key, &path, gap.cleared(target_key));
         }
+    }
+}
+
+fn tenant_scoped(schema: &Schema, object: &str) -> bool {
+    let has_tenant = |fields: &str| schema.property(fields, TENANT_REFERENCE).is_some();
+    match schema.schema(object) {
+        Some(SchemaDef::Single(fields)) => has_tenant(fields),
+        Some(SchemaDef::Union(variants)) => variants
+            .iter()
+            .filter_map(|variant| variant.schema.as_deref())
+            .any(has_tenant),
+        None => false,
     }
 }
 

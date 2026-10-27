@@ -22,15 +22,19 @@ use bytes::Bytes;
 use model::{
     AccountPointers, AccountRef, BlobHash, ChangeBounds, ChangeLogRecord, Changes, Collection,
     Counters, GlobalCategory, GlobalPage, InternalReportRecord, LogCollection, LogRange,
-    QuotaUsage, RecordPage, RegistryCounter, RegistryKey, RegistryRecord, ShareNotificationRecord,
-    Source,
+    QuotaUsage, RecordPage, RegistryCounter, RegistryEntries, RegistryKey, RegistryRecord,
+    ShareNotificationRecord, Source,
 };
 use store::{BlobStore, Store};
 use tokio::sync::OnceCell;
 
 pub use error::{OpenError, trc_error};
 pub use global::{is_derived_task_id, is_singleton_task, is_singleton_task_id, singleton_task_id};
-pub use registry::is_stored as registry_object_is_stored;
+pub use registry::{
+    expired_at as registry_object_expired_at, expires_on_start as registry_object_expires_on_start,
+    is_certificate as registry_object_is_certificate, is_stored as registry_object_is_stored,
+    refreshed_on_start as registry_object_refreshed_on_start,
+};
 
 pub type PathRewrite = Box<dyn Fn(&str) -> String + Send + Sync>;
 
@@ -194,7 +198,7 @@ impl Source for V1Source {
         object: &str,
         after: Option<u64>,
         limit: usize,
-    ) -> model::Result<Vec<RegistryRecord>> {
+    ) -> model::Result<RegistryEntries> {
         registry::page(&self.data, object, after, limit).await
     }
 

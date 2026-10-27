@@ -28,8 +28,8 @@ use model::{
     ContactRecord, Counters, EmailRecord, Error, EventNotificationRecord, FileNodeRecord,
     FileRecord, GlobalBatch, GlobalCategory, GlobalKey, GlobalPage, IdentityRecord,
     InternalReportRecord, Issue, IssueKind, LogChanges, LogCollection, LogEntry, LogRange,
-    MailboxRecord, MailboxUid, Pointer, RecordBatch, RecordPage, RegistryCounter, RegistryId,
-    RegistryKey, RegistryRecord, ReportKind, Result, Severity, ShareNotificationRecord,
+    MailboxRecord, MailboxUid, Pointer, RecordBatch, RecordPage, RegistryCounter, RegistryEntries,
+    RegistryId, RegistryKey, RegistryRecord, ReportKind, Result, Severity, ShareNotificationRecord,
     SieveRecord, Source, SpamModelChange, SpamModelKind, SpamModelRecord, Subject,
     SubmissionRecord, Target, TargetProbe, WriteMode, WriteOutcome,
 };
@@ -220,6 +220,7 @@ pub struct SourceWorld {
     pub id_counters: Vec<RegistryCounter>,
     pub undecodable: BTreeSet<(u32, Collection, u32)>,
     pub undecodable_queued: BTreeSet<u64>,
+    pub unreadable_registry: BTreeSet<RegistryKey>,
     pub catch_up_fails: bool,
     pub starts_on_queue_read: bool,
     pub starts_on_scan: bool,
@@ -511,21 +512,26 @@ impl Source for FakeSource {
         object: &str,
         after: Option<u64>,
         limit: usize,
-    ) -> Result<Vec<RegistryRecord>> {
+    ) -> Result<RegistryEntries> {
         let world = lock(&self.world);
-        Ok(world
-            .registry
-            .iter()
-            .filter(|(key, _)| {
-                &*key.object == object
-                    && after.is_none_or(|after| key.id.id().is_some_and(|id| id > after))
-            })
-            .take(limit)
-            .map(|(key, json)| RegistryRecord {
-                key: key.clone(),
-                json: json.clone(),
-            })
-            .collect())
+        let mut entries = RegistryEntries::default();
+        for (key, json) in world.registry.iter().filter(|(key, _)| {
+            &*key.object == object
+                && after.is_none_or(|after| key.id.id().is_some_and(|id| id > after))
+        }) {
+            if entries.records.len() == limit {
+                break;
+            }
+            if world.unreadable_registry.contains(key) {
+                entries.unreadable.push(key.clone());
+            } else {
+                entries.records.push(RegistryRecord {
+                    key: key.clone(),
+                    json: json.clone(),
+                });
+            }
+        }
+        Ok(entries)
     }
 
     async fn registry_id_counters(&self) -> Result<Vec<RegistryCounter>> {
@@ -1009,6 +1015,7 @@ pub struct TargetWorld {
     pub blobs: BTreeSet<BlobHash>,
     pub blob_data: HashMap<BlobHash, Bytes>,
     pub lost_blobs: BTreeSet<BlobHash>,
+    pub stored_blobs: BTreeSet<BlobHash>,
     pub blob_puts: u64,
     pub blob_puts_by_hash: BTreeMap<BlobHash, u64>,
     pub commits: BTreeMap<CommitKind, u64>,
@@ -1283,6 +1290,9 @@ impl FakeTarget {
                 && let Some(map) = json.as_object_mut()
             {
                 map.insert("createdAt".into(), 1.into());
+            }
+            if let Some(hash) = self.registry_blob(record) {
+                world.blobs.insert(hash);
             }
             world.registry.insert(record.key.clone(), json);
         }
@@ -1808,6 +1818,14 @@ impl Target for FakeTarget {
             .collect())
     }
 
+    async fn stored_blobs_exist(&self, hashes: &[BlobHash]) -> Result<Vec<bool>> {
+        let world = lock(&self.world);
+        Ok(hashes
+            .iter()
+            .map(|hash| world.stored_blobs.contains(hash))
+            .collect())
+    }
+
     fn registry_blob(&self, record: &RegistryRecord) -> Option<BlobHash> {
         record
             .json
@@ -2119,21 +2137,24 @@ impl Source for FakeReader {
         object: &str,
         after: Option<u64>,
         limit: usize,
-    ) -> Result<Vec<RegistryRecord>> {
+    ) -> Result<RegistryEntries> {
         let world = lock(&self.target.world);
-        Ok(world
-            .registry
-            .iter()
-            .filter(|(key, _)| {
-                &*key.object == object
-                    && after.is_none_or(|after| key.id.id().is_some_and(|id| id > after))
-            })
-            .take(limit)
-            .map(|(key, json)| RegistryRecord {
-                key: key.clone(),
-                json: json.clone(),
-            })
-            .collect())
+        Ok(RegistryEntries {
+            records: world
+                .registry
+                .iter()
+                .filter(|(key, _)| {
+                    &*key.object == object
+                        && after.is_none_or(|after| key.id.id().is_some_and(|id| id > after))
+                })
+                .take(limit)
+                .map(|(key, json)| RegistryRecord {
+                    key: key.clone(),
+                    json: json.clone(),
+                })
+                .collect(),
+            unreadable: Vec::new(),
+        })
     }
 
     async fn registry_id_counters(&self) -> Result<Vec<RegistryCounter>> {

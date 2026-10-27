@@ -12,18 +12,19 @@ use email::{
 use model::{BlobHash, Changes, Collection, IssueKind, RegistryId, Source, Subject};
 use registry::{
     schema::{
-        prelude::{ObjectInner, ObjectType},
+        prelude::{Object, ObjectInner, ObjectType},
         structs,
     },
     types::EnumImpl,
 };
 use store::{
-    Store, ValueKey,
+    Deserialize, Store, ValueKey,
     write::{AlignedBytes, Archive, BatchBuilder, RegistryClass, ValueClass},
 };
+use trc::Key;
 use types::{collection::Collection as V016Collection, field::Field, id::Id, keyword::Keyword};
 
-use super::{SourceConfig, V016Source, tests::source};
+use super::{SourceConfig, V016Source, error::trc_error, tests::source};
 use crate::testkit::{ACCOUNT, archive, commit, register_account, rocks, seed};
 
 fn message(thread_id: u32, uid: u32, keywords: Vec<Keyword>) -> MessageData {
@@ -202,7 +203,8 @@ async fn registry_secrets_round_trip() {
     let accounts = source
         .registry_page("Account", None, 10)
         .await
-        .expect("page");
+        .expect("page")
+        .records;
     let json = accounts[0].json.to_string();
     assert!(json.contains(hash), "{json}");
     assert!(json.contains("otpauth://totp/x?secret=ABC"), "{json}");
@@ -421,7 +423,8 @@ async fn registry_pages_are_exact() {
         let page = source
             .registry_page("Domain", after, 3)
             .await
-            .expect("page");
+            .expect("page")
+            .records;
         let Some(last) = page.last() else {
             break;
         };
@@ -689,4 +692,82 @@ async fn shared_reader_rereads_the_blob_store_on_catch_up() {
     assert_eq!(reader.blobs_exist(&hash).await.expect("exists"), [true]);
     reader.catch_up().await.expect("catch up");
     assert_eq!(reader.blobs_exist(&hash).await.expect("exists"), [false]);
+}
+
+// Undecodable registry entries are skipped and reported without stalling or ending pagination.
+#[tokio::test]
+async fn registry_pages_skip_unreadable_entries() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let singleton = Id::singleton().id();
+    let bad: [u64; 6] = [2, 4, 5, 6, 10, singleton];
+    {
+        let store = Store::build(rocks(dir.path())).await.expect("writer");
+        let mut batch = BatchBuilder::new();
+        for id in (1..=10u64).chain([singleton]) {
+            let value = if bad.contains(&id) {
+                b"\xffnot a pickled registry object".to_vec()
+            } else {
+                ObjectInner::Domain(structs::Domain {
+                    name: format!("d{id}.org"),
+                    ..Default::default()
+                })
+                .to_pickled_vec()
+            };
+            batch.set(
+                ValueClass::Registry(RegistryClass::Item {
+                    object_id: ObjectType::Domain.to_id(),
+                    item_id: id,
+                }),
+                value,
+            );
+        }
+        store.write(batch.build_all()).await.expect("registry");
+    }
+    let source = source(dir.path()).await;
+    let mut after = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = source
+            .registry_page("Domain", after, 2)
+            .await
+            .expect("page");
+        let ids: Vec<RegistryId> = page.records.iter().map(|record| record.key.id).collect();
+        let unreadable: Vec<RegistryId> = page.unreadable.iter().map(|key| key.id).collect();
+        let Some(&RegistryId::Id(last)) = ids.last() else {
+            pages.push((ids, unreadable));
+            break;
+        };
+        after = Some(last);
+        pages.push((ids, unreadable));
+    }
+    let id = RegistryId::Id;
+    assert_eq!(
+        pages,
+        [
+            (vec![id(1), id(3)], vec![id(2)]),
+            (vec![id(7), id(8)], vec![id(4), id(5), id(6)]),
+            (vec![id(9)], vec![id(10), RegistryId::Singleton]),
+            (vec![], vec![id(10), RegistryId::Singleton]),
+        ]
+    );
+}
+
+// Registry decode errors do not leak the raw stored value into the message.
+#[test]
+fn trc_error_omits_the_stored_value() {
+    let key = [
+        ObjectType::Domain.to_id().to_be_bytes().as_slice(),
+        &1u64.to_be_bytes(),
+    ]
+    .concat();
+    let err = <Object as Deserialize>::deserialize_with_key(&key, b"\xffprivate key material")
+        .expect_err("undecodable");
+    let shown = err.value(Key::Value).expect("value").to_string();
+    assert!(shown.len() > 8 && err.to_string().contains(&shown));
+    let message = trc_error(err).to_string();
+    assert!(!message.contains(&shown), "{message}");
+    assert!(
+        message.contains("registry.deserialization-error"),
+        "{message}"
+    );
 }

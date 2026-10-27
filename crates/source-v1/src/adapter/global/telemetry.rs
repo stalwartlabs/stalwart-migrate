@@ -9,16 +9,20 @@
  */
 
 use model::{
-    GlobalBatch, GlobalPage, Issue, IssueKind, RegistryKey, Severity, Subject, TaggedCursor,
-    TelemetryKind, TelemetryRecord,
+    GlobalBatch, GlobalPage, Issue, IssueKind, RegistryKey, Severity, Subject, TEXT_TIMESTAMPS,
+    TaggedCursor, TelemetryKind, TelemetryRecord,
 };
 use registry::{
     schema::{
         prelude::{Object, ObjectInner, ObjectType},
-        structs::{DataStore, Metric, MetricsStore, Trace, TracingStore},
+        structs::{
+            DataStore, Metric, MetricsStore, Trace, TraceKeyValue, TraceValue, TracingStore,
+        },
     },
-    types::EnumImpl,
+    types::{EnumImpl, datetime::UTCDateTime, list::List},
 };
+use serde_json::Value;
+use std::fmt::Write;
 use store::{
     Deserialize, IterateParams, Store, U64_LEN, ValueKey,
     write::{RegistryClass, TelemetryClass, ValueClass, key::DeserializeBigEndian},
@@ -92,11 +96,80 @@ fn key(kind: TelemetryKind, id: u64) -> ValueKey<ValueClass> {
     }))
 }
 
+const SPAN_EVENTS: &str = "events";
+const EVENT_TIMESTAMP: &str = "timestamp";
+const EVENT_KEY_VALUES: &str = "keyValues";
+const VALUE: &str = "value";
+
+#[derive(Default)]
+struct SpanJson {
+    key: String,
+}
+
+impl SpanJson {
+    fn encode(trace: &Trace) -> serde_json::Result<Value> {
+        let mut json = serde_json::to_value(trace)?;
+        if let Some(events) = json.get_mut(SPAN_EVENTS) {
+            let mut encoder = SpanJson::default();
+            for (id, event) in trace.events.0.iter() {
+                if let Some(slot) = encoder.entry(events, *id) {
+                    Self::timestamp(event.timestamp, slot.get_mut(EVENT_TIMESTAMP));
+                    encoder.key_values(&event.key_values, slot.get_mut(EVENT_KEY_VALUES));
+                }
+            }
+        }
+        Ok(json)
+    }
+
+    fn entry<'x>(&mut self, list: &'x mut Value, id: u32) -> Option<&'x mut Value> {
+        self.key.clear();
+        write!(self.key, "{id}").ok()?;
+        list.get_mut(self.key.as_str())
+    }
+
+    fn timestamp(timestamp: UTCDateTime, slot: Option<&mut Value>) {
+        if let Some(slot) = slot
+            && !TEXT_TIMESTAMPS.contains(&timestamp.timestamp())
+        {
+            *slot = Value::from(timestamp.timestamp());
+        }
+    }
+
+    fn key_values(&mut self, list: &List<TraceKeyValue>, json: Option<&mut Value>) {
+        let Some(json) = json else {
+            return;
+        };
+        for (id, pair) in list.0.iter() {
+            if let Some(slot) = self.entry(json, *id).and_then(|entry| entry.get_mut(VALUE)) {
+                self.value(&pair.value, slot);
+            }
+        }
+    }
+
+    fn value(&mut self, value: &TraceValue, json: &mut Value) {
+        match value {
+            TraceValue::UTCDateTime(value) => Self::timestamp(value.value, json.get_mut(VALUE)),
+            TraceValue::Event(event) => self.key_values(&event.value, json.get_mut(VALUE)),
+            TraceValue::List(list) => {
+                let Some(items) = json.get_mut(VALUE) else {
+                    return;
+                };
+                for (id, item) in list.value.0.iter() {
+                    if let Some(slot) = self.entry(items, *id) {
+                        self.value(item, slot);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn decode(kind: TelemetryKind, value: &[u8]) -> Result<serde_json::Value, String> {
     match kind {
         TelemetryKind::Span => <Trace as Deserialize>::deserialize(value)
             .map_err(|err| err.to_string())
-            .and_then(|trace| serde_json::to_value(trace).map_err(|err| err.to_string())),
+            .and_then(|trace| SpanJson::encode(&trace).map_err(|err| err.to_string())),
         TelemetryKind::Metric => <Metric as Deserialize>::deserialize(value)
             .map_err(|err| err.to_string())
             .and_then(|metric| serde_json::to_value(metric).map_err(|err| err.to_string()))

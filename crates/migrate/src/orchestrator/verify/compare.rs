@@ -48,6 +48,7 @@ fn keyword_set(keywords: &[Box<str>]) -> Vec<Box<str>> {
     let mut keywords: Vec<Box<str>> = keywords
         .iter()
         .map(|keyword| keyword.to_ascii_lowercase().into_boxed_str())
+        .filter(|keyword| !hashify::set!(keyword.as_bytes(), "$hasattachment", "$hasnoattachment"))
         .collect();
     keywords.sort_unstable();
     keywords.dedup();
@@ -1073,5 +1074,31 @@ mod tests {
         };
         email.compare(&target, &mut fields);
         assert_eq!(fields, ["headers"]);
+    }
+
+    // v1 derives $hasattachment and $hasnoattachment from the message, so stored values are not compared.
+    #[test]
+    fn email_ignores_server_set_keywords() {
+        let email = EmailRecord {
+            keywords: vec![
+                "$seen".into(),
+                "$HasAttachment".into(),
+                "$hasnoattachment".into(),
+            ],
+            ..Default::default()
+        };
+        let target = EmailRecord {
+            keywords: vec!["$seen".into()],
+            ..Default::default()
+        };
+        let mut fields = Fields::new();
+        email.compare(&target, &mut fields);
+        assert!(fields.is_empty());
+        let target = EmailRecord {
+            keywords: vec!["$hasattachment".into()],
+            ..Default::default()
+        };
+        email.compare(&target, &mut fields);
+        assert_eq!(fields, ["keywords"]);
     }
 }

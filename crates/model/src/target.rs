@@ -192,6 +192,11 @@ pub trait Target: Send + Sync + 'static {
 
     fn blobs_exist(&self, hashes: &[BlobHash]) -> impl Future<Output = Result<Vec<bool>>> + Send;
 
+    fn stored_blobs_exist(
+        &self,
+        hashes: &[BlobHash],
+    ) -> impl Future<Output = Result<Vec<bool>>> + Send;
+
     fn put_blob(&self, hash: &BlobHash, data: Bytes) -> impl Future<Output = Result<()>> + Send;
 
     fn registry_blob(&self, _record: &RegistryRecord) -> Option<BlobHash> {

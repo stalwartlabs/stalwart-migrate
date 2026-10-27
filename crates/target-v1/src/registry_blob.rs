@@ -60,10 +60,18 @@ impl TemporaryLink {
     }
 
     pub(crate) fn set(&self, batch: &mut BatchBuilder, object_id: ObjectId) {
-        batch.with_account_id(self.account_id).set(
-            self.op(),
-            BlobLinkValue::new(self.size).with_object_id(object_id),
-        );
+        batch
+            .with_account_id(self.account_id)
+            .set(
+                self.op(),
+                BlobLinkValue::new(self.size).with_object_id(object_id),
+            )
+            .set(
+                BlobOp::Commit {
+                    hash: self.hash.clone(),
+                },
+                Vec::new(),
+            );
     }
 
     pub(crate) fn clear(&self, batch: &mut BatchBuilder) {

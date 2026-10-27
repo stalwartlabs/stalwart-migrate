@@ -504,7 +504,7 @@ Plans are converted separately from the data migration. The migrated v1 store al
 The converter is not part of the release archives or the Docker image. It requires Python 3.11 or later and no other modules, and it runs from a checkout of this repository at the tag of the release, because it reads the schema snapshots and mapping rules in `mapping/`:
 
 ```sh
-git clone --depth 1 --branch v1.0.0 https://github.com/stalwartlabs/stalwart-migrate.git
+git clone --depth 1 --branch v1.0.1 https://github.com/stalwartlabs/stalwart-migrate.git
 cd stalwart-migrate
 ```
 

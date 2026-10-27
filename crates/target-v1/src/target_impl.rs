@@ -265,6 +265,17 @@ impl Target for V1Target {
             .await
     }
 
+    async fn stored_blobs_exist(&self, hashes: &[BlobHash]) -> model::Result<Vec<bool>> {
+        let server = self.server()?;
+        let blob_store = server.blob_store();
+        stream::iter(hashes.iter().copied())
+            .map(|hash| async move { blob_store.has_blob(hash.as_bytes()).await })
+            .buffered(BLOB_CONCURRENCY)
+            .map_err(trc_error)
+            .try_collect()
+            .await
+    }
+
     async fn put_blob(&self, hash: &BlobHash, data: Bytes) -> model::Result<()> {
         let server = self.server()?;
         server

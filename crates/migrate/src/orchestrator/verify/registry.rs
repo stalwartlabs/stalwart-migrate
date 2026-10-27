@@ -9,6 +9,7 @@ use model::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::Value;
+use source_v1::{registry_object_expires_on_start, registry_object_refreshed_on_start};
 
 use super::super::{
     RegistryConverter,
@@ -47,7 +48,7 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
     limit: usize,
 ) -> Result<RegistryCheck, RunError> {
     let categories = registry_categories(categories);
-    let objects = read_registry(source, policy, limit).await?;
+    let objects = read_registry(source, policy, limit).await?.records;
     let stock = converter.missing_spam_tags(&objects);
     let converted = converter
         .convert(objects, categories)
@@ -98,6 +99,7 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
     let mut blobs: Vec<(BlobHash, RegistryKey)> = Vec::new();
     let stored: Vec<RegistryRecord> = read_registry(target, policy, limit)
         .await?
+        .records
         .into_iter()
         .filter(|record| categories.contains(converter.category(&record.key.object)))
         .collect();
@@ -146,12 +148,23 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
     let mut expected: Vec<(&RegistryKey, &Value)> = canonical.iter().collect();
     expected.sort_unstable_by(|left, right| left.0.cmp(right.0));
     for (key, json) in expected {
+        let refreshed = registry_object_refreshed_on_start(&key.object, json);
         match actual.remove(key) {
             Some(actual) if actual == *json || fallbacks.get(key) == Some(&actual) => {}
+            Some(_) if refreshed => report(
+                key,
+                "the target object differs from the converted source object; Stalwart refreshes file-backed certificates when it starts",
+                true,
+            ),
             Some(_) => report(
                 key,
                 "the target object differs from the converted source object",
                 false,
+            ),
+            None if refreshed => report(
+                key,
+                "the converted source object is missing in the target; Stalwart deletes expired file-backed certificates when it starts",
+                true,
             ),
             None => report(
                 key,
@@ -165,7 +178,10 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
             object: converter.target_object(&key.object),
             id: key.id,
         };
-        if !canonical.contains_key(&key) && actual.remove(&key).is_some() {
+        if !canonical.contains_key(&key)
+            && actual.remove(&key).is_some()
+            && !registry_object_expires_on_start(&key.object)
+        {
             report(
                 &key,
                 "the object was dropped by the conversion but exists in the target",

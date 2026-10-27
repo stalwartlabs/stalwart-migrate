@@ -9,6 +9,7 @@ use std::io::{self, BufRead, Write};
 use mapping::{
     Answers, Instance, Mapping, ObjectKey, Options, Outcome, SourceObject, TargetObject,
 };
+use model::RegistryKey;
 use serde_json::json;
 
 use super::{Confirmation, Prepare, Prepared, Terminal, load_answers, summary, write_outputs};
@@ -58,6 +59,7 @@ fn interactive_prepare_answers_every_question() {
         mapping: &mapping,
         options: Options::default(),
         objects: objects(),
+        unreadable: Vec::new(),
     };
     let mut answers = Answers::default();
     assert!(!prepare.validate(&answers).is_complete());
@@ -102,6 +104,7 @@ fn closed_input_is_an_error() {
         mapping: &mapping,
         options: Options::default(),
         objects: objects(),
+        unreadable: Vec::new(),
     };
     let mut terminal = Scripted {
         input: b"",
@@ -133,6 +136,7 @@ fn external_blob_store_announces_the_spam_model_overwrite() {
             ..Default::default()
         },
         problems: Vec::new(),
+        unreadable: Vec::new(),
         answered: 0,
     };
     let text = summary(&prepared("S3"));
@@ -145,4 +149,44 @@ fn external_blob_store_announces_the_spam_model_overwrite() {
         "{text}"
     );
     assert!(!summary(&prepared("Default")).contains("spam"));
+}
+
+// Unreadable source entries are listed as warnings and do not block completion.
+#[test]
+fn unreadable_entries_are_warnings() {
+    let mapping = Mapping::embedded().expect("mapping");
+    let prepare = Prepare {
+        mapping: &mapping,
+        options: Options::default(),
+        objects: objects(),
+        unreadable: vec![
+            RegistryKey::singleton("MtaHook"),
+            RegistryKey::new("WebHook", 7),
+        ],
+    };
+    let mut answers = Answers::default();
+    let input = script();
+    let mut terminal = Scripted {
+        input: &input,
+        output: Vec::new(),
+        secrets: 0,
+    };
+    let (prepared, confirmation) = prepare
+        .interactive(&mut answers, &mut terminal)
+        .expect("prepare");
+    let output = String::from_utf8(terminal.output).expect("utf8");
+    assert_eq!(confirmation, Confirmation::Write, "{output}");
+    assert!(prepared.is_complete(), "{:?}\n{output}", prepared.problems);
+    assert!(
+        output.contains("2 settings objects are unreadable in the v0.16 store"),
+        "{output}"
+    );
+    assert!(output.contains("\n  MtaHook\n  WebHook/7\n"), "{output}");
+    assert!(prepare.validate(&answers).is_complete());
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    write_outputs(dir.path(), &mapping, &answers, &prepared).expect("write");
+    let report = std::fs::read_to_string(dir.path().join(super::REPORT_FILE)).expect("report");
+    assert!(report.contains("also ignored by v0.16.27"), "{report}");
+    assert!(report.contains("\n  MtaHook\n  WebHook/7\n"), "{report}");
 }

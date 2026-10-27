@@ -58,6 +58,12 @@ pub struct RegistryRecord {
     pub json: serde_json::Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RegistryEntries {
+    pub records: Vec<RegistryRecord>,
+    pub unreadable: Vec<RegistryKey>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryCounter {
     pub object: Box<str>,

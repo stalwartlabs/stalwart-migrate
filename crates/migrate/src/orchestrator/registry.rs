@@ -8,8 +8,8 @@ use crate::failpoint::failpoint;
 use std::fmt;
 
 use model::{
-    BlobHash, Category, CategorySet, Issue, IssueKind, RegistryKey, RegistryRecord, Rejection,
-    Severity, Source, Subject, Target, TaskRecord, WriteOutcome,
+    BlobHash, Category, CategorySet, Issue, IssueKind, RegistryEntries, RegistryKey,
+    RegistryRecord, Rejection, Severity, Source, Subject, Target, TaskRecord, WriteOutcome,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Map, Value};
@@ -26,6 +26,8 @@ use super::{
 };
 
 const STOCK_SPAM_TAG_OBJECT: &str = "SpamTag";
+
+const UNREADABLE_REGISTRY: &str = "unreadable in the v0.16 store and also ignored by v0.16.27; not migrated, recreate it in v1 if needed";
 
 pub trait RegistryConverter: Send + Sync + 'static {
     fn category(&self, object: &str) -> Category;
@@ -138,18 +140,20 @@ pub async fn read_registry<S: Source>(
     source: &S,
     policy: RetryPolicy,
     limit: usize,
-) -> model::Result<Vec<RegistryRecord>> {
+) -> model::Result<RegistryEntries> {
     let types = retry(policy, || source.registry_types()).await?;
-    let mut objects = Vec::new();
+    let mut entries = RegistryEntries::default();
     for object in types.iter() {
         let mut after = None;
         loop {
             let page = retry(policy, || source.registry_page(object, after, limit)).await?;
+            entries.unreadable.extend(page.unreadable);
+            let page = page.records;
             let Some(last) = page.last().map(|record| record.key.id) else {
                 break;
             };
             let model::RegistryId::Id(last) = last else {
-                objects.extend(page);
+                entries.records.extend(page);
                 break;
             };
             if after.is_some_and(|after| last <= after) {
@@ -158,10 +162,12 @@ pub async fn read_registry<S: Source>(
                 )));
             }
             after = Some(last);
-            objects.extend(page);
+            entries.records.extend(page);
         }
     }
-    Ok(objects)
+    entries.unreadable.sort_unstable();
+    entries.unreadable.dedup();
+    Ok(entries)
 }
 
 #[derive(Default)]
@@ -184,7 +190,10 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
     ) -> Result<BlobRecords, RunError> {
         let limit = self.options.tuning.batch_ops;
         let categories = registry_categories(self.options.categories);
-        let objects = read_registry(&*self.source, self.policy(), limit).await?;
+        let RegistryEntries {
+            records: objects,
+            unreadable,
+        } = read_registry(&*self.source, self.policy(), limit).await?;
         self.check_shutdown()?;
 
         let mut buf = Vec::new();
@@ -365,6 +374,19 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
                 _ => !changed.is_empty(),
             })
             .collect();
+        issues.extend(
+            unreadable
+                .into_iter()
+                .filter(|key| categories.contains(self.converter.category(&key.object)))
+                .map(|key| {
+                    Issue::new(
+                        Severity::Warning,
+                        IssueKind::Skipped,
+                        Subject::Registry(key),
+                        UNREADABLE_REGISTRY,
+                    )
+                }),
+        );
         let in_flight: Vec<RegistryKey> = writes
             .iter()
             .chain(&blob_records.writes)
@@ -616,10 +638,8 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         let in_flight: Vec<RegistryKey> = writes.iter().map(|record| record.key.clone()).collect();
         let mut failed = FxHashSet::default();
         let mut issues = Vec::new();
-        if self.options.blob_mode == BlobMode::Copy {
-            self.copy_registry_blobs(&mut writes, &mut failed, &mut issues)
-                .await?;
-        }
+        self.drop_missing_registry_blobs(&mut writes, &mut failed, &mut issues)
+            .await?;
         for chunk in writes.chunks(self.options.tuning.batch_ops.max(1)) {
             self.check_shutdown()?;
             let outcome = self.write_registry_records(chunk, &mut failed).await?;
@@ -672,7 +692,7 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         Ok(())
     }
 
-    async fn copy_registry_blobs(
+    async fn drop_missing_registry_blobs(
         &self,
         writes: &mut Vec<RegistryRecord>,
         failed: &mut FxHashSet<RegistryKey>,
@@ -689,13 +709,17 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         if refs.is_empty() {
             return Ok(());
         }
-        let missing = self
-            .copy_missing_blobs(
-                refs.iter()
-                    .map(|(hash, _)| (*hash, BLOB_MEMORY_PER_SLOT))
-                    .collect(),
-            )
-            .await?;
+        let missing = match self.options.blob_mode {
+            BlobMode::Copy => {
+                self.copy_missing_blobs(
+                    refs.iter()
+                        .map(|(hash, _)| (*hash, BLOB_MEMORY_PER_SLOT))
+                        .collect(),
+                )
+                .await?
+            }
+            BlobMode::Shared => self.missing_stored_blobs(&refs).await?,
+        };
         if missing.is_empty() {
             return Ok(());
         }
@@ -712,6 +736,27 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         }
         writes.retain(|record| !failed.contains(&record.key));
         Ok(())
+    }
+
+    async fn missing_stored_blobs(
+        &self,
+        refs: &[(BlobHash, RegistryKey)],
+    ) -> Result<Vec<BlobHash>, RunError> {
+        let mut hashes: Vec<BlobHash> = refs.iter().map(|(hash, _)| *hash).collect();
+        hashes.sort_unstable();
+        hashes.dedup();
+        let mut missing = Vec::new();
+        for chunk in hashes.chunks(self.options.tuning.batch_ops.max(1)) {
+            self.check_shutdown()?;
+            let exist = self.retry(|| self.target.stored_blobs_exist(chunk)).await?;
+            missing.extend(
+                chunk
+                    .iter()
+                    .zip(exist)
+                    .filter_map(|(hash, exists)| (!exists).then_some(*hash)),
+            );
+        }
+        Ok(missing)
     }
 
     async fn held_registry_removals(
@@ -949,8 +994,9 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         {
             return Ok(());
         }
-        let objects =
-            read_registry(&*self.source, self.policy(), self.options.tuning.batch_ops).await?;
+        let objects = read_registry(&*self.source, self.policy(), self.options.tuning.batch_ops)
+            .await?
+            .records;
         let records = self.converter.missing_spam_tags(&objects);
         if records.is_empty() {
             return Ok(());

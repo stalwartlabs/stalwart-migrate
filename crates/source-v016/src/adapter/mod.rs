@@ -27,7 +27,7 @@ use bytes::Bytes;
 use model::{
     AccountPointers, AccountRef, BlobHash, ChangeLogRecord, Changes, Collection, Counters,
     GlobalCategory, GlobalPage, LogCollection, LogRange, RecordPage, RegistryCounter,
-    RegistryRecord, ShareNotificationRecord, Source,
+    RegistryEntries, RegistryRecord, ShareNotificationRecord, Source,
 };
 use store::{BlobStore, Store};
 use tokio::{
@@ -331,7 +331,7 @@ impl Source for V016Source {
         object: &str,
         after: Option<u64>,
         limit: usize,
-    ) -> model::Result<Vec<RegistryRecord>> {
+    ) -> model::Result<RegistryEntries> {
         registry::page(&self.data(), object, after, limit).await
     }
 

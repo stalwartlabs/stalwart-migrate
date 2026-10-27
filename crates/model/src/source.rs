@@ -18,7 +18,7 @@ use crate::{
     global::{GlobalCategory, GlobalPage},
     ids::{BlobHash, Collection, LogCollection},
     queue::InternalReportRecord,
-    registry::{RegistryCounter, RegistryKey, RegistryRecord},
+    registry::{RegistryCounter, RegistryEntries, RegistryKey, RegistryRecord},
 };
 
 const LAST_CHANGE_PAGE: usize = 1024;
@@ -37,7 +37,7 @@ pub trait Source: Send + Sync + 'static {
         object: &str,
         after: Option<u64>,
         limit: usize,
-    ) -> impl Future<Output = Result<Vec<RegistryRecord>>> + Send;
+    ) -> impl Future<Output = Result<RegistryEntries>> + Send;
 
     fn registry_id_counters(&self) -> impl Future<Output = Result<Vec<RegistryCounter>>> + Send;
 

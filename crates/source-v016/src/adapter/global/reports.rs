@@ -5,7 +5,10 @@
  */
 
 use ::registry::{schema::prelude::ObjectType, types::EnumImpl};
-use model::{GlobalBatch, GlobalPage, InternalReportRecord, RegistryId, ReportKind, TaggedCursor};
+use model::{
+    GlobalBatch, GlobalPage, InternalReportRecord, Issue, IssueKind, RegistryEntries, RegistryId,
+    ReportKind, Severity, Subject, TaggedCursor,
+};
 use store::Store;
 
 use crate::adapter::registry;
@@ -22,13 +25,25 @@ pub(super) async fn page(
 ) -> model::Result<GlobalPage> {
     let limit = limit.max(1);
     let mut records = Vec::with_capacity(limit.min(1024));
+    let mut issues = Vec::new();
     let mut cursor = TaggedCursor::<{ KINDS.len() }>::decode(cursor)?;
     while let Some((tag, first)) = cursor.position() {
         let Some(&(kind, object)) = KINDS.get(tag) else {
             break;
         };
         let remaining = limit - records.len();
-        let page = registry::page(store, object.as_str(), first.checked_sub(1), remaining).await?;
+        let RegistryEntries {
+            records: page,
+            unreadable,
+        } = registry::page(store, object.as_str(), first.checked_sub(1), remaining).await?;
+        issues.extend(unreadable.into_iter().map(|key| {
+            Issue::new(
+                Severity::Warning,
+                IssueKind::Skipped,
+                Subject::Registry(key),
+                format!("undecodable v0.16 {}, not migrated", object.as_str()),
+            )
+        }));
         let full = page.len() == remaining;
         if let Some(last) = page.last().and_then(|record| record.key.id.id()) {
             cursor.record(last);
@@ -44,7 +59,7 @@ pub(super) async fn page(
         if full {
             return Ok(GlobalPage {
                 batch: GlobalBatch::Reports(records),
-                issues: Vec::new(),
+                issues,
                 next: Some(cursor.encode()),
                 resume: None,
             });
@@ -53,7 +68,7 @@ pub(super) async fn page(
     }
     Ok(GlobalPage {
         batch: GlobalBatch::Reports(records),
-        issues: Vec::new(),
+        issues,
         next: None,
         resume: Some(cursor.restart()),
     })

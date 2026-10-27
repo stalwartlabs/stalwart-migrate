@@ -15,7 +15,7 @@ use mapping::{
     Answer, Answers, Direction, Instance, Level, Mapping, Options, Outcome, Question, SourceObject,
     prompts::{Choice, Field, FieldKind, Required},
 };
-use model::{CategorySet, RegistryRecord, Source};
+use model::{CategorySet, RegistryEntries, RegistryKey, RegistryRecord, Source};
 use serde_json::Value;
 
 use crate::{
@@ -79,12 +79,14 @@ pub struct Prepare<'x> {
     pub mapping: &'x Mapping,
     pub options: Options,
     pub objects: Vec<SourceObject>,
+    pub unreadable: Vec<RegistryKey>,
 }
 
 #[derive(Debug)]
 pub struct Prepared {
     pub outcome: Outcome,
     pub problems: Vec<Box<str>>,
+    pub unreadable: Vec<RegistryKey>,
     pub answered: usize,
 }
 
@@ -104,15 +106,19 @@ pub async fn source_objects<S: Source>(
     source: &S,
     policy: RetryPolicy,
     limit: usize,
-) -> model::Result<Vec<SourceObject>> {
-    Ok(read_registry(source, policy, limit)
-        .await?
+) -> model::Result<(Vec<SourceObject>, Vec<RegistryKey>)> {
+    let RegistryEntries {
+        records,
+        unreadable,
+    } = read_registry(source, policy, limit).await?;
+    let objects = records
         .into_iter()
         .map(|RegistryRecord { key, json }| SourceObject {
             key: object_key(&key),
             value: json,
         })
-        .collect())
+        .collect();
+    Ok((objects, unreadable))
 }
 
 impl Prepare<'_> {
@@ -136,6 +142,7 @@ impl Prepare<'_> {
         Prepared {
             outcome,
             problems,
+            unreadable: self.unreadable.clone(),
             answered: 0,
         }
     }
@@ -184,6 +191,7 @@ impl Prepare<'_> {
         let prepared = Prepared {
             outcome,
             problems,
+            unreadable: self.unreadable.clone(),
             answered,
         };
         let out = terminal.output();
@@ -438,6 +446,16 @@ pub fn summary(prepared: &Prepared) -> String {
         count(Level::Error),
         prepared.answered
     );
+    if !prepared.unreadable.is_empty() {
+        let _ = writeln!(
+            out,
+            "Warning: {} settings objects are unreadable in the v0.16 store and also ignored by v0.16.27; they are not migrated, recreate them in v1 if needed:",
+            prepared.unreadable.len()
+        );
+        for key in &prepared.unreadable {
+            let _ = writeln!(out, "  {key}");
+        }
+    }
     if let Some(backend) = external_blob_store(outcome) {
         let _ = writeln!(
             out,

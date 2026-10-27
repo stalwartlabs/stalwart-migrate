@@ -77,7 +77,8 @@ async fn snapshot(source: &V016Source) -> Snapshot {
             source
                 .registry_page(&name, None, PAGE)
                 .await
-                .expect("registry page"),
+                .expect("registry page")
+                .records,
         );
     }
     let mut batches = Vec::new();

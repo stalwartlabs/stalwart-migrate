@@ -6,7 +6,7 @@
 
 use std::fmt::Write as _;
 
-use model::{RegistryCounter, RegistryKey, RegistryRecord};
+use model::{RegistryCounter, RegistryEntries, RegistryKey, RegistryRecord};
 use registry::{
     schema::{
         prelude::{OBJ_SEQ_ID, Object, ObjectInner, ObjectType},
@@ -161,30 +161,46 @@ pub(super) async fn page(
     name: &str,
     after: Option<u64>,
     limit: usize,
-) -> model::Result<Vec<RegistryRecord>> {
+) -> model::Result<RegistryEntries> {
     let object_type = object_type(name)?;
-    let first = match after {
-        Some(u64::MAX) => return Ok(Vec::new()),
+    let mut next = match after {
+        Some(u64::MAX) => return Ok(RegistryEntries::default()),
         Some(after) => after + 1,
         None => 0,
     };
     let limit = limit.max(1);
     let mut objects = Vec::with_capacity(limit.min(1024));
-    store
-        .iterate(
-            item_range(object_type, first).with_limit(limit),
-            |key, value| {
-                if key.len() != ITEM_KEY_LEN {
-                    return Ok(true);
-                }
-                let item_id = key.deserialize_be_u64(U16_LEN)?;
-                let object = <Object as Deserialize>::deserialize_with_key(key, value)?;
-                objects.push((item_id, object));
-                Ok(objects.len() < limit)
-            },
-        )
-        .await
-        .map_err(trc_error)?;
+    let mut unreadable = Vec::new();
+    loop {
+        let wanted = limit - objects.len();
+        let mut scanned = 0;
+        let mut last = None;
+        store
+            .iterate(
+                item_range(object_type, next).with_limit(wanted),
+                |key, value| {
+                    scanned += 1;
+                    if key.len() != ITEM_KEY_LEN {
+                        return Ok(true);
+                    }
+                    let item_id = key.deserialize_be_u64(U16_LEN)?;
+                    last = Some(item_id);
+                    match <Object as Deserialize>::deserialize_with_key(key, value) {
+                        Ok(object) => objects.push((item_id, object)),
+                        Err(_) => unreadable.push(registry_key(name, item_id)),
+                    }
+                    Ok(objects.len() < limit)
+                },
+            )
+            .await
+            .map_err(trc_error)?;
+        match last {
+            Some(last) if scanned >= wanted && objects.len() < limit && last < u64::MAX => {
+                next = last + 1;
+            }
+            _ => break,
+        }
+    }
 
     let mut records = Vec::with_capacity(objects.len());
     for (item_id, mut object) in objects {
@@ -193,14 +209,23 @@ pub(super) async fn page(
         }
         let json = serde_json::to_value(object.into_value_with_secrets())
             .map_err(|err| corrupt(format!("{name}/{item_id}: {err}")))?;
-        let key = if Id::new(item_id).is_singleton() {
-            RegistryKey::singleton(name)
-        } else {
-            RegistryKey::new(name, item_id)
-        };
-        records.push(RegistryRecord { key, json });
+        records.push(RegistryRecord {
+            key: registry_key(name, item_id),
+            json,
+        });
     }
-    Ok(records)
+    Ok(RegistryEntries {
+        records,
+        unreadable,
+    })
+}
+
+fn registry_key(name: &str, item_id: u64) -> RegistryKey {
+    if Id::new(item_id).is_singleton() {
+        RegistryKey::singleton(name)
+    } else {
+        RegistryKey::new(name, item_id)
+    }
 }
 
 pub(super) async fn account_ids(store: &Store) -> model::Result<RoaringBitmap> {

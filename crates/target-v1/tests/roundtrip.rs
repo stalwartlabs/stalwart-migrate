@@ -25,7 +25,7 @@ use target_v1::{TargetConfig, V1Target};
 use types::{
     collection::{Collection as V1Collection, SyncCollection, VanishedCollection},
     field::EmailField,
-    keyword::{FLAGGED, SEEN},
+    keyword::{FLAGGED, HASATTACHMENT, HASNOATTACHMENT, SEEN},
 };
 
 const ACCOUNT_ID: u32 = 7;
@@ -136,6 +136,56 @@ async fn registry_reads_answer_every_key_in_order() {
         if let Some(record) = record {
             assert_eq!(&record.key, key);
         }
+    }
+}
+
+// Source $hasattachment/$hasnoattachment keywords are dropped; v1 derives them from the message on create and update.
+#[tokio::test(flavor = "multi_thread")]
+async fn attachment_keywords_follow_the_message() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = open_target(dir.path()).await;
+    target.prepare_store(EDITION).await.expect("prepare");
+    let outcome = target
+        .write_registry(&registry_records())
+        .await
+        .expect("registry");
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    target.start_server().await.expect("server");
+    let store = target.store();
+    target
+        .upsert(
+            ACCOUNT_ID,
+            &RecordBatch::Mailbox(vec![MailboxRecord {
+                document_id: 0,
+                name: "Inbox".into(),
+                role: Some("inbox".into()),
+                ..Default::default()
+            }]),
+            WriteMode::Create,
+        )
+        .await
+        .expect("mailboxes");
+    let mut record = email_record();
+    record.keywords = vec!["$seen".into(), "$HasAttachment".into()];
+    target
+        .put_blob(&record.blob_hash, Bytes::from_static(MESSAGE))
+        .await
+        .expect("put blob");
+    for mode in [WriteMode::Create, WriteMode::Update] {
+        let outcome = target
+            .upsert(ACCOUNT_ID, &RecordBatch::Email(vec![record.clone()]), mode)
+            .await
+            .expect("email");
+        assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+        let data = store
+            .get_value::<MessageData>(ValueKey::archive(ACCOUNT_ID, V1Collection::Email, 4))
+            .await
+            .expect("read")
+            .expect("message data");
+        assert!(data.keywords & (1 << SEEN) != 0);
+        assert_eq!(data.keywords & (1 << HASATTACHMENT), 0, "{mode:?}");
+        assert!(data.keywords & (1 << HASNOATTACHMENT) != 0, "{mode:?}");
+        assert!(data.keywords_extra.is_empty());
     }
 }
 

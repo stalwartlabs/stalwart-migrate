@@ -439,6 +439,12 @@
       "path": "memberTenantId"
     },
     {
+      "change": "reference_outside_tenant",
+      "key": "x:Account/b",
+      "level": "warning",
+      "path": "aliases/1/domainId"
+    },
+    {
       "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",
@@ -662,14 +668,7 @@
       "source": "x:Account/b",
       "value": {
         "@type": "Group",
-        "aliases": {
-          "1": {
-            "description": "s0",
-            "domainId": "d",
-            "enable": true,
-            "name": "s2"
-          }
-        },
+        "aliases": {},
         "description": "s4",
         "domainId": "c",
         "emailAddress": "a@b.c",

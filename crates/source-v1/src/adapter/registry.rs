@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
-use model::{BlobHash, RegistryCounter, RegistryId, RegistryKey, RegistryRecord};
+use model::{BlobHash, RegistryCounter, RegistryEntries, RegistryId, RegistryKey, RegistryRecord};
 use registry::{
     schema::prelude::{OBJ_NOT_STORED, OBJ_SEQ_ID, Object, ObjectInner, ObjectType},
-    types::EnumImpl,
+    types::{EnumImpl, datetime::UTCDateTime},
 };
 use roaring::RoaringBitmap;
+use serde_json::Value;
 use smtp::reporting::index::ExternalReportIndex;
 use store::{
     Deserialize, IterateParams, Store, U16_LEN, U64_LEN, ValueKey,
@@ -18,6 +19,7 @@ use store::{
         key::DeserializeBigEndian,
     },
 };
+use trc::Key;
 use types::id::Id;
 
 use super::error::{corrupt, trc_error};
@@ -26,6 +28,11 @@ const ITEM_KEY_LEN: usize = U16_LEN + U64_LEN;
 const TYPE_PROBE_LIMIT: usize = 64;
 const MAX_OBJECT_ID: u16 = 1024;
 const OBJECT_PREFIX: &str = "x:";
+const EXPIRES_AT: &str = "expiresAt";
+const NOT_VALID_AFTER: &str = "notValidAfter";
+const FILE_BACKED: [&str; 2] = ["certificate", "privateKey"];
+const TYPE_TAG: &str = "@type";
+const FILE_TYPE: &str = "File";
 
 fn item_key(object_type: ObjectType, item_id: u64) -> ValueKey<ValueClass> {
     ValueKey::from(ValueClass::Registry(RegistryClass::Item {
@@ -86,11 +93,11 @@ pub(super) async fn page(
     name: &str,
     after: Option<u64>,
     limit: usize,
-) -> model::Result<Vec<RegistryRecord>> {
+) -> model::Result<RegistryEntries> {
     let object_type = object_type(name)?;
     let name = prefixed(object_type);
     let first = match after {
-        Some(u64::MAX) => return Ok(Vec::new()),
+        Some(u64::MAX) => return Ok(RegistryEntries::default()),
         Some(after) => after + 1,
         None => 0,
     };
@@ -112,8 +119,11 @@ pub(super) async fn page(
             .as_slice()
             .deserialize_be_u64(U16_LEN)
             .map_err(trc_error)?;
-        let object = <Object as Deserialize>::deserialize_with_key(&key, &value)
-            .map_err(|err| corrupt(format!("{name}/{item_id}: {err}")))?;
+        let object =
+            <Object as Deserialize>::deserialize_with_key(&key, &value).map_err(|mut err| {
+                err.take_value(Key::Value);
+                corrupt(format!("{name}/{item_id}: {err}"))
+            })?;
         let json = serde_json::to_value(&object.inner)
             .map_err(|err| corrupt(format!("{name}/{item_id}: {err}")))?;
         let key = if Id::new(item_id).is_singleton() {
@@ -123,7 +133,10 @@ pub(super) async fn page(
         };
         records.push(RegistryRecord { key, json });
     }
-    Ok(records)
+    Ok(RegistryEntries {
+        records,
+        unreadable: Vec::new(),
+    })
 }
 
 pub(super) async fn account_ids(store: &Store) -> model::Result<RoaringBitmap> {
@@ -146,6 +159,47 @@ pub fn is_stored(name: &str) -> bool {
     ObjectType::parse(name.strip_prefix(OBJECT_PREFIX).unwrap_or(name)).is_none_or(|object_type| {
         object_type.flags() & OBJ_NOT_STORED == 0 || object_type == ObjectType::DataStore
     })
+}
+
+fn expiring_type(name: &str) -> Option<ObjectType> {
+    ObjectType::parse(name.strip_prefix(OBJECT_PREFIX).unwrap_or(name)).filter(|object_type| {
+        matches!(
+            object_type,
+            ObjectType::BlockedIp | ObjectType::AllowedIp | ObjectType::Certificate
+        )
+    })
+}
+
+pub fn expires_on_start(name: &str) -> bool {
+    expiring_type(name).is_some()
+}
+
+pub fn is_certificate(name: &str) -> bool {
+    expiring_type(name) == Some(ObjectType::Certificate)
+}
+
+pub fn refreshed_on_start(name: &str, json: &Value) -> bool {
+    is_certificate(name)
+        && FILE_BACKED.iter().any(|field| {
+            json.get(field)
+                .and_then(|text| text.get(TYPE_TAG))
+                .and_then(Value::as_str)
+                == Some(FILE_TYPE)
+        })
+}
+
+pub fn expired_at(record: &RegistryRecord) -> Option<&str> {
+    let field = match expiring_type(&record.key.object)? {
+        ObjectType::Certificate if refreshed_on_start(&record.key.object, &record.json) => {
+            return None;
+        }
+        ObjectType::Certificate => NOT_VALID_AFTER,
+        _ => EXPIRES_AT,
+    };
+    let at = record.json.get(field)?.as_str()?;
+    at.parse::<UTCDateTime>()
+        .is_ok_and(|parsed| parsed.timestamp() <= UTCDateTime::now().timestamp())
+        .then_some(at)
 }
 
 pub(super) fn canonical(record: RegistryRecord) -> model::Result<RegistryRecord> {

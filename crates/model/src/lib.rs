@@ -33,8 +33,8 @@ pub use changes::{
 pub use claim::{ClaimId, TargetClaim};
 pub use error::{Error, Result};
 pub use global::{
-    GlobalBatch, GlobalCategory, GlobalKey, GlobalPage, TaggedCursor, TaskRecord, TelemetryKind,
-    TelemetryRecord,
+    GlobalBatch, GlobalCategory, GlobalKey, GlobalPage, TEXT_TIMESTAMPS, TaggedCursor, TaskRecord,
+    TelemetryKind, TelemetryRecord,
 };
 pub use groupware::{
     AddressBookPreferencesRecord, AddressBookRecord, CalendarEventRecord,
@@ -54,7 +54,7 @@ pub use queue::{
     QueueExpiry, QueueMetadata, QueueName, QueueQuotaKey, QueueRecipient, QueueSchedule,
     QueuedMessageRecord, ReportKind, SmtpResponse,
 };
-pub use registry::{RegistryCounter, RegistryId, RegistryKey, RegistryRecord};
+pub use registry::{RegistryCounter, RegistryEntries, RegistryId, RegistryKey, RegistryRecord};
 pub use shared::{SharedDeletes, SharedDeletion, SharedOverwrite, SharedPlan, SharedService};
 pub use source::Source;
 pub use spam::{

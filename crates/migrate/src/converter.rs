@@ -23,7 +23,10 @@ use crate::{
 };
 use serde_json::{Map, Value};
 
-use source_v1::{registry_object_is_stored, singleton_task_id};
+use source_v1::{
+    registry_object_expired_at, registry_object_is_certificate, registry_object_is_stored,
+    singleton_task_id,
+};
 use state::ContentHash;
 
 use crate::orchestrator::{
@@ -242,6 +245,17 @@ pub fn instance_id(instance: &Instance) -> Option<u64> {
     }
 }
 
+fn bare_key(key: &RegistryKey) -> RegistryKey {
+    RegistryKey {
+        object: key
+            .object
+            .strip_prefix(OBJECT_PREFIX)
+            .unwrap_or(&key.object)
+            .into(),
+        id: key.id,
+    }
+}
+
 pub fn object_key(key: &RegistryKey) -> ObjectKey {
     let instance = match key.id {
         RegistryId::Singleton => Instance::Singleton,
@@ -352,7 +366,9 @@ fn entry_issue(entry: &Entry, originals: &FxHashMap<ObjectKey, RegistryKey>) -> 
         Level::Error => Severity::Error,
     };
     let kind = match entry.change {
-        Change::Dropped { .. } | Change::ReferenceCleared { .. } => IssueKind::Dropped,
+        Change::Dropped { .. }
+        | Change::ReferenceCleared { .. }
+        | Change::ReferenceOutsideTenant { .. } => IssueKind::Dropped,
         Change::Clamped { .. } => IssueKind::Clamped,
         Change::Dangling { .. } => IssueKind::Failed,
         Change::DefaultPinned { .. }
@@ -386,9 +402,47 @@ impl RegistryConverter for MappingConverter {
                 .map(|record| (&*record.key.object, record.key.id.id())),
             categories,
         );
+        let in_scope =
+            |record: &RegistryRecord| categories.contains(object_category(&record.key.object));
+        let mut referrers: FxHashMap<RegistryKey, Vec<RegistryKey>> = objects
+            .iter()
+            .filter(|record| {
+                in_scope(record)
+                    && registry_object_is_certificate(&record.key.object)
+                    && registry_object_expired_at(record).is_some()
+            })
+            .map(|record| (bare_key(&record.key), Vec::new()))
+            .collect();
+        if !referrers.is_empty() {
+            for record in objects.iter().filter(|record| in_scope(record)) {
+                let source = bare_key(&record.key);
+                for target in self.references(RecordSide::Source, record) {
+                    let target = bare_key(&target);
+                    if target != source
+                        && let Some(list) = referrers.get_mut(&target)
+                    {
+                        list.push(record.key.clone());
+                    }
+                }
+            }
+        }
+        let mut expired = Vec::new();
+        let mut referenced = Vec::new();
         for record in objects {
-            if !categories.contains(object_category(&record.key.object)) {
+            if !in_scope(&record) {
                 continue;
+            }
+            if let Some(at) = registry_object_expired_at(&record) {
+                let at = Box::<str>::from(at);
+                match referrers.remove(&bare_key(&record.key)) {
+                    Some(list) if !list.is_empty() => {
+                        referenced.push((at, record.key.clone(), list));
+                    }
+                    _ => {
+                        expired.push((at, record.key));
+                        continue;
+                    }
+                }
             }
             if let Some(original) = self.originals.get(&record.key) {
                 buf.clear();
@@ -543,6 +597,34 @@ impl RegistryConverter for MappingConverter {
             .iter()
             .map(|entry| entry_issue(entry, &originals))
             .collect();
+        for (at, key) in expired {
+            issues.push(Issue::new(
+                Severity::Info,
+                IssueKind::Dropped,
+                Subject::Registry(key.clone()),
+                format!(
+                    "expired at {at}; Stalwart deletes expired {} objects when it starts",
+                    key.object
+                ),
+            ));
+            dropped.push(key);
+        }
+        for (at, key, list) in referenced {
+            let list = list
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            issues.push(Issue::new(
+                Severity::Info,
+                IssueKind::Changed,
+                Subject::Registry(key.clone()),
+                format!(
+                    "expired at {at} but kept: Stalwart deletes expired {} objects when it starts only when nothing refers to them, and {list} refers to it",
+                    key.object
+                ),
+            ));
+        }
         match &self.unconverted {
             Unconverted::Unknown => issues.push(Issue::new(
                 Severity::Warning,
@@ -576,6 +658,7 @@ impl RegistryConverter for MappingConverter {
                 for record in unconverted {
                     if !categories.contains(object_category(&record.key.object))
                         || taken.contains(&record.key)
+                        || registry_object_expired_at(record).is_some()
                     {
                         continue;
                     }
@@ -1194,6 +1277,145 @@ mod tests {
                 .any(|issue| issue.subject == Subject::Registry(key.clone())
                     && issue.severity == Severity::Warning
                     && issue.message.contains("is not listed by the source")),
+            "{:?}",
+            converted.issues
+        );
+    }
+
+    // Expired blocked and allowed IPs are dropped because Stalwart deletes them when it starts; unexpired ones are kept.
+    #[test]
+    fn expired_ip_objects_are_dropped() {
+        let ip = |object: &str, id: u64, expires: Option<&str>| {
+            let mut json = json!({"address": format!("192.0.2.{id}"), "createdAt": "2024-01-01T00:00:00Z", "reason": "authFailure"});
+            if object == "AllowedIp" {
+                json["reason"] = json!("trusted");
+            }
+            if let Some(expires) = expires {
+                json["expiresAt"] = json!(expires);
+            }
+            RegistryRecord {
+                key: RegistryKey::new(object, id),
+                json,
+            }
+        };
+        let objects = vec![
+            ip("BlockedIp", 1, Some("2024-01-01T01:00:00Z")),
+            ip("AllowedIp", 2, Some("2024-01-01T01:00:00Z")),
+            ip("BlockedIp", 3, Some("2999-01-01T00:00:00Z")),
+            ip("BlockedIp", 4, None),
+        ];
+        let (converter, categories) = task_converter(&objects);
+        let converted = converter
+            .convert(objects, categories)
+            .expect("complete conversion");
+        for key in [
+            RegistryKey::new("BlockedIp", 1),
+            RegistryKey::new("AllowedIp", 2),
+        ] {
+            assert!(converted.dropped.contains(&key), "{:?}", converted.dropped);
+            assert!(
+                converted.issues.iter().any(|issue| issue.subject
+                    == Subject::Registry(key.clone())
+                    && issue.severity == Severity::Info
+                    && issue.kind == IssueKind::Dropped
+                    && issue.message.contains("expired at 2024-01-01T01:00:00Z")),
+                "{:?}",
+                converted.issues
+            );
+        }
+        let kept: Vec<&RegistryKey> = converted
+            .records
+            .iter()
+            .map(|converted| &converted.record.key)
+            .filter(|key| key.object.ends_with("Ip"))
+            .collect();
+        assert_eq!(
+            kept,
+            [
+                &RegistryKey::new("x:BlockedIp", 3),
+                &RegistryKey::new("x:BlockedIp", 4)
+            ],
+            "{:?}",
+            converted.issues
+        );
+    }
+
+    // Expired certificates are dropped like Stalwart does at startup, except file-backed ones and those another object refers to.
+    #[test]
+    fn expired_certificates_follow_the_startup_purge() {
+        let certificate = |id: u64, not_valid_after: &str, file: bool| {
+            let text = if file {
+                json!({"@type": "File", "filePath": "/etc/cert.pem"})
+            } else {
+                json!({"@type": "Text", "value": "-----BEGIN CERTIFICATE-----"})
+            };
+            RegistryRecord {
+                key: RegistryKey::new("Certificate", id),
+                json: json!({"certificate": text, "privateKey": {"@type": "Text", "secret": "key"}, "subjectAlternativeNames": {"mail.example.org": true}, "notValidAfter": not_valid_after, "notValidBefore": "2023-01-01T00:00:00Z", "issuer": "CA"}),
+            }
+        };
+        let objects = vec![
+            RegistryRecord {
+                key: RegistryKey::new("Domain", 7),
+                json: json!({"name": "example.org"}),
+            },
+            RegistryRecord {
+                key: RegistryKey::singleton("SystemSettings"),
+                json: json!({"defaultHostname": "mail.example.org", "defaultDomainId": "h", "defaultCertificateId": "c"}),
+            },
+            certificate(1, "2024-01-01T00:00:00Z", false),
+            certificate(2, "2024-01-01T00:00:00Z", false),
+            certificate(3, "2024-01-01T00:00:00Z", true),
+            certificate(4, "2999-01-01T00:00:00Z", false),
+        ];
+        let (converter, categories) = task_converter(&objects);
+        let converted = converter
+            .convert(objects, categories)
+            .expect("complete conversion");
+        let dropped = RegistryKey::new("Certificate", 1);
+        assert_eq!(
+            converted
+                .dropped
+                .iter()
+                .filter(|key| key.object.ends_with("Certificate"))
+                .collect::<Vec<_>>(),
+            [&dropped],
+            "{:?}",
+            converted.issues
+        );
+        assert!(
+            converted
+                .issues
+                .iter()
+                .any(|issue| issue.subject == Subject::Registry(dropped.clone())
+                    && issue.kind == IssueKind::Dropped
+                    && issue.message.contains("expired at 2024-01-01T00:00:00Z")),
+            "{:?}",
+            converted.issues
+        );
+        assert!(
+            converted.issues.iter().any(|issue| issue.subject
+                == Subject::Registry(RegistryKey::new("Certificate", 2))
+                && issue.severity == Severity::Info
+                && issue.message.contains("but kept")
+                && issue.message.contains("SystemSettings")),
+            "{:?}",
+            converted.issues
+        );
+        let mut kept: Vec<&RegistryKey> = converted
+            .records
+            .iter()
+            .map(|converted| &converted.record.key)
+            .filter(|key| key.object.ends_with("Certificate"))
+            .collect();
+        kept.sort_unstable();
+        assert_eq!(
+            kept,
+            [
+                &RegistryKey::new("x:Certificate", 2),
+                &RegistryKey::new("x:Certificate", 3),
+                &RegistryKey::new("x:Certificate", 4)
+            ],
             "{:?}",
             converted.issues
         );

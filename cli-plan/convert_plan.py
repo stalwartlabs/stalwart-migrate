@@ -206,6 +206,10 @@ def values_equal(a, b):
 SECRET_HINTS = ("secret", "password", "token", "key")
 STORE_OBJECTS = ("x:BlobStore", "x:InMemoryStore", "x:SearchStore", "x:DataStore")
 MARKER_FALLBACK = ("x:DnsManagement", "x:CertificateManagement", "x:SpamAi")
+TENANT_OBJECT = "x:Tenant"
+TENANT_REFERENCE = "memberTenantId"
+GAP_MISSING = "missing"
+GAP_OTHER_TENANT = "other_tenant"
 
 
 def mask_property(name, ty, value):
@@ -2201,8 +2205,8 @@ class Fixer:
         self.is_missing = is_missing
 
     def absorb(self):
-        for path, target in self.pending:
-            self.report.push(self.key, path, "reference_cleared", target=target)
+        for path, target, gap in self.pending:
+            self.report.push(self.key, path, gap_change(gap), target=target)
         self.pending = []
 
     def missing(self, obj, ref):
@@ -2235,9 +2239,10 @@ class Fixer:
     def owner(self, ty, value):
         if ty.kind != "objectId":
             return ("satisfied", None)
-        missing = self.missing(ty.name, value)
-        if missing is None:
+        found = self.missing(ty.name, value)
+        if found is None or found[1] != GAP_MISSING:
             return ("satisfied", None)
+        missing = found[0]
         if missing.kind != ObjectKey.ID or self.owners is None:
             return ("missing", missing)
         accounts, principals = self.owners
@@ -2252,6 +2257,7 @@ class Fixer:
         if fields is None:
             return KEEP
         top = self.path.text() == ""
+        outside = []
         for name in sorted(mapping):
             prop = fields.properties.get(name)
             if prop is None:
@@ -2263,7 +2269,8 @@ class Fixer:
                 if verdict == "orphan":
                     self.orphan = account
                     return REMOVE
-                self.pending.append((OWNER_REFERENCE, account))
+                self.pending.append((OWNER_REFERENCE, account, GAP_MISSING))
+                self.pending.extend(outside)
                 return REMOVE
             self.path.push(name)
             flow = self.visit_value(prop.ty, mapping[name])
@@ -2272,16 +2279,23 @@ class Fixer:
                 if prop.ty.nullable:
                     mapping[name] = None
                     self.absorb()
+                elif all(gap == GAP_OTHER_TENANT for _, _, gap in self.pending):
+                    outside.extend(self.pending)
+                    self.pending = []
                 else:
+                    self.pending.extend(outside)
                     return REMOVE
-        return KEEP
+        if not outside:
+            return KEEP
+        self.pending.extend(outside)
+        return REMOVE
 
     def visit_value(self, ty, value):
         kind = ty.kind
         if kind == "objectId":
-            missing = self.missing(ty.name, value)
-            if missing is not None:
-                self.pending.append((self.path.text(), missing))
+            found = self.missing(ty.name, value)
+            if found is not None:
+                self.pending.append((self.path.text(), found[0], found[1]))
                 return REMOVE
             return KEEP
         if kind == "set":
@@ -2327,35 +2341,65 @@ class Fixer:
 
     def remove_missing_keys(self, target, members):
         for member in sorted(members):
-            missing = self.missing(target, member)
-            if missing is not None:
+            found = self.missing(target, member)
+            if found is not None:
                 del members[member]
-                self.report.push(self.key, self.path.child(member), "reference_cleared", target=missing)
+                self.report.push(self.key, self.path.child(member), gap_change(found[1]), target=found[0])
+
+
+def gap_change(gap):
+    return "reference_cleared" if gap == GAP_MISSING else "reference_outside_tenant"
+
+
+def tenant_scoped(schema, obj):
+    sdef = schema.schemas.get(obj)
+    if sdef is None:
+        return False
+    names = [sdef.single] if sdef.single else [v[1] for v in sdef.variants if v[1] is not None]
+    return any(TENANT_REFERENCE in schema.fields[n].properties for n in names if n in schema.fields)
 
 
 def fix_dangling(session, outcome, plan=None):
-    present = {(o["key"].object, o["key"].value) for o in outcome.objects if o["key"].kind == ObjectKey.ID}
+    tenants = {o["key"].value for o in outcome.objects
+               if o["key"].kind == ObjectKey.ID and o["key"].object == TENANT_OBJECT}
 
-    def is_missing(target, ref):
-        if plan is not None:
-            if ref.startswith("#") and (target, ref[1:]) in plan:
-                return ObjectKey(target, ObjectKey.CLIENT, ref[1:])
+    def member_tenant(value):
+        ref = value.get(TENANT_REFERENCE) if isinstance(value, dict) else None
+        ident = jmap_id_parse(ref) if isinstance(ref, str) else None
+        return ident if ident in tenants else None
+
+    present = {(o["key"].object, o["key"].value): member_tenant(o["value"])
+               for o in outcome.objects if o["key"].kind == ObjectKey.ID}
+    scoped = {target for target, _ in present if tenant_scoped(session.target, target)}
+
+    def checker(tenant):
+        def is_missing(target, ref):
+            if plan is not None:
+                if ref.startswith("#") and (target, ref[1:]) in plan:
+                    return (ObjectKey(target, ObjectKey.CLIENT, ref[1:]), GAP_MISSING)
+                return None
+            ident = jmap_id_parse(ref)
+            if ident is None:
+                return None
+            if (target, ident) not in present:
+                return (ObjectKey(target, ObjectKey.ID, ident), GAP_MISSING)
+            if tenant is not None and present[(target, ident)] != tenant and target in scoped:
+                return (ObjectKey(target, ObjectKey.ID, ident), GAP_OTHER_TENANT)
             return None
-        ident = jmap_id_parse(ref)
-        if ident is None or (target, ident) in present:
-            return None
-        return ObjectKey(target, ObjectKey.ID, ident)
+        return is_missing
 
     orphans = []
     for obj in outcome.objects:
+        is_missing = checker(member_tenant(obj["value"]))
         fixer = Fixer(session.target, present, outcome.report, obj["source"], is_missing, session.options.owners)
         if fixer.visit_schema(obj["key"].object, obj["value"]) == REMOVE:
             if fixer.orphan is not None:
                 outcome.report.push(obj["source"], "", "dropped", reason=drop_orphaned(fixer.orphan), value=None)
                 orphans.append(obj["source"])
                 continue
-            for path, target in fixer.pending:
-                outcome.report.push(obj["source"], path, "dangling", target=target)
+            for path, target, gap in fixer.pending:
+                if gap == GAP_MISSING:
+                    outcome.report.push(obj["source"], path, "dangling", target=target)
     if orphans:
         outcome.objects = [o for o in outcome.objects if o["source"] not in orphans]
         outcome.dropped.extend(orphans)
@@ -3202,6 +3246,8 @@ def entry_text(entry):
         text = ": unknown in the source schema, kept as is"
     elif change == "reference_cleared":
         text = f": reference to {entry['target']} removed (target not migrated)"
+    elif change == "reference_outside_tenant":
+        text = f": reference to {entry['target']} removed (it is not in the same tenant, which v1 requires)"
     elif change == "dangling":
         text = f": references {entry['target']}, which is not migrated, and cannot be cleared"
     elif change == "moved":

@@ -288,6 +288,9 @@ impl Target for PartialTarget {
     async fn blobs_exist(&self, hashes: &[BlobHash]) -> Result<Vec<bool>> {
         self.inner.blobs_exist(hashes).await
     }
+    async fn stored_blobs_exist(&self, hashes: &[BlobHash]) -> Result<Vec<bool>> {
+        self.inner.stored_blobs_exist(hashes).await
+    }
     async fn put_blob(&self, hash: &BlobHash, data: Bytes) -> Result<()> {
         self.inner.put_blob(hash, data).await
     }
@@ -977,6 +980,77 @@ async fn registry_identity_uses_the_stored_form() {
     assert!(matches!(third.error, Some(RunError::Preflight(_))));
 }
 
+// A blocked IP that Stalwart deleted from the target after it expired does not fail the preflight of the next run.
+#[tokio::test]
+async fn expired_ip_removed_from_the_target_passes_preflight() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = FakeSource::new();
+    let target = FakeTarget::new();
+    source.put_registry("Domain", 3, serde_json::json!({"name": "example.org"}));
+    source.put_registry(
+        "BlockedIp",
+        5,
+        serde_json::json!({"address": "192.0.2.1", "expiresAt": "2999-01-01T00:00:00Z"}),
+    );
+    seed(&source, 1);
+    let first = run_t(&source, &target, dir.path(), options(4)).await;
+    assert_eq!(first.status, RunStatus::Ok, "{:?}", first.error);
+    assert_eq!(first.stats.registry_written, 2);
+    target
+        .world
+        .lock()
+        .expect("lock")
+        .registry
+        .remove(&RegistryKey::new("BlockedIp", 5))
+        .expect("blocked ip in the target");
+    let second = run_t(&source, &target, dir.path(), options(4)).await;
+    assert_eq!(second.status, RunStatus::Ok, "{:?}", second.error);
+    target
+        .world
+        .lock()
+        .expect("lock")
+        .registry
+        .remove(&RegistryKey::new("Domain", 3))
+        .expect("domain in the target");
+    let third = run_t(&source, &target, dir.path(), options(4)).await;
+    assert!(
+        matches!(third.error, Some(RunError::Preflight(_))),
+        "{:?}",
+        third.error
+    );
+}
+
+// A file-backed certificate whose metadata Stalwart refreshed at startup, or that it deleted once expired, does not fail the preflight of the next run.
+#[tokio::test]
+async fn refreshed_file_certificate_passes_preflight() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = FakeSource::new();
+    let target = FakeTarget::new();
+    for id in [5, 6] {
+        source.put_registry(
+            "Certificate",
+            id,
+            serde_json::json!({"certificate": {"@type": "File", "filePath": "/etc/cert.pem"}, "issuer": "old"}),
+        );
+    }
+    seed(&source, 1);
+    let first = run_t(&source, &target, dir.path(), options(4)).await;
+    assert_eq!(first.status, RunStatus::Ok, "{:?}", first.error);
+    {
+        let mut world = target.world.lock().expect("lock");
+        world
+            .registry
+            .get_mut(&RegistryKey::new("Certificate", 5))
+            .expect("certificate in the target")["issuer"] = "new".into();
+        world
+            .registry
+            .remove(&RegistryKey::new("Certificate", 6))
+            .expect("certificate in the target");
+    }
+    let second = run_t(&source, &target, dir.path(), options(4)).await;
+    assert_eq!(second.status, RunStatus::Ok, "{:?}", second.error);
+}
+
 // Registry id counters follow object renames of the conversion and skip excluded categories.
 #[tokio::test]
 async fn registry_counters_use_target_object_names() {
@@ -1327,6 +1401,47 @@ async fn registry_object_blobs_are_copied() {
     let verify = summary.verify.expect("verify");
     assert_eq!(verify.status, RunStatus::Failed);
     assert_eq!(verify.unexplained, 1);
+}
+
+// In shared mode an object whose blob is missing from the shared store is skipped like in copy mode, and verify explains it once accepted.
+#[tokio::test]
+async fn registry_objects_with_missing_shared_blobs_are_skipped() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = FakeSource::new();
+    let target = FakeTarget::new();
+    seed(&source, 0);
+    target
+        .world
+        .lock()
+        .expect("lock")
+        .stored_blobs
+        .insert(BlobHash([9; 32]));
+    source.put_registry("SpamTrainingSample", 1, serde_json::json!({"blob": 9}));
+    source.put_registry("SpamTrainingSample", 2, serde_json::json!({"blob": 8}));
+    let summary = run_t(&source, &target, dir.path(), options(8)).await;
+    assert_eq!(summary.status, RunStatus::Failed);
+    assert_eq!(summary.stats.errors, 1);
+    {
+        let world = target.world.lock().expect("lock");
+        assert_eq!(world.blob_puts, 0);
+        assert!(
+            world
+                .registry
+                .contains_key(&RegistryKey::new("SpamTrainingSample", 1))
+        );
+        assert!(
+            !world
+                .registry
+                .contains_key(&RegistryKey::new("SpamTrainingSample", 2))
+        );
+    }
+    let mut final_run = options(8);
+    final_run.kind = RunKind::Final;
+    final_run.errors = ErrorPolicy::Allow;
+    let summary = run_t(&source, &target, dir.path(), final_run).await;
+    let verify = summary.verify.expect("verify");
+    assert_eq!(verify.unexplained, 0);
+    assert_eq!(verify.status, RunStatus::Ok);
 }
 
 // A skipped last changelog row does not hide the loss of the rows below it in sample verify.

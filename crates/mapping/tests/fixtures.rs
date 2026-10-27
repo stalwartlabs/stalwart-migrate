@@ -27,6 +27,7 @@ fn change_kind(change: &Change) -> &'static str {
         Change::Transformed { .. } => "transformed",
         Change::Unknown => "unknown",
         Change::ReferenceCleared { .. } => "reference_cleared",
+        Change::ReferenceOutsideTenant { .. } => "reference_outside_tenant",
         Change::Dangling { .. } => "dangling",
         Change::Moved { .. } => "moved",
         Change::ReferenceCycle => "reference_cycle",

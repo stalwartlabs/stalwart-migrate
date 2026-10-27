@@ -1192,6 +1192,91 @@ async fn rejected_settings_block_finalize_until_accepted() {
     );
 }
 
+// Expired blocked and allowed IPs, which v1 deletes when it starts, are dropped instead of failing the next run and the final verify.
+#[tokio::test(flavor = "multi_thread")]
+async fn expired_ip_objects_are_dropped_and_verify() {
+    const KEPT_ID: u64 = LOST_ID + 2;
+    let scenario = Scenario::seeded(false).await;
+    for (object, id, expires) in [
+        ("BlockedIp", LOST_ID, "2024-01-01T01:00:00Z"),
+        ("AllowedIp", LOST_ID + 1, "2024-01-01T01:00:00Z"),
+        ("BlockedIp", KEPT_ID, "2999-01-01T00:00:00Z"),
+    ] {
+        seed_registry_object(
+            &scenario.path("src"),
+            object,
+            id,
+            &serde_json::json!({"address": format!("192.0.2.{id}"), "createdAt": "2024-01-01T00:00:00Z", "expiresAt": expires}),
+        )
+        .await;
+    }
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    for _ in 0..2 {
+        let (code, output) = scenario.cli(&["run"], true);
+        assert_eq!(code, EXIT_OK, "run: {output}");
+    }
+    let mut dropped = scenario.unconverted_registry();
+    dropped.sort_unstable();
+    assert_eq!(
+        dropped,
+        [
+            ("AllowedIp".to_string(), LOST_ID + 1),
+            ("BlockedIp".to_string(), LOST_ID)
+        ]
+    );
+    seed_registry_object(
+        &scenario.path("src"),
+        "BlockedIp",
+        KEPT_ID,
+        &serde_json::json!({"address": format!("192.0.2.{KEPT_ID}"), "createdAt": "2024-01-01T00:00:00Z", "expiresAt": "2024-01-01T01:00:00Z"}),
+    )
+    .await;
+    let verified = scenario.verify();
+    assert_eq!(verified.unexplained, 0, "{:#?}", describe(&verified.rows));
+    let (code, output) = scenario.cli(
+        &["run", "--final", "--yes", "--final-observation", "0"],
+        true,
+    );
+    assert_eq!(code, EXIT_OK, "final: {output}");
+    let (unexplained, _, rows) = scenario.last_verify();
+    assert_eq!(unexplained, 0, "{:#?}", describe(&rows));
+    assert!(scenario.final_done());
+}
+
+// An expired certificate nothing refers to, which v1 deletes when it starts, is dropped instead of failing the next run and the final verify.
+#[tokio::test(flavor = "multi_thread")]
+async fn expired_certificate_is_dropped_and_verifies() {
+    let scenario = Scenario::seeded(false).await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "Certificate",
+        LOST_ID,
+        &serde_json::json!({"certificate": {"@type": "Text", "value": "-----BEGIN CERTIFICATE-----"}, "privateKey": {"@type": "Text", "secret": "key"}, "subjectAlternativeNames": {"old.example.org": true}, "notValidAfter": "2024-01-01T00:00:00Z", "notValidBefore": "2023-01-01T00:00:00Z", "issuer": "CA"}),
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    for _ in 0..2 {
+        let (code, output) = scenario.cli(&["run"], true);
+        assert_eq!(code, EXIT_OK, "run: {output}");
+    }
+    assert!(
+        scenario
+            .unconverted_registry()
+            .contains(&("Certificate".to_string(), LOST_ID))
+    );
+    let verified = scenario.verify();
+    assert_eq!(verified.unexplained, 0, "{:#?}", describe(&verified.rows));
+    let (code, output) = scenario.cli(
+        &["run", "--final", "--yes", "--final-observation", "0"],
+        true,
+    );
+    assert_eq!(code, EXIT_OK, "final: {output}");
+    let (unexplained, _, rows) = scenario.last_verify();
+    assert_eq!(unexplained, 0, "{:#?}", describe(&rows));
+}
+
 // Password, OTP, app password and API key credentials survive inside the account object.
 #[tokio::test(flavor = "multi_thread")]
 async fn credentials_survive_the_migration() {
@@ -1617,7 +1702,8 @@ async fn rollback_round_trip_keeps_v1_changes() {
         let page = source
             .registry_page(object, id.checked_sub(1), 1)
             .await
-            .expect("registry page");
+            .expect("registry page")
+            .records;
         assert!(
             page.first()
                 .is_some_and(|record| record.key.id == model::RegistryId::Id(*id)),
@@ -1657,7 +1743,8 @@ async fn rollback_round_trip_keeps_v1_changes() {
     let domains = source
         .registry_page("Domain", None, 100)
         .await
-        .expect("domains");
+        .expect("domains")
+        .records;
     assert!(
         domains
             .iter()
@@ -2054,6 +2141,73 @@ async fn telemetry_event_and_metric_types_take_their_v1_names() {
         "{}",
         records[1].json
     );
+}
+
+// Span timestamps outside the RFC 3339 range (the unset -1 of queue.rescheduled, i64::MAX) are copied unchanged and pass verification.
+#[cfg(feature = "enterprise")]
+#[tokio::test(flavor = "multi_thread")]
+async fn span_timestamps_outside_the_text_range_round_trip() {
+    use source_v016::testkit::put_dated_span;
+    const SINGLETON: u64 = 20_080_258_862_541;
+    let scenario = Scenario::seeded(false).await;
+    let src = scenario.path("src");
+    seed_registry_object(
+        &src,
+        "TracingStore",
+        SINGLETON,
+        &serde_json::json!({"@type": "Default"}),
+    )
+    .await;
+    put_dated_span(&src, 10, &[-1, 1_700_000_000]).await;
+    put_dated_span(&src, 11, &[i64::MAX]).await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let (code, output) = scenario.cli(
+        &[
+            "run",
+            "--final",
+            "--yes",
+            "--final-observation",
+            "0",
+            "--verify-full",
+            "--include",
+            "telemetry",
+        ],
+        true,
+    );
+    let (unexplained, _, rows) = scenario.last_verify();
+    assert_eq!(unexplained, 0, "{output}\n{:#?}", describe(&rows));
+    assert_eq!(code, EXIT_OK, "{output}");
+    let store = open(&scenario.path("dst")).await;
+    let GlobalBatch::Telemetry(records) = global_page(
+        &V1Source::from_store(store.clone()),
+        GlobalCategory::Telemetry,
+    )
+    .await
+    else {
+        panic!("telemetry page");
+    };
+    let [first, second] = records.as_slice() else {
+        panic!("{records:?}");
+    };
+    for (record, event, expected) in [
+        (first, "0", serde_json::json!(-1)),
+        (first, "1", serde_json::json!("2023-11-14T22:13:20Z")),
+        (second, "0", serde_json::json!(i64::MAX)),
+    ] {
+        let event = &record.json["events"][event];
+        assert_eq!(event["timestamp"], expected, "{}", record.json);
+        assert_eq!(
+            event["keyValues"]["0"]["value"]["value"], expected,
+            "{}",
+            record.json
+        );
+        assert_eq!(
+            event["keyValues"]["1"]["value"]["value"]["0"]["value"], expected,
+            "{}",
+            record.json
+        );
+    }
 }
 
 // A final run that does not finalize, then a changed and a removed queued message and a grown report: the next final run rewrites and deletes them.
@@ -2654,6 +2808,7 @@ async fn redelivered_report_with_the_same_report_id_converges() {
         .registry_page("x:DmarcExternalReport", None, 100)
         .await
         .expect("reports")
+        .records
         .into_iter()
         .map(|record| record.key.id)
         .collect();
@@ -2688,6 +2843,7 @@ async fn final_run_completes_the_stock_spam_tags() {
             .registry_page("x:SpamTag", None, 100)
             .await
             .expect("spam tags")
+            .records
             .into_iter()
             .map(|record| {
                 (
@@ -2781,7 +2937,8 @@ async fn stored_acme_provider_gets_its_v016_description() {
     let providers = source
         .registry_page("x:AcmeProvider", None, 10)
         .await
-        .expect("acme providers");
+        .expect("acme providers")
+        .records;
     let descriptions: Vec<&str> = providers
         .iter()
         .filter_map(|record| record.json["description"].as_str())
@@ -2794,7 +2951,8 @@ async fn stored_acme_provider_gets_its_v016_description() {
     let domains = source
         .registry_page("x:Domain", None, 10)
         .await
-        .expect("domains");
+        .expect("domains")
+        .records;
     assert!(
         domains
             .iter()
@@ -2805,5 +2963,105 @@ async fn stored_acme_provider_gets_its_v016_description() {
         scenario.run_rows("error").is_empty(),
         "{:?}",
         scenario.run_rows("error")
+    );
+}
+
+// A tenant domain whose ACME provider belongs to no tenant is migrated with manual certificates, so v1 accepts it and the accounts in that domain are copied.
+#[tokio::test(flavor = "multi_thread")]
+async fn tenant_domain_with_a_global_acme_provider_is_migrated() {
+    let scenario = Scenario::seeded(false).await;
+    const ACME_ID: u64 = 307264283016692224;
+    seed_registry_object(
+        &scenario.path("src"),
+        "Tenant",
+        1,
+        &serde_json::json!({"name": "example"}),
+    )
+    .await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "AcmeProvider",
+        ACME_ID,
+        &serde_json::json!({
+            "directory": "https://acme.example.org/directory",
+            "challengeType": "TlsAlpn01",
+            "contact": {"postmaster@example.org": true},
+            "accountUri": "https://acme.example.org/acct/42",
+            "accountKey": "test-account-key",
+        }),
+    )
+    .await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "Domain",
+        DOMAIN_ID,
+        &serde_json::json!({
+            "name": "example.org",
+            "memberTenantId": "b",
+            "certificateManagement": {
+                "@type": "Automatic",
+                "acmeProviderId": "iq23htewaaqa",
+            },
+        }),
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let final_run = ["run", "--final", "--yes", "--final-observation", "0"];
+    let (code, output) = scenario.cli(&final_run, true);
+    assert_eq!(
+        code,
+        EXIT_OK,
+        "final run: {output}\nerrors: {:?}",
+        scenario.run_rows("error")
+    );
+    let source = V1Source::from_store(open(&scenario.path("dst")).await);
+    let domains = source
+        .registry_page("x:Domain", None, 10)
+        .await
+        .expect("domains")
+        .records;
+    assert!(
+        domains
+            .iter()
+            .any(|record| record.json["name"] == "example.org"
+                && record.json["certificateManagement"] == serde_json::json!({"@type": "Manual"})),
+        "{domains:?}"
+    );
+    assert!(
+        scenario
+            .run_rows("warning")
+            .iter()
+            .any(|row| row.contains("not in the same tenant")),
+        "{:?}",
+        scenario.run_rows("warning")
+    );
+}
+
+// An account whose Account object v1 rejected fails with an error that points at the registry, not with a transient "Account not found".
+#[tokio::test(flavor = "multi_thread")]
+async fn account_missing_in_v1_fails_with_a_registry_hint() {
+    let scenario = Scenario::seeded(false).await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "Domain",
+        DOMAIN_ID,
+        &serde_json::json!({"name": "example\u{0}.org"}),
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let (code, output) = scenario.cli(&["run"], true);
+    assert_eq!(code, EXIT_FAILURE, "run: {output}");
+    let errors = scenario.run_rows("error");
+    assert!(
+        errors
+            .iter()
+            .any(|row| row.contains(&format!("account {ACCOUNT} does not exist in v1"))),
+        "{errors:?}"
+    );
+    assert!(
+        !errors.iter().any(|row| row.contains("Account not found")),
+        "{errors:?}"
     );
 }

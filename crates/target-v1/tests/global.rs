@@ -514,6 +514,40 @@ async fn registry_blob_links() {
     );
 }
 
+// A spam training sample commits its blob, so a blob in a shared blob store counts as present.
+#[tokio::test(flavor = "multi_thread")]
+async fn registry_blob_is_committed() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = open_target(dir.path()).await;
+    let sample_hash = hash(b"sample");
+    assert_eq!(
+        target.blobs_exist(&[sample_hash]).await.expect("exists"),
+        [false]
+    );
+    let outcome = target
+        .write_registry(&[sample("2031-01-01T00:00:00Z")])
+        .await
+        .expect("sample");
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    assert_eq!(
+        target.blobs_exist(&[sample_hash]).await.expect("exists"),
+        [true]
+    );
+    target.start_server().await.expect("server");
+    let stored = hash(b"stored");
+    target
+        .put_blob(&stored, Bytes::from_static(b"stored"))
+        .await
+        .expect("put");
+    assert_eq!(
+        target
+            .stored_blobs_exist(&[stored, sample_hash])
+            .await
+            .expect("stored"),
+        [true, false]
+    );
+}
+
 #[cfg(feature = "enterprise")]
 fn telemetry_records() -> Vec<model::TelemetryRecord> {
     use model::{TelemetryKind, TelemetryRecord};
