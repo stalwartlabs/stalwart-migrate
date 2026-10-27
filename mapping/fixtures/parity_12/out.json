@@ -319,13 +319,6 @@
     },
     {
       "change": "dropped",
-      "key": "x:DmarcInternalReport/b",
-      "level": "warning",
-      "path": "report/records/1",
-      "reason": "invalid value"
-    },
-    {
-      "change": "dropped",
       "key": "x:OidcProvider",
       "level": "warning",
       "path": "anonymousClientRegistration",
@@ -1486,6 +1479,33 @@
                   "scope": "unspecified"
                 }
               }
+            },
+            "1": {
+              "count": 5,
+              "dkimResults": {},
+              "envelopeFrom": "",
+              "envelopeTo": "s8",
+              "evaluatedDisposition": "none",
+              "evaluatedDkim": "unspecified",
+              "evaluatedSpf": "fail",
+              "extensions": {
+                "0": {
+                  "definition": "s1",
+                  "name": "s6"
+                }
+              },
+              "headerFrom": "s7",
+              "policyOverrideReasons": {
+                "0": {
+                  "comment": null,
+                  "overrideType": "Other"
+                },
+                "1": {
+                  "comment": null,
+                  "overrideType": "Forwarded"
+                }
+              },
+              "sourceIp": "s8"
             }
           },
           "reportId": "s6",
@@ -1590,7 +1610,7 @@
       "source": "x:MailingList/b",
       "value": {
         "aliases": {
-          "1": {
+          "0": {
             "name": "s9"
           }
         },

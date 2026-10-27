@@ -38,6 +38,13 @@ case "$variant" in
 esac
 
 case "$target" in
+    aarch64-unknown-linux-*)
+        target_var=$(echo "$target" | tr '-' '_')
+        export "CFLAGS_$target_var=-moutline-atomics" "CXXFLAGS_$target_var=-moutline-atomics"
+        ;;
+esac
+
+case "$target" in
     *-unknown-linux-gnu*)
         build="cargo zigbuild"
         if [ "$variant" = fdb ]; then

@@ -288,8 +288,9 @@ pub(super) fn dmarc_envelope_from(
             Flow::Keep
         }
         None => {
-            w.dropped_here(DropReason::Invalid, None);
-            Flow::Remove
+            src.remove("envelopeFrom");
+            out.insert("envelopeFrom".into(), string(""));
+            Flow::Keep
         }
     }
 }
@@ -334,7 +335,7 @@ pub(crate) fn report_required(fields: &str) -> Option<&'static [&'static str]> {
         "x:DmarcReport" => &["orgName", "email", "reportId", "policyDomain"],
         "x:DmarcExtension" => &["definition", "name"],
         "x:DmarcDkimResult" => &["domain", "selector"],
-        "x:DmarcReportRecord" => &["envelopeFrom", "headerFrom"],
+        "x:DmarcReportRecord" => &["headerFrom"],
         "x:DmarcSpfResult" => &["domain"],
         "x:DmarcPolicyOverrideReason" => &[],
         "x:TlsReport" => &["reportId"],

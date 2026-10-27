@@ -122,7 +122,7 @@
               }
             }
           },
-          "reportId": "seed-dmarc-1",
+          "reportId": "seed-dmarc-2",
           "version": 0.0
         },
         "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",
@@ -187,7 +187,7 @@
               }
             }
           },
-          "reportId": "seed-dmarc-1",
+          "reportId": "seed-dmarc-3",
           "version": 0.0
         },
         "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",
@@ -223,7 +223,7 @@
           "policyTestingMode": false,
           "policyVersion": null,
           "records": {},
-          "reportId": "seed-dmarc-1",
+          "reportId": "seed-dmarc-4",
           "version": 0.0
         },
         "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",

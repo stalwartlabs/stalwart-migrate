@@ -5,7 +5,7 @@ exclude = ["vendor"]
 
 [workspace.package]
 edition = "2024"
-version = "1.0.1"
+version = "1.0.2"
 license = "AGPL-3.0-only OR LicenseRef-SEL"
 
 [workspace.dependencies]
@@ -58,3 +58,4 @@ rpath = false
 hickory-proto = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
 hickory-net = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
 hickory-resolver = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
+librocksdb-sys = { git = "https://github.com/stalwartlabs/rust-rocksdb", branch = "stalwart/0.25" }

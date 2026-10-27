@@ -782,7 +782,7 @@
       "source": "x:MailingList/b",
       "value": {
         "aliases": {
-          "1": {
+          "0": {
             "description": "s4",
             "enable": true,
             "name": "s7"

@@ -1,0 +1,199 @@
+{
+  "objects": [
+    {
+      "key": "x:DmarcExternalReport/b",
+      "value": {
+        "expiresAt": "2026-11-20T14:53:05Z",
+        "from": "noreply-dmarc@reporter.example.com",
+        "memberTenantId": null,
+        "receivedAt": "2026-10-21T14:53:05Z",
+        "report": {
+          "dateRangeBegin": "2024-06-01T00:00:00Z",
+          "dateRangeEnd": "2024-06-01T23:59:59Z",
+          "email": "noreply-dmarc@reporter.example.com",
+          "errors": {},
+          "extensions": {},
+          "extraContactInfo": null,
+          "generator": null,
+          "orgName": "reporter.example.com",
+          "policyAdkim": "relaxed",
+          "policyAspf": "relaxed",
+          "policyDiscoveryMethod": "unspecified",
+          "policyDisposition": "none",
+          "policyDomain": "example.org",
+          "policyFailureReportingOptions": {},
+          "policyNp": "unspecified",
+          "policySubdomainDisposition": "none",
+          "policyTestingMode": false,
+          "policyVersion": null,
+          "records": {
+            "0": {
+              "count": 3,
+              "dkimResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "pass",
+                  "selector": "ed2026"
+                }
+              },
+              "envelopeFrom": "example.org",
+              "envelopeTo": null,
+              "evaluatedDisposition": "none",
+              "evaluatedDkim": "pass",
+              "evaluatedSpf": "fail",
+              "extensions": {},
+              "headerFrom": "example.org",
+              "policyOverrideReasons": {},
+              "sourceIp": "192.0.2.10",
+              "spfResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "fail",
+                  "scope": "unspecified"
+                }
+              }
+            }
+          },
+          "reportId": "dup",
+          "version": 0.0
+        },
+        "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",
+        "to": {
+          "postmaster@example.org": true
+        }
+      }
+    },
+    {
+      "key": "x:DmarcExternalReport/c",
+      "value": {
+        "expiresAt": "2026-11-20T14:53:05Z",
+        "from": "noreply-dmarc@reporter.example.com",
+        "memberTenantId": null,
+        "receivedAt": "2026-10-21T14:53:05Z",
+        "report": {
+          "dateRangeBegin": "2024-06-01T00:00:00Z",
+          "dateRangeEnd": "2024-06-01T23:59:59Z",
+          "email": "noreply-dmarc@reporter.example.com",
+          "errors": {},
+          "extensions": {},
+          "extraContactInfo": null,
+          "generator": null,
+          "orgName": "reporter.example.com",
+          "policyAdkim": "relaxed",
+          "policyAspf": "relaxed",
+          "policyDiscoveryMethod": "unspecified",
+          "policyDisposition": "none",
+          "policyDomain": "example.org",
+          "policyFailureReportingOptions": {},
+          "policyNp": "unspecified",
+          "policySubdomainDisposition": "none",
+          "policyTestingMode": false,
+          "policyVersion": null,
+          "records": {
+            "0": {
+              "count": 3,
+              "dkimResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "pass",
+                  "selector": "ed2026"
+                }
+              },
+              "envelopeFrom": "example.org",
+              "envelopeTo": null,
+              "evaluatedDisposition": "none",
+              "evaluatedDkim": "pass",
+              "evaluatedSpf": "fail",
+              "extensions": {},
+              "headerFrom": "example.org",
+              "policyOverrideReasons": {},
+              "sourceIp": "192.0.2.10",
+              "spfResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "fail",
+                  "scope": "unspecified"
+                }
+              }
+            }
+          },
+          "reportId": "dup",
+          "version": 0.0
+        },
+        "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",
+        "to": {
+          "postmaster@example.org": true
+        }
+      }
+    },
+    {
+      "key": "x:DmarcExternalReport/d",
+      "value": {
+        "expiresAt": "2026-11-20T14:53:05Z",
+        "from": "noreply-dmarc@reporter.example.com",
+        "memberTenantId": null,
+        "receivedAt": "2026-10-21T14:53:05Z",
+        "report": {
+          "dateRangeBegin": "2024-06-01T00:00:00Z",
+          "dateRangeEnd": "2024-06-02T23:59:59Z",
+          "email": "noreply-dmarc@reporter.example.com",
+          "errors": {},
+          "extensions": {},
+          "extraContactInfo": null,
+          "generator": null,
+          "orgName": "reporter.example.com",
+          "policyAdkim": "relaxed",
+          "policyAspf": "relaxed",
+          "policyDiscoveryMethod": "unspecified",
+          "policyDisposition": "none",
+          "policyDomain": "example.org",
+          "policyFailureReportingOptions": {},
+          "policyNp": "unspecified",
+          "policySubdomainDisposition": "none",
+          "policyTestingMode": false,
+          "policyVersion": null,
+          "records": {
+            "0": {
+              "count": 3,
+              "dkimResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "pass",
+                  "selector": "ed2026"
+                }
+              },
+              "envelopeFrom": "example.org",
+              "envelopeTo": null,
+              "evaluatedDisposition": "none",
+              "evaluatedDkim": "pass",
+              "evaluatedSpf": "fail",
+              "extensions": {},
+              "headerFrom": "example.org",
+              "policyOverrideReasons": {},
+              "sourceIp": "192.0.2.10",
+              "spfResults": {
+                "0": {
+                  "domain": "example.org",
+                  "humanResult": null,
+                  "result": "fail",
+                  "scope": "unspecified"
+                }
+              }
+            }
+          },
+          "reportId": "dup",
+          "version": 0.0
+        },
+        "subject": "Report Domain: example.org Submitter: reporter.example.com Report-ID: seed-dmarc-xml",
+        "to": {
+          "postmaster@example.org": true
+        }
+      }
+    }
+  ]
+}

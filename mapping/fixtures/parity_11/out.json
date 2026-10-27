@@ -317,13 +317,6 @@
     },
     {
       "change": "dropped",
-      "key": "x:DmarcInternalReport/b",
-      "level": "warning",
-      "path": "report/records/0",
-      "reason": "invalid value"
-    },
-    {
-      "change": "dropped",
       "key": "x:DmarcReportSettings",
       "level": "warning",
       "path": "aggregateSubject",
@@ -1316,6 +1309,32 @@
           "policySubdomainDisposition": "reject",
           "policyVersion": "s2",
           "records": {
+            "0": {
+              "count": 1000,
+              "dkimResults": {},
+              "envelopeFrom": "",
+              "envelopeTo": "s2",
+              "evaluatedDkim": "unspecified",
+              "evaluatedSpf": "fail",
+              "extensions": {},
+              "headerFrom": "s9",
+              "policyOverrideReasons": {
+                "0": {
+                  "comment": "s6"
+                },
+                "1": {
+                  "comment": "s7",
+                  "overrideType": "LocalPolicy"
+                }
+              },
+              "sourceIp": "s4",
+              "spfResults": {
+                "0": {
+                  "humanResult": "s1",
+                  "result": "tempError"
+                }
+              }
+            },
             "1": {
               "count": 100,
               "dkimResults": {},

@@ -328,8 +328,11 @@ impl<'s, 'r> Walker<'s, 'r> {
                     }
                     self.path.pop();
                 }
-                for index in removed {
-                    items.remove(&index);
+                if !removed.is_empty() {
+                    for index in removed {
+                        items.remove(&index);
+                    }
+                    compact_list(items);
                 }
                 Flow::Keep
             }
@@ -590,6 +593,25 @@ impl<'s, 'r> Walker<'s, 'r> {
     pub fn prompt_defaults(&self, prompt: PromptId) -> Answer {
         Answer::defaults_of(self.session.mapping.catalogue().prompt(prompt))
     }
+}
+
+pub(crate) fn compact_list(items: &mut Map<String, Value>) {
+    let mut entries = Vec::with_capacity(items.len());
+    for (index, item) in mem::take(items) {
+        match index.parse::<u32>() {
+            Ok(position) => entries.push((position, item)),
+            Err(_) => {
+                items.insert(index, item);
+            }
+        }
+    }
+    entries.sort_unstable_by_key(|(position, _)| *position);
+    items.extend(
+        entries
+            .into_iter()
+            .enumerate()
+            .map(|(position, (_, item))| (position.to_string(), item)),
+    );
 }
 
 #[derive(Debug)]

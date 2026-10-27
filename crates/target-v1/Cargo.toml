@@ -65,7 +65,7 @@ enterprise = [
 workspace = true
 
 [dev-dependencies]
-rocksdb = { version = "0.24", features = ["multi-threaded-cf"] }
+rocksdb = { version = "0.25", features = ["multi-threaded-cf"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 tempfile = "3.27"
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }

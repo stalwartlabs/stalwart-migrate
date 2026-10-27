@@ -378,13 +378,6 @@
     },
     {
       "change": "dropped",
-      "key": "x:DmarcExternalReport/d",
-      "level": "warning",
-      "path": "report/records/1",
-      "reason": "invalid value"
-    },
-    {
-      "change": "dropped",
       "key": "x:DmarcReportSettings",
       "level": "warning",
       "path": "aggregateSubject",
@@ -1600,6 +1593,44 @@
                   "scope": "helo"
                 }
               }
+            },
+            "1": {
+              "count": 0,
+              "dkimResults": {
+                "0": {
+                  "domain": "s3",
+                  "humanResult": "s3",
+                  "result": "fail",
+                  "selector": "s7"
+                },
+                "1": {
+                  "domain": "s1",
+                  "humanResult": "s6",
+                  "result": "policy",
+                  "selector": "s4"
+                }
+              },
+              "envelopeFrom": "",
+              "envelopeTo": "s8",
+              "evaluatedDisposition": "unspecified",
+              "evaluatedDkim": "fail",
+              "evaluatedSpf": "pass",
+              "extensions": {
+                "0": {
+                  "definition": "s5",
+                  "name": "s0"
+                }
+              },
+              "headerFrom": "s6",
+              "policyOverrideReasons": {
+                "0": {
+                  "comment": "s8"
+                },
+                "1": {
+                  "overrideType": "PolicyTestMode"
+                }
+              },
+              "sourceIp": null
             }
           },
           "reportId": "s5"

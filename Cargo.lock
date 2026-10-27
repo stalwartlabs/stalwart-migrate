@@ -4569,9 +4569,8 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "0.17.3+10.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cef2a00ee60fe526157c9023edab23943fae1ce2ab6f4abb2a807c1746835de9"
+version = "0.19.0+11.8.1"
+source = "git+https://github.com/stalwartlabs/rust-rocksdb?branch=stalwart%2F0.25#f6169ca36d74c15637f8c6396c34e82aa73d0d47"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -4579,6 +4578,7 @@ dependencies = [
  "libc",
  "libz-sys",
  "lz4-sys",
+ "rustflags",
  "zstd-sys",
 ]
 
@@ -4845,7 +4845,7 @@ checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "mapping"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "flate2",
  "hashify 0.3.1",
@@ -4927,7 +4927,7 @@ checksum = "c797b9d6bb23aab2fc369c65f871be49214f5c759af65bde26ffaaa2b646b492"
 
 [[package]]
 name = "migrate"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "bytes",
  "clap",
@@ -5013,7 +5013,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "bytes",
  "hashify 0.3.1",
@@ -6996,9 +6996,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddb7af00d2b17dbd07d82c0063e25411959748ff03e8d4f96134c2ff41fce34f"
+checksum = "d8d90add70d1d420ee487bce4a1449880a8d147451c6051b2ee5f8354553dcbf"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -7123,6 +7123,12 @@ checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
 ]
+
+[[package]]
+name = "rustflags"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a39e0e9135d7a7208ee80aa4e3e4b88f0f5ad7be92153ed70686c38a03db2e63"
 
 [[package]]
 name = "rusticata-macros"
@@ -8112,7 +8118,7 @@ dependencies = [
 
 [[package]]
 name = "source-v016"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "bytes",
  "calcard 0.3.14",
@@ -8142,7 +8148,7 @@ dependencies = [
 
 [[package]]
 name = "source-v1"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "bytes",
  "calcard 0.4.0",
@@ -8291,7 +8297,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "state"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "hashify 0.3.1",
  "model",
@@ -8558,7 +8564,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "target-v016"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -8593,7 +8599,7 @@ dependencies = [
 
 [[package]]
 name = "target-v1"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "arc-swap",
  "bytes",

@@ -4,7 +4,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Map, Value};
 
 use super::{
-    DeferredUpdate, Outcome, Owners, Principals, Session, TargetObject, path::Path, walk::TYPE_KEY,
+    DeferredUpdate, Outcome, Owners, Principals, Session, TargetObject,
+    path::Path,
+    walk::{TYPE_KEY, compact_list},
 };
 use crate::{
     ids::{Instance, JmapId, ObjectKey},
@@ -349,6 +351,7 @@ impl Fixer<'_, '_> {
                 for index in removed {
                     items.remove(&index);
                 }
+                compact_list(items);
                 if min_items.is_some_and(|min| (items.len() as u64) < min) {
                     Fix::Remove
                 } else {

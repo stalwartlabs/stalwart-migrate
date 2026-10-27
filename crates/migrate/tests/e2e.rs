@@ -2815,6 +2815,122 @@ async fn redelivered_report_with_the_same_report_id_converges() {
     assert_eq!(ids, [model::RegistryId::Id(SECOND)]);
 }
 
+// A received DMARC report whose first record and first DKIM result are dropped verifies clean and lets the final run finish (mail-ie).
+#[tokio::test(flavor = "multi_thread")]
+async fn dmarc_report_with_dropped_list_elements_verifies() {
+    const REPORT: u64 = 910;
+    let scenario = Scenario::seeded(false).await;
+    let mut report = dmarc_report("dropped-elements");
+    report["report"]["records"] = serde_json::json!({
+        "0": {
+            "count": 1,
+            "envelopeFrom": "example.org",
+            "evaluatedDisposition": "none",
+            "evaluatedDkim": "pass",
+            "evaluatedSpf": "pass",
+            "headerFrom": "",
+            "sourceIp": "192.0.2.11"
+        },
+        "1": {
+            "count": 2,
+            "envelopeFrom": "",
+            "evaluatedDisposition": "none",
+            "evaluatedDkim": "fail",
+            "evaluatedSpf": "fail",
+            "headerFrom": "example.org",
+            "sourceIp": "192.0.2.12",
+            "dkimResults": {
+                "0": {"domain": "", "selector": "", "result": "none"},
+                "1": {"domain": "example.org", "selector": "ed2026", "result": "fail"}
+            }
+        },
+        "2": {
+            "count": 3,
+            "envelopeFrom": "example.org",
+            "evaluatedDisposition": "none",
+            "evaluatedDkim": "pass",
+            "evaluatedSpf": "pass",
+            "headerFrom": "example.org",
+            "sourceIp": "192.0.2.13"
+        }
+    });
+    seed_registry_object(
+        &scenario.path("src"),
+        "DmarcExternalReport",
+        REPORT,
+        &report,
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let (code, output) = scenario.cli(&["run"], true);
+    assert_eq!(code, EXIT_OK, "run: {output}");
+    let (code, output) = scenario.cli(
+        &["run", "--final", "--yes", "--final-observation", "0"],
+        true,
+    );
+    assert_eq!(code, EXIT_OK, "final: {output}");
+    let (unexplained, _, rows) = scenario.last_verify();
+    assert_eq!(unexplained, 0, "{:#?}", describe(&rows));
+    assert!(scenario.final_done());
+    let store = open(&scenario.path("dst")).await;
+    let records = V1Source::from_store(store)
+        .registry_page("x:DmarcExternalReport", None, 100)
+        .await
+        .expect("reports")
+        .records;
+    let [stored] = records.as_slice() else {
+        panic!("one report expected: {records:?}");
+    };
+    let records = &stored.json["report"]["records"];
+    assert_eq!(records["0"]["envelopeFrom"], "");
+    assert_eq!(records["0"]["dkimResults"]["0"]["domain"], "example.org");
+    assert_eq!(records["1"]["count"], 3);
+    assert!(records.get("2").is_none(), "{records}");
+}
+
+// Two v0.16 received DMARC reports with the same v1 unique key migrate as one, with a warning instead of an error, and the final run finishes (mail-ie).
+#[tokio::test(flavor = "multi_thread")]
+async fn duplicate_dmarc_reports_migrate_once() {
+    const FIRST: u64 = 920;
+    const SECOND: u64 = 921;
+    let scenario = Scenario::seeded(false).await;
+    for id in [FIRST, SECOND] {
+        seed_registry_object(
+            &scenario.path("src"),
+            "DmarcExternalReport",
+            id,
+            &dmarc_report("duplicate"),
+        )
+        .await;
+    }
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let (code, output) = scenario.cli(
+        &["run", "--final", "--yes", "--final-observation", "0"],
+        true,
+    );
+    assert_eq!(code, EXIT_OK, "final: {output}");
+    assert!(
+        scenario.run_rows("error").is_empty(),
+        "{:#?}",
+        scenario.run_rows("error")
+    );
+    let (unexplained, _, rows) = scenario.last_verify();
+    assert_eq!(unexplained, 0, "{:#?}", describe(&rows));
+    assert!(scenario.final_done());
+    let store = open(&scenario.path("dst")).await;
+    let ids: Vec<model::RegistryId> = V1Source::from_store(store)
+        .registry_page("x:DmarcExternalReport", None, 100)
+        .await
+        .expect("reports")
+        .records
+        .into_iter()
+        .map(|record| record.key.id)
+        .collect();
+    assert_eq!(ids, [model::RegistryId::Id(FIRST)]);
+}
+
 // The final run renames stale stock spam tags, drops LLM_* tags and adds the missing stock tags once.
 #[tokio::test(flavor = "multi_thread")]
 async fn final_run_completes_the_stock_spam_tags() {

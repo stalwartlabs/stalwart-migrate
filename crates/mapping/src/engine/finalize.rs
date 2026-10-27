@@ -3,7 +3,11 @@ use std::collections::hash_map::Entry;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Map, Number, Value};
 
-use super::{Direction, Outcome, Session, path::Path, walk::TYPE_KEY};
+use super::{
+    Direction, Outcome, Session,
+    path::Path,
+    walk::{TYPE_KEY, compact_list},
+};
 use crate::{
     answers::{mask_all, mask_property},
     ids::ObjectKey,
@@ -77,6 +81,12 @@ pub fn unique_key(object: &str) -> &'static [&'static str] {
         "x:AllowedIp" => &["address"],
         "x:BlockedIp" => &["address"],
         "x:ClusterRole" => &["name"],
+        "x:DmarcExternalReport" => &[
+            "report/orgName",
+            "report/policyDomain",
+            "report/reportId",
+            "report/dateRangeEnd",
+        ],
         "x:Domain" => &["name"],
         "x:EventTracingLevel" => &["event"],
         "x:HttpLookup" => &["namespace"],
@@ -110,7 +120,10 @@ pub fn unique_key_value(object: &str, value: &Value) -> Option<String> {
     }
     let mut text = String::new();
     for property in key {
-        let part = value.get(*property).filter(|v| !v.is_null())?;
+        let part = property
+            .split('/')
+            .try_fold(value, |value, name| value.get(name))
+            .filter(|v| !v.is_null())?;
         if !text.is_empty() {
             text.push_str(", ");
         }
@@ -119,6 +132,10 @@ pub fn unique_key_value(object: &str, value: &Value) -> Option<String> {
         text.push_str(&serde_json::to_string(part).unwrap_or_default());
     }
     Some(text)
+}
+
+fn keeps_keyless(object: &str) -> bool {
+    hashify::set!(object.as_bytes(), "x:DmarcExternalReport")
 }
 
 const MERGED_OBJECT: &str = "x:EventTracingLevel";
@@ -192,7 +209,9 @@ fn drop_lost_keys(outcome: &mut Outcome, originals: &[(ObjectKey, Value)]) {
             .then(|| unique_key_value(&object.key.object, &object.value))
             .flatten();
         let Some(text) = text else {
-            verdicts[position] = Verdict::Lost;
+            if !keeps_keyless(&object.key.object) {
+                verdicts[position] = Verdict::Lost;
+            }
             continue;
         };
         match winners.entry((object.key.object.clone(), text)) {
@@ -490,8 +509,11 @@ impl Finalizer<'_, '_> {
                     }
                     self.path.pop();
                 }
-                for index in removed {
-                    items.remove(&index);
+                if !removed.is_empty() {
+                    for index in removed {
+                        items.remove(&index);
+                    }
+                    compact_list(items);
                 }
                 Flow::Keep
             }
