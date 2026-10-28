@@ -5,3 +5,4 @@
 *.sqlite-shm
 __pycache__/
 .ignore
+.DS_Store
