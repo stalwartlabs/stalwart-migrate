@@ -12,7 +12,10 @@ use mapping::{
 use model::RegistryKey;
 use serde_json::json;
 
-use super::{Confirmation, Prepare, Prepared, Terminal, load_answers, summary, write_outputs};
+use super::{
+    Confirmation, OSS_BUILD_NOTICE, Prepare, Prepared, Terminal, load_answers, summary,
+    write_outputs,
+};
 
 struct Scripted<'x> {
     input: &'x [u8],
@@ -149,6 +152,21 @@ fn external_blob_store_announces_the_spam_model_overwrite() {
         "{text}"
     );
     assert!(!summary(&prepared("Default")).contains("spam"));
+}
+
+// Only the build without the enterprise feature warns that the official binaries cannot open its store.
+#[test]
+fn summary_warns_about_the_store_of_the_open_source_build() {
+    let prepared = Prepared {
+        outcome: Outcome::default(),
+        problems: Vec::new(),
+        unreadable: Vec::new(),
+        answered: 0,
+    };
+    assert_eq!(
+        summary(&prepared).contains(OSS_BUILD_NOTICE),
+        !cfg!(feature = "enterprise")
+    );
 }
 
 // Unreadable source entries are listed as warnings and do not block completion.

@@ -96,6 +96,10 @@ pub enum Change {
     ReferenceOutsideTenant {
         target: ObjectKey,
     },
+    ReferenceCopiedIntoTenant {
+        target: ObjectKey,
+        copy: ObjectKey,
+    },
     Dangling {
         target: ObjectKey,
     },
@@ -141,7 +145,8 @@ impl Entry {
             Change::DefaultPinned { .. }
             | Change::DefaultInherited { .. }
             | Change::Transformed { .. }
-            | Change::Moved { .. } => Level::Info,
+            | Change::Moved { .. }
+            | Change::ReferenceCopiedIntoTenant { .. } => Level::Info,
         }
     }
 }
@@ -186,6 +191,10 @@ impl fmt::Display for Entry {
             Change::ReferenceCleared { target } => {
                 write!(f, ": reference to {target} removed (target not migrated)")
             }
+            Change::ReferenceCopiedIntoTenant { target, copy } => write!(
+                f,
+                ": reference to {target} now points at its copy {copy} in the same tenant"
+            ),
             Change::ReferenceOutsideTenant { target } => write!(
                 f,
                 ": reference to {target} removed (it is not in the same tenant, which v1 requires)"

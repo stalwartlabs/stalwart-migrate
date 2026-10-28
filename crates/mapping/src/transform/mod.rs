@@ -82,7 +82,7 @@ transforms! {
     ClientIpSource => "client_ip_source", Group, always: false, reverse: true, triggers: ["clientIpSource", "forwardedHops"];
     Permissions => "permissions", Group, always: false, reverse: false, triggers: [];
     DmarcEnvelopeFrom => "dmarc_envelope_from", Group, always: true, reverse: false, triggers: ["envelopeFrom"];
-    AcmeDescription => "acme_description", Group, always: true, reverse: false, triggers: [];
+    AcmeDescription => "acme_description", Group, always: true, reverse: true, triggers: ["description"];
     SearchFieldsFilter => "search_fields_filter", Property, always: false, reverse: true, triggers: ["indexEmailFields", "indexCalendarFields", "indexContactFields"];
     ExpressionRemovedVars => "expression_removed_vars", Property, always: false, reverse: false, triggers: [];
     WebuiBundle => "webui_bundle", Property, always: false, reverse: false, triggers: [];
@@ -138,6 +138,7 @@ impl Transform {
                 misc::dmarc_envelope_from(w, src, out)
             }
             (Transform::AcmeDescription, Direction::Forward) => misc::acme_description(w, src, out),
+            (Transform::AcmeDescription, Direction::Reverse) => misc::acme_description_reverse(src),
             _ => Flow::Keep,
         }
     }

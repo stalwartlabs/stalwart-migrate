@@ -18,7 +18,8 @@ Installs the stalwart-migrate binary from the GitHub releases.
 Usage: stalwart-migrate-installer.sh [OPTIONS]
 
 Options:
-  --oss              Install the build for Stalwart servers compiled without the "enterprise" feature
+  --oss              Only for Stalwart servers compiled from source without the "enterprise" feature;
+                     the official binaries and Docker images use the default build
   --fdb              Install the FoundationDB build (Linux x86_64 and aarch64 with glibc 2.34 or later)
   --version <VER>    Install release <VER> (for example 1.0.0) instead of the latest one
   --to <DIR>         Install into <DIR> (default: /usr/local/bin as root, ~/.local/bin otherwise)

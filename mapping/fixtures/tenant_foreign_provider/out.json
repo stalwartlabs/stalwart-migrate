@@ -1,0 +1,102 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "reference_outside_tenant",
+      "key": "x:Domain/d",
+      "level": "warning",
+      "path": "certificateManagement/acmeProviderId"
+    },
+    {
+      "change": "reference_outside_tenant",
+      "key": "x:Domain/d",
+      "level": "warning",
+      "path": "dnsManagement/dnsServerId"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AcmeProvider/k",
+      "level": "info",
+      "path": "description"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "source": "x:Tenant/b",
+      "value": {
+        "name": "alpha"
+      }
+    },
+    {
+      "key": "x:Tenant/c",
+      "source": "x:Tenant/c",
+      "value": {
+        "name": "beta"
+      }
+    },
+    {
+      "key": "x:Domain/d",
+      "source": "x:Domain/d",
+      "value": {
+        "certificateManagement": {
+          "@type": "Manual"
+        },
+        "dnsManagement": {
+          "@type": "Manual"
+        },
+        "memberTenantId": "b",
+        "name": "a1.example.org"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/k",
+      "source": "x:AcmeProvider/k",
+      "value": {
+        "accountKey": "acme-key",
+        "accountUri": "https://acme.example.org/acct/42",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "description": "https://acme.example.org/directory (42)",
+        "directory": "https://acme.example.org/directory",
+        "memberTenantId": "c"
+      }
+    },
+    {
+      "key": "x:DnsServer/k",
+      "source": "x:DnsServer/k",
+      "value": {
+        "@type": "Cloudflare",
+        "description": "cf",
+        "memberTenantId": "c",
+        "pollInterval": 15000,
+        "secret": {
+          "@type": "Value",
+          "secret": "cf-token"
+        }
+      }
+    },
+    {
+      "key": "x:Domain/f",
+      "source": "x:Domain/f",
+      "value": {
+        "certificateManagement": {
+          "@type": "Automatic",
+          "acmeProviderId": "k"
+        },
+        "dnsManagement": {
+          "@type": "Automatic",
+          "dnsServerId": "k",
+          "origin": null
+        },
+        "memberTenantId": "c",
+        "name": "b1.example.org"
+      }
+    }
+  ],
+  "questions": []
+}

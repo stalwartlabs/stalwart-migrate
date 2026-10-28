@@ -303,11 +303,11 @@ scope = "global"
 trigger = "enterprise-only objects, variants or fields present and the target is the open source edition (an open source build of stalwart-migrate)"
 title = "Enterprise features on an open source target"
 v016 = "The source contains enterprise-only settings."
-v1 = "The open source edition cannot store them."
+v1 = "This build of stalwart-migrate is only for Stalwart servers compiled from source without the enterprise feature, which cannot store them. The official Stalwart binaries and Docker images, with or without an Enterprise license, are migrated with the standard build."
 fields = [
   { name = "action", label = "Enterprise-only settings", kind = "choice", default = "drop", options = [
     { value = "drop", label = "Drop them and list them in the report" },
-    { value = "abort", label = "Stop; I will use the enterprise edition" },
+    { value = "abort", label = "Stop; I will use the standard build of stalwart-migrate" },
   ] },
 ]
 

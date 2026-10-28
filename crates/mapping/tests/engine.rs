@@ -1,6 +1,6 @@
 use mapping::{
-    Answers, Change, Direction, Mapping, ObjectKey, Options, SchemaVersion, Singletons,
-    SourceObject, ToolQuestions,
+    Answers, Change, Direction, Instance, JmapId, Mapping, ObjectKey, Options, SchemaVersion,
+    Singletons, SourceObject, ToolQuestions,
 };
 use serde_json::{Value, json};
 
@@ -545,8 +545,8 @@ fn event_tracing_levels_merge_at_the_most_verbose_level() {
 }
 
 #[test]
-fn references_outside_the_tenant_fall_back_like_missing_ones() {
-    // A tenant domain using an ACME provider of no tenant or another tenant falls back to manual certificates; one of its own tenant is kept.
+fn tenant_domains_get_a_copy_of_a_global_provider() {
+    // A tenant domain using a global ACME provider points at a copy in its tenant; another tenant's provider falls back to manual certificates; its own is kept.
     let mapping = Mapping::embedded().expect("mapping");
     let answers = Answers::default();
     let provider = |id: u64, tenant: Option<&str>| {
@@ -590,6 +590,7 @@ fn references_outside_the_tenant_fall_back_like_missing_ones() {
             domain(20, "k"),
             domain(21, "l"),
             domain(22, "m"),
+            domain(23, "k"),
         ]);
     assert!(outcome.is_complete(), "{:?}", outcome.report.entries);
     let management = |id: u64| {
@@ -599,7 +600,43 @@ fn references_outside_the_tenant_fall_back_like_missing_ones() {
             .find(|o| o.key == ObjectKey::with_id("x:Domain", id))
             .map(|o| o.value["certificateManagement"].clone())
     };
-    assert_eq!(management(20), Some(json!({"@type": "Manual"})));
+    let copies: Vec<_> = outcome
+        .objects
+        .iter()
+        .filter(|o| &*o.key.object == "x:AcmeProvider" && o.value["memberTenantId"] == "b")
+        .filter(|o| o.key != ObjectKey::with_id("x:AcmeProvider", 11))
+        .collect();
+    let [copy] = copies.as_slice() else {
+        panic!("one copy expected: {:?}", outcome.objects);
+    };
+    let Instance::Id(copy_id) = copy.key.instance else {
+        panic!("copy without an id");
+    };
+    assert!(copy_id >= 1 << 62, "{copy_id}");
+    assert_eq!(copy.source, copy.key);
+    assert_eq!(copy.value["accountKey"], "key");
+    assert!(
+        copy.value["description"]
+            .as_str()
+            .is_some_and(|d| d.ends_with(" (first)")),
+        "{:?}",
+        copy.value
+    );
+    let original = outcome
+        .objects
+        .iter()
+        .find(|o| o.key == ObjectKey::with_id("x:AcmeProvider", 10))
+        .expect("original provider");
+    assert!(original.value.get("memberTenantId").is_none());
+    let copy_ref = JmapId(copy_id).to_string();
+    for id in [20, 23] {
+        assert_eq!(
+            management(id),
+            Some(json!({"@type": "Automatic", "acmeProviderId": copy_ref}))
+        );
+    }
+    let position = |key: &ObjectKey| outcome.objects.iter().position(|o| o.key == *key);
+    assert!(position(&copy.key) < position(&ObjectKey::with_id("x:Domain", 20)));
     assert_eq!(
         management(21),
         Some(json!({"@type": "Automatic", "acmeProviderId": "l"}))
@@ -616,10 +653,7 @@ fn references_outside_the_tenant_fall_back_like_missing_ones() {
         .collect();
     assert_eq!(
         outside,
-        [
-            &ObjectKey::with_id("x:AcmeProvider", 10),
-            &ObjectKey::with_id("x:AcmeProvider", 12)
-        ],
+        [&ObjectKey::with_id("x:AcmeProvider", 12)],
         "{:?}",
         outcome.report.entries
     );

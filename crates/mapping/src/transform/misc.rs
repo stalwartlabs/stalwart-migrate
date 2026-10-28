@@ -330,6 +330,11 @@ pub(super) fn acme_description(
     Flow::Keep
 }
 
+pub(super) fn acme_description_reverse(src: &mut Map<String, Value>) -> Flow {
+    src.remove(ACME_DESCRIPTION);
+    Flow::Keep
+}
+
 pub(crate) fn report_required(fields: &str) -> Option<&'static [&'static str]> {
     hashify::map!(fields.as_bytes(), &'static [&'static str],
         "x:DmarcReport" => &["orgName", "email", "reportId", "policyDomain"],

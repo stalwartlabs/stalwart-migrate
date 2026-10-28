@@ -234,7 +234,7 @@ async fn mismatches_are_reported() {
     let text = messages(&rows);
     assert_eq!(summary.status, RunStatus::Failed);
     let expect = [
-        "Some(1)/Some(\"email\")/Some(2): differs in the target: keywords",
+        "Some(1)/Some(\"email\")/Some(2): differs in the target: keywords (keywords only in the source: none; only in the target: \"$flagged\")",
         "Some(1)/Some(\"identity\")/Some(9): present in the target but not in the source",
         "None/Some(\"Account\")/Some(1): the target object differs from the converted source object",
         "None/Some(\"Domain\")/Some(77): the target holds an object that is not in the source",

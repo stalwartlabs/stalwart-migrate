@@ -229,10 +229,16 @@ impl CollectionFindings<'_> {
         );
     }
 
-    fn differs(&mut self, document_id: u32, fields: &[&'static str], explained: bool) {
+    fn differs(
+        &mut self,
+        document_id: u32,
+        fields: &[&'static str],
+        detail: &str,
+        explained: bool,
+    ) {
         self.add(
             document_id,
-            format!("differs in the target: {}", fields.join(", ")).into_boxed_str(),
+            format!("differs in the target: {}{detail}", fields.join(", ")).into_boxed_str(),
             explained,
         );
     }
@@ -623,7 +629,9 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
                 explanations,
                 |document_id, outcome, explained| match outcome {
                     Outcome::Missing => found.missing(document_id, explained),
-                    Outcome::Differs(fields) => found.differs(document_id, &fields, explained),
+                    Outcome::Differs { fields, detail } => {
+                        found.differs(document_id, &fields, &detail, explained)
+                    }
                 },
             );
             if matches!(collection, Collection::Email | Collection::FileNode) {
@@ -679,7 +687,7 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
             let original = original.as_ref().map(|blob| script_text(blob, script));
             let copied = copied.as_ref().map(|blob| script_text(blob, copy));
             if original.is_none() || original != copied {
-                found.differs(script.document_id, &["script"], false);
+                found.differs(script.document_id, &["script"], "", false);
             }
         }
         Ok(())
@@ -847,7 +855,7 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
         let exist = retry(self.options.retry, || self.target.blobs_exist(hashes)).await?;
         for ((_, document_id), exists) in refs.iter().zip(exist) {
             if !exists {
-                found.differs(*document_id, &["blob"], false);
+                found.differs(*document_id, &["blob"], "", false);
             }
         }
         Ok(())

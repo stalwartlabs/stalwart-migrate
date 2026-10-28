@@ -9,6 +9,8 @@ use std::{
     process::Command,
 };
 
+#[cfg(feature = "enterprise")]
+use mapping::JmapId;
 use model::{
     Collection, GlobalBatch, GlobalCategory, LogCollection, LogRange, RecordBatch, ReportKind,
     Source,
@@ -3082,7 +3084,8 @@ async fn stored_acme_provider_gets_its_v016_description() {
     );
 }
 
-// A tenant domain whose ACME provider belongs to no tenant is migrated with manual certificates, so v1 accepts it and the accounts in that domain are copied.
+// A tenant domain whose ACME provider belongs to no tenant points at a copy of the provider in its tenant, which v1 accepts, verifies, keeps across runs and rolls back.
+#[cfg(feature = "enterprise")]
 #[tokio::test(flavor = "multi_thread")]
 async fn tenant_domain_with_a_global_acme_provider_is_migrated() {
     let scenario = Scenario::seeded(false).await;
@@ -3123,6 +3126,8 @@ async fn tenant_domain_with_a_global_acme_provider_is_migrated() {
     .await;
     let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
     assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let (code, output) = scenario.cli(&["run"], true);
+    assert_eq!(code, EXIT_OK, "run: {output}");
     let final_run = ["run", "--final", "--yes", "--final-observation", "0"];
     let (code, output) = scenario.cli(&final_run, true);
     assert_eq!(
@@ -3132,25 +3137,87 @@ async fn tenant_domain_with_a_global_acme_provider_is_migrated() {
         scenario.run_rows("error")
     );
     let source = V1Source::from_store(open(&scenario.path("dst")).await);
+    let providers = source
+        .registry_page("x:AcmeProvider", None, 10)
+        .await
+        .expect("acme providers")
+        .records;
+    assert_eq!(providers.len(), 2, "{providers:?}");
+    let copy = providers
+        .iter()
+        .find(|record| record.key.id.id() != Some(ACME_ID))
+        .expect("tenant copy");
+    assert_eq!(copy.json["memberTenantId"], "b", "{copy:?}");
+    assert_eq!(copy.json["accountUri"], "https://acme.example.org/acct/42");
     let domains = source
         .registry_page("x:Domain", None, 10)
         .await
         .expect("domains")
         .records;
+    let copy_id = JmapId(copy.key.id.id().expect("copy id")).to_string();
     assert!(
         domains
             .iter()
             .any(|record| record.json["name"] == "example.org"
-                && record.json["certificateManagement"] == serde_json::json!({"@type": "Manual"})),
+                && record.json["certificateManagement"]["@type"] == "Automatic"
+                && record.json["certificateManagement"]["acmeProviderId"] == copy_id.as_str()),
         "{domains:?}"
     );
     assert!(
         scenario
-            .run_rows("warning")
+            .run_rows("info")
             .iter()
-            .any(|row| row.contains("not in the same tenant")),
+            .any(|row| row.contains("now points at its copy")),
         "{:?}",
-        scenario.run_rows("warning")
+        scenario.run_rows("info")
+    );
+    let verified = scenario.verify();
+    assert_eq!(verified.unexplained, 0, "{:?}", verified.rows);
+    let config = |name: &str, path: PathBuf| {
+        let file = scenario.path(name);
+        std::fs::write(
+            &file,
+            serde_json::json!({"@type": "RocksDb", "path": path}).to_string(),
+        )
+        .expect("config");
+        file
+    };
+    let v1 = config("v1.json", scenario.path("dst"));
+    let back = config("back.json", scenario.path("back"));
+    let output = Command::new(BINARY)
+        .arg("rollback")
+        .arg("--yes")
+        .arg("--source")
+        .arg(&v1)
+        .arg("--target")
+        .arg(&back)
+        .arg("--state")
+        .arg(scenario.path("rollback-state"))
+        .arg("--forward-state")
+        .arg(scenario.path("state"))
+        .args(["--final-observation", "0", "--keep-v1-spam-model"])
+        .output()
+        .expect("run stalwart-migrate");
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "rollback: {}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let restored = V016Source::open(SourceConfig::from_file(&back).expect("config"))
+        .await
+        .expect("open rollback target")
+        .registry_page("Domain", None, 10)
+        .await
+        .expect("domains")
+        .records;
+    assert!(
+        restored
+            .iter()
+            .any(|record| record.json["name"] == "example.org"
+                && record.json["certificateManagement"]["acmeProviderId"] == copy_id.as_str()),
+        "{restored:?}"
     );
 }
 

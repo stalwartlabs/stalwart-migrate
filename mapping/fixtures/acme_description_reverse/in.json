@@ -1,0 +1,25 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "value": {
+        "name": "alpha"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/k",
+      "value": {
+        "directory": "https://acme.example.org/directory",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "accountUri": "https://acme.example.org/acct/42",
+        "accountKey": "acme-key",
+        "description": "https://acme.example.org/directory (42) (alpha)",
+        "memberTenantId": "b"
+      }
+    }
+  ]
+}

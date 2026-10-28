@@ -89,7 +89,7 @@ Before the migration starts, the deployment must meet these conditions:
 
 The standard build supports every data store and blob store except FoundationDB. Deployments on FoundationDB install the `-fdb` build, which adds FoundationDB to the standard build. It is available for Linux on x86_64 and aarch64 with glibc 2.34 or later, and requires the FoundationDB 7.4 client library (`libfdb_c.so`) on the host; the `-fdb` image already contains it.
 
-Operators who compile Stalwart themselves without the `enterprise` feature must download the `-oss` version of the tool instead: the `--oss` option of the install script, the `stalwart-migrate-oss-<target>.tar.xz` archives, or the image tags ending in `-oss`.
+The standard build is the right one for the official Stalwart binaries and Docker images, whether or not an Enterprise license is installed. Only a Stalwart server compiled from source without the `enterprise` feature needs the `-oss` version of the tool instead (the `--oss` option of the install script, the `stalwart-migrate-oss-<target>.tar.xz` archives, or the image tags ending in `-oss`).
 
 ### Install script
 
@@ -504,7 +504,7 @@ Plans are converted separately from the data migration. The migrated v1 store al
 The converter is not part of the release archives or the Docker image. It requires Python 3.11 or later and no other modules, and it runs from a checkout of this repository at the tag of the release, because it reads the schema snapshots and mapping rules in `mapping/`:
 
 ```sh
-git clone --depth 1 --branch v1.0.2 https://github.com/stalwartlabs/stalwart-migrate.git
+git clone --depth 1 --branch v1.0.3 https://github.com/stalwartlabs/stalwart-migrate.git
 cd stalwart-migrate
 ```
 

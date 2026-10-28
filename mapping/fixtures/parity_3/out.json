@@ -533,6 +533,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:Account/b",
+      "level": "info",
+      "path": "permissions/disabledPermissions"
+    },
+    {
+      "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",
       "path": ""
@@ -2155,6 +2161,7 @@
             "jmapParticipantIdentityUpdate": true,
             "sysAppPasswordGet": true,
             "sysArfExternalReportDestroy": true,
+            "sysOAuthGrantGet": true,
             "sysSpamTrainingSampleCreate": true
           },
           "enabledPermissions": {
@@ -2848,6 +2855,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "new_permissions"
     }
   ]
 }

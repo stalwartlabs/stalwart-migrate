@@ -1,0 +1,30 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "source": "x:Tenant/b",
+      "value": {
+        "name": "alpha"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/k",
+      "source": "x:AcmeProvider/k",
+      "value": {
+        "accountKey": "acme-key",
+        "accountUri": "https://acme.example.org/acct/42",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "directory": "https://acme.example.org/directory",
+        "memberTenantId": "b"
+      }
+    }
+  ],
+  "questions": []
+}

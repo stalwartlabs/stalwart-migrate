@@ -1,0 +1,74 @@
+{
+  "objects": [
+    {
+      "key": "x:Tenant/b",
+      "value": {
+        "name": "alpha"
+      }
+    },
+    {
+      "key": "x:Tenant/c",
+      "value": {
+        "name": "beta"
+      }
+    },
+    {
+      "key": "x:AcmeProvider/k",
+      "value": {
+        "directory": "https://acme.example.org/directory",
+        "challengeType": "TlsAlpn01",
+        "contact": {
+          "postmaster@example.org": true
+        },
+        "accountUri": "https://acme.example.org/acct/42",
+        "accountKey": "acme-key",
+        "memberTenantId": "c"
+      }
+    },
+    {
+      "key": "x:DnsServer/k",
+      "value": {
+        "@type": "Cloudflare",
+        "description": "cf",
+        "secret": {
+          "@type": "Value",
+          "secret": "cf-token"
+        },
+        "pollingInterval": 15000,
+        "memberTenantId": "c"
+      }
+    },
+    {
+      "key": "x:Domain/d",
+      "value": {
+        "name": "a1.example.org",
+        "certificateManagement": {
+          "@type": "Automatic",
+          "acmeProviderId": "k"
+        },
+        "dnsManagement": {
+          "@type": "Automatic",
+          "dnsServerId": "k",
+          "origin": null
+        },
+        "memberTenantId": "b"
+      }
+    },
+    {
+      "key": "x:Domain/f",
+      "value": {
+        "name": "b1.example.org",
+        "certificateManagement": {
+          "@type": "Automatic",
+          "acmeProviderId": "k"
+        },
+        "dnsManagement": {
+          "@type": "Automatic",
+          "dnsServerId": "k",
+          "origin": null
+        },
+        "memberTenantId": "c"
+      }
+    }
+  ]
+}

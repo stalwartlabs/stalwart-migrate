@@ -28,6 +28,7 @@ fn change_kind(change: &Change) -> &'static str {
         Change::Unknown => "unknown",
         Change::ReferenceCleared { .. } => "reference_cleared",
         Change::ReferenceOutsideTenant { .. } => "reference_outside_tenant",
+        Change::ReferenceCopiedIntoTenant { .. } => "reference_copied_into_tenant",
         Change::Dangling { .. } => "dangling",
         Change::Moved { .. } => "moved",
         Change::ReferenceCycle => "reference_cycle",

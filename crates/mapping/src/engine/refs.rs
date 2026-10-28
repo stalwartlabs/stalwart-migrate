@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::{cmp::Reverse, collections::BinaryHeap, fmt::Write as _};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Map, Value};
@@ -24,14 +24,22 @@ const WRITE_RANK: &[&str] = &[
 ];
 
 const MARKER_FALLBACK: &[&str] = &["x:DnsManagement", "x:CertificateManagement", "x:SpamAi"];
+const TENANT_COPY: &[&str] = &["x:AcmeProvider", "x:DnsServer"];
+const COPY_ID_BIT: u64 = 1 << 62;
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0100_0000_01b3;
+const DESCRIPTION: &str = "description";
+const TENANT_NAME: &str = "name";
 
 const TENANT_OBJECT: &str = "x:Tenant";
 const TENANT_REFERENCE: &str = "memberTenantId";
 
 type Present = FxHashMap<Box<str>, FxHashMap<u64, Option<u64>>>;
 type Ready = Reverse<(usize, Box<str>, Instance, usize)>;
+type Copies = FxHashMap<(Box<str>, u64, u64), u64>;
 
 struct Fixer<'s, 'r> {
+    copies: &'r mut Copies,
     schema: &'s Schema,
     present: &'s Present,
     scoped: &'s FxHashSet<&'s str>,
@@ -98,8 +106,10 @@ pub(super) fn fix_dangling(session: &Session, outcome: &mut Outcome) {
         .filter(|object| tenant_scoped(session.target, object))
         .collect();
     let mut orphans: Vec<ObjectKey> = Vec::new();
+    let mut copies = Copies::default();
     for object in &mut outcome.objects {
         let mut fixer = Fixer {
+            copies: &mut copies,
             schema: session.target,
             present: &present,
             scoped: &scoped,
@@ -140,6 +150,54 @@ pub(super) fn fix_dangling(session: &Session, outcome: &mut Outcome) {
             .retain(|object| !orphans.contains(&object.source));
         outcome.dropped.extend(orphans);
     }
+    if !copies.is_empty() {
+        add_tenant_copies(outcome, copies);
+    }
+}
+
+fn add_tenant_copies(outcome: &mut Outcome, copies: Copies) {
+    let find = |object: &str, id: u64| {
+        outcome
+            .objects
+            .iter()
+            .find(|o| &*o.key.object == object && o.key.instance == Instance::Id(id))
+    };
+    let mut created = Vec::with_capacity(copies.len());
+    for ((object, id, tenant), copy) in copies {
+        let Some(original) = find(&object, id) else {
+            continue;
+        };
+        let mut value = original.value.clone();
+        if let Value::Object(map) = &mut value {
+            let tenant_id = JmapId(tenant).to_string();
+            if let Some(Value::String(description)) = map.get_mut(DESCRIPTION) {
+                let label = find(TENANT_OBJECT, tenant)
+                    .and_then(|t| t.value.get(TENANT_NAME))
+                    .and_then(Value::as_str)
+                    .unwrap_or(&tenant_id);
+                let _ = write!(description, " ({label})");
+            }
+            map.insert(TENANT_REFERENCE.into(), Value::String(tenant_id));
+        }
+        let key = ObjectKey::with_id(&object, copy);
+        created.push(TargetObject {
+            source: key.clone(),
+            key,
+            value,
+        });
+    }
+    outcome.objects.extend(created);
+}
+
+fn copy_id(object: &str, id: u64, tenant: u64) -> u64 {
+    let hash = object
+        .bytes()
+        .chain(id.to_le_bytes())
+        .chain(tenant.to_le_bytes())
+        .fold(FNV_OFFSET, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
+        });
+    COPY_ID_BIT | (hash & (COPY_ID_BIT - 1))
 }
 
 const OWNER_REFERENCE: &str = "accountId";
@@ -169,6 +227,28 @@ impl Fixer<'_, '_> {
             } => Owner::Satisfied,
             Owners::Listed { .. } | Owners::Unknown => Owner::Missing(missing),
         }
+    }
+
+    fn tenant_copy(&mut self, missing: &ObjectKey, gap: Gap) -> Option<u64> {
+        let (Gap::OtherTenant, Some(tenant), Instance::Id(id)) =
+            (gap, self.tenant, &missing.instance)
+        else {
+            return None;
+        };
+        let ids = self.present.get(&missing.object)?;
+        if !TENANT_COPY.contains(&&*missing.object) || ids.get(id) != Some(&None) {
+            return None;
+        }
+        let key = (missing.object.clone(), *id, tenant);
+        if let Some(copy) = self.copies.get(&key) {
+            return Some(*copy);
+        }
+        let mut copy = copy_id(&missing.object, *id, tenant);
+        while ids.contains_key(&copy) || self.copies.values().any(|taken| *taken == copy) {
+            copy = COPY_ID_BIT | (copy.wrapping_add(1) & (COPY_ID_BIT - 1));
+        }
+        self.copies.insert(key, copy);
+        Some(copy)
     }
 
     fn absorb(&mut self) {
@@ -294,6 +374,19 @@ impl Fixer<'_, '_> {
             Type::ObjectId(target) => {
                 if let Some((missing, gap)) = value.as_str().and_then(|id| self.missing(target, id))
                 {
+                    if let Some(copy) = self.tenant_copy(&missing, gap) {
+                        *value = Value::String(JmapId(copy).to_string());
+                        let copy = ObjectKey::with_id(&missing.object, copy);
+                        self.report.push(
+                            self.key,
+                            self.path.as_str(),
+                            Change::ReferenceCopiedIntoTenant {
+                                target: missing,
+                                copy,
+                            },
+                        );
+                        return Fix::Keep;
+                    }
                     self.pending
                         .push((self.path.as_str().to_string(), missing, gap));
                     return Fix::Remove;

@@ -28,6 +28,8 @@ use crate::{
 pub const ANSWERS_FILE: &str = "answers.toml";
 pub const REPORT_FILE: &str = "prepare-report.txt";
 
+pub const OSS_BUILD_NOTICE: &str = "This build of stalwart-migrate writes a store that only a Stalwart server compiled from source without the enterprise feature can open. The official Stalwart binaries and Docker images, with or without an Enterprise license, refuse to start on it and are migrated with the standard build.";
+
 pub const TERMINAL_REQUIRED: &str = "prepare is interactive and needs a terminal. \
 Run it with a TTY attached: `docker run -it ...` or `docker compose run --rm migrate prepare` with Docker, \
 `kubectl run -it ...` or `kubectl exec -it ...` with Kubernetes. \
@@ -446,6 +448,9 @@ pub fn summary(prepared: &Prepared) -> String {
         count(Level::Error),
         prepared.answered
     );
+    if !cfg!(feature = "enterprise") {
+        let _ = writeln!(out, "Warning: {OSS_BUILD_NOTICE}");
+    }
     if !prepared.unreadable.is_empty() {
         let _ = writeln!(
             out,

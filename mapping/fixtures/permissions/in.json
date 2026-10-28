@@ -24,6 +24,20 @@
       }
     },
     {
+      "key": "x:Role/d",
+      "value": {
+        "description": "user",
+        "enabledPermissions": {
+          "sysAppPasswordGet": true,
+          "sysAppPasswordQuery": true,
+          "sysAppPasswordDestroy": true,
+          "sysApiKeyGet": true
+        },
+        "disabledPermissions": {},
+        "roleIds": {}
+      }
+    },
+    {
       "key": "x:Account/c",
       "value": {
         "@type": "User",
@@ -35,7 +49,9 @@
           "enabledPermissions": {
             "sysSpamLlmUpdate": true
           },
-          "disabledPermissions": {}
+          "disabledPermissions": {
+            "sysAppPasswordDestroy": true
+          }
         }
       }
     }

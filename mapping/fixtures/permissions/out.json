@@ -17,7 +17,19 @@
     },
     {
       "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "permissions/disabledPermissions"
+    },
+    {
+      "change": "transformed",
       "key": "x:Role/b",
+      "level": "info",
+      "path": "enabledPermissions"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Role/d",
       "level": "info",
       "path": "enabledPermissions"
     }
@@ -50,6 +62,24 @@
       }
     },
     {
+      "key": "x:Role/d",
+      "source": "x:Role/d",
+      "value": {
+        "description": "user",
+        "disabledPermissions": {},
+        "enabledPermissions": {
+          "sysApiKeyGet": true,
+          "sysAppPasswordDestroy": true,
+          "sysAppPasswordGet": true,
+          "sysAppPasswordQuery": true,
+          "sysOAuthGrantDestroy": true,
+          "sysOAuthGrantGet": true,
+          "sysOAuthGrantQuery": true
+        },
+        "roleIds": {}
+      }
+    },
+    {
       "key": "x:Account/c",
       "source": "x:Account/c",
       "value": {
@@ -59,7 +89,10 @@
         "name": "alice",
         "permissions": {
           "@type": "Merge",
-          "disabledPermissions": {},
+          "disabledPermissions": {
+            "sysAppPasswordDestroy": true,
+            "sysOAuthGrantDestroy": true
+          },
           "enabledPermissions": {
             "sysSpamAiUpdate": true
           }

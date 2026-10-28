@@ -376,6 +376,7 @@ fn entry_issue(entry: &Entry, originals: &FxHashMap<ObjectKey, RegistryKey>) -> 
         | Change::Transformed { .. }
         | Change::Unknown
         | Change::Moved { .. }
+        | Change::ReferenceCopiedIntoTenant { .. }
         | Change::ReferenceDeferred => IssueKind::Changed,
         Change::ReferenceCycle => IssueKind::Failed,
     };

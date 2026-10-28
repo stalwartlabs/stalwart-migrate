@@ -19,6 +19,8 @@ use source_v1::{same_icalendar, same_vcard};
 use super::explain::Explanations;
 
 const MAX_RECEIVED_AT: u64 = u32::MAX as u64;
+const MAX_LISTED_KEYWORDS: usize = 5;
+const MAX_KEYWORD_CHARS: usize = 64;
 
 pub(super) type Fields = Vec<&'static str>;
 
@@ -26,6 +28,8 @@ pub(super) trait Compare: Record + Clone {
     fn compare(&self, target: &Self, fields: &mut Fields);
 
     fn explain(&mut self, _target: &Self, _explanation: &Explanation) {}
+
+    fn describe(&self, _target: &Self, _detail: &mut String) {}
 }
 
 fn check(fields: &mut Fields, name: &'static str, equal: bool) {
@@ -53,6 +57,51 @@ fn keyword_set(keywords: &[Box<str>]) -> Vec<Box<str>> {
     keywords.sort_unstable();
     keywords.dedup();
     keywords
+}
+
+fn describe_keywords(source: &[Box<str>], target: &[Box<str>], detail: &mut String) {
+    let source = keyword_set(source);
+    let target = keyword_set(target);
+    if source == target {
+        return;
+    }
+    detail.push_str(" (keywords only in the source: ");
+    list_keywords(
+        detail,
+        source
+            .iter()
+            .filter(|keyword| target.binary_search(keyword).is_err()),
+    );
+    detail.push_str("; only in the target: ");
+    list_keywords(
+        detail,
+        target
+            .iter()
+            .filter(|keyword| source.binary_search(keyword).is_err()),
+    );
+    detail.push(')');
+}
+
+fn list_keywords<'x>(detail: &mut String, mut keywords: impl Iterator<Item = &'x Box<str>>) {
+    let mut listed = 0;
+    while let Some(keyword) = keywords.next() {
+        if listed == MAX_LISTED_KEYWORDS {
+            let _ = write!(detail, " and {} more", keywords.count() + 1);
+            return;
+        }
+        if listed > 0 {
+            detail.push_str(", ");
+        }
+        listed += 1;
+        let (shown, ellipsis) = match keyword.char_indices().nth(MAX_KEYWORD_CHARS) {
+            Some((end, _)) => (keyword.get(..end).unwrap_or_default(), "..."),
+            None => (&**keyword, ""),
+        };
+        let _ = write!(detail, "\"{}{ellipsis}\"", shown.escape_debug());
+    }
+    if listed == 0 {
+        detail.push_str("none");
+    }
 }
 
 fn same_acls(left: &[AclRecord], right: &[AclRecord]) -> bool {
@@ -396,6 +445,10 @@ impl Compare for EmailRecord {
             _ => {}
         }
     }
+
+    fn describe(&self, target: &Self, detail: &mut String) {
+        describe_keywords(&self.keywords, &target.keywords, detail);
+    }
 }
 
 impl Compare for IdentityRecord {
@@ -625,14 +678,25 @@ impl Compare for ContactRecord {
 
 pub(super) enum Outcome {
     Missing,
-    Differs(Fields),
+    Differs { fields: Fields, detail: String },
 }
 
-fn explained<R: Compare>(source: &R, target: &R, explanations: &[Explanation]) -> bool {
+fn with_explanations<'x, R: Compare>(
+    source: &'x R,
+    target: &R,
+    explanations: &[Explanation],
+) -> Cow<'x, R> {
+    if explanations.is_empty() {
+        return Cow::Borrowed(source);
+    }
     let mut source = source.clone();
     for explanation in explanations {
         source.explain(target, explanation);
     }
+    Cow::Owned(source)
+}
+
+fn same<R: Compare>(source: &R, target: &R) -> bool {
     let mut fields = Fields::new();
     source.compare(target, &mut fields);
     fields.is_empty()
@@ -662,10 +726,16 @@ fn pair<R: Compare>(
             Some(target) => {
                 record.compare(target, &mut fields);
                 if !fields.is_empty() {
-                    let explained = !known.is_empty() && explained(record, target, known);
+                    let source = with_explanations(record, target, known);
+                    let explained = !known.is_empty() && same(&*source, target);
+                    let mut detail = String::new();
+                    source.describe(target, &mut detail);
                     each(
                         document_id,
-                        Outcome::Differs(std::mem::take(&mut fields)),
+                        Outcome::Differs {
+                            fields: std::mem::take(&mut fields),
+                            detail,
+                        },
                         explained,
                     );
                 }
@@ -801,6 +871,10 @@ pub(super) fn same_log_entry(source: &LogEntry, target: &LogEntry) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn explained<R: Compare>(source: &R, target: &R, explanations: &[Explanation]) -> bool {
+        same(&*with_explanations(source, target, explanations), target)
+    }
 
     #[test]
     fn dead_properties_ignore_attribute_order_and_blank_text() {
@@ -1100,5 +1174,68 @@ mod tests {
         };
         email.compare(&target, &mut fields);
         assert_eq!(fields, ["keywords"]);
+    }
+
+    fn keyword_detail(source: &[&str], target: &[&str], explanations: &[Explanation]) -> String {
+        let record = |keywords: &[&str]| EmailRecord {
+            keywords: keywords.iter().map(|keyword| (*keyword).into()).collect(),
+            ..Default::default()
+        };
+        let (source, target) = (record(source), record(target));
+        let mut detail = String::new();
+        with_explanations(&source, &target, explanations).describe(&target, &mut detail);
+        detail
+    }
+
+    // A keyword mismatch lists the keywords each side holds alone, ignoring case and attachment keywords.
+    #[test]
+    fn keyword_mismatch_lists_the_differing_keywords() {
+        assert_eq!(
+            keyword_detail(
+                &["$Seen", "$label1", "foo", "$hasattachment"],
+                &["$seen", "bar"],
+                &[]
+            ),
+            " (keywords only in the source: \"$label1\", \"foo\"; only in the target: \"bar\")"
+        );
+        assert_eq!(
+            keyword_detail(&["$seen", "a"], &["$seen"], &[]),
+            " (keywords only in the source: \"a\"; only in the target: none)"
+        );
+        assert_eq!(
+            keyword_detail(&["$Seen"], &["$seen", "$hasnoattachment"], &[]),
+            ""
+        );
+    }
+
+    // Keywords removed by an explanation are not listed.
+    #[test]
+    fn keyword_mismatch_skips_explained_keywords() {
+        assert_eq!(
+            keyword_detail(
+                &["a", "b", "c"],
+                &["a"],
+                &[Explanation::Keyword("b".into())]
+            ),
+            " (keywords only in the source: \"c\"; only in the target: none)"
+        );
+    }
+
+    // Long lists are capped and hostile names are escaped and shortened.
+    #[test]
+    fn keyword_mismatch_is_capped_and_escaped() {
+        let many = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
+        assert_eq!(
+            keyword_detail(&many, &[], &[]),
+            " (keywords only in the source: \"k1\", \"k2\", \"k3\", \"k4\", \"k5\" and 2 more; only in the target: none)"
+        );
+        let long = "x".repeat(300);
+        let hostile = format!("a,b\n{long}");
+        let detail = keyword_detail(&[hostile.as_str()], &[], &[]);
+        let shown = format!("a,b\\n{}", "x".repeat(MAX_KEYWORD_CHARS - 4));
+        assert_eq!(
+            detail,
+            format!(" (keywords only in the source: \"{shown}...\"; only in the target: none)")
+        );
     }
 }
