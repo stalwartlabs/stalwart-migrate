@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.4] - Unreleased
+## [1.0.4] - 2026-10-29
 
 ### Fixed
 - Verify no longer reports emails whose 0.16 keywords include a `\`-prefixed system flag such as `\seen` as mismatched, which blocked finalising the migration.
