@@ -15,6 +15,7 @@ use model::{
 };
 use rustc_hash::FxHashMap;
 use source_v1::{same_icalendar, same_vcard};
+use types::keyword::Keyword;
 
 use super::explain::Explanations;
 
@@ -51,8 +52,9 @@ fn same_set<T: Ord + Clone>(left: &[T], right: &[T]) -> bool {
 fn keyword_set(keywords: &[Box<str>]) -> Vec<Box<str>> {
     let mut keywords: Vec<Box<str>> = keywords
         .iter()
-        .map(|keyword| keyword.to_ascii_lowercase().into_boxed_str())
-        .filter(|keyword| !hashify::set!(keyword.as_bytes(), "$hasattachment", "$hasnoattachment"))
+        .map(|keyword| Keyword::parse(keyword))
+        .filter(|keyword| !matches!(keyword, Keyword::HasAttachment | Keyword::HasNoAttachment))
+        .map(|keyword| Box::from(keyword.as_str()))
         .collect();
     keywords.sort_unstable();
     keywords.dedup();
@@ -1205,6 +1207,34 @@ mod tests {
         assert_eq!(
             keyword_detail(&["$Seen"], &["$seen", "$hasnoattachment"], &[]),
             ""
+        );
+    }
+
+    // A backslash system flag matches its dollar keyword, as the v1 writer stores it.
+    #[test]
+    fn keyword_backslash_system_flags_match_dollar_keywords() {
+        let mut fields = Fields::new();
+        let source = EmailRecord {
+            keywords: vec!["$seen".into(), "\\seen".into(), "\\Flagged".into()],
+            ..Default::default()
+        };
+        let target = EmailRecord {
+            keywords: vec!["$seen".into(), "$flagged".into()],
+            ..Default::default()
+        };
+        source.compare(&target, &mut fields);
+        assert!(fields.is_empty());
+        assert_eq!(
+            keyword_detail(
+                &["$seen", "\\seen", "\\Flagged"],
+                &["$seen", "$flagged"],
+                &[]
+            ),
+            ""
+        );
+        assert_eq!(
+            keyword_detail(&["\\foo"], &["$foo"], &[]),
+            " (keywords only in the source: \"\\\\foo\"; only in the target: \"$foo\")"
         );
     }
 

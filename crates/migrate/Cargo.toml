@@ -31,6 +31,7 @@ target-v1 = { workspace = true }
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["fmt", "json", "std"] }
+types = { path = "../../vendor/v1/crates/types" }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 tikv-jemallocator = "0.7"
