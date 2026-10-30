@@ -15,9 +15,11 @@ use model::{
     TargetProbe, WriteMode,
 };
 use model::{SpamModelChange, SpamModelKind};
+use registry::schema::enums::CompressionAlgo;
 use serde_json::json;
 use source_v016::{SourceConfig, V016Source, testkit};
 use target_v016::{SharedDeletes, SharedService, TargetConfig, V016Target};
+use types::{blob_hash::BlobHash as AppBlobHash, id::Id};
 
 const ACCOUNT: u32 = testkit::ACCOUNT;
 const PAGE: usize = 1000;
@@ -1800,5 +1802,53 @@ async fn external_report_ids_within_a_page() {
     assert_eq!(
         raw_rows(corrupt.store()).await,
         stock_dmarc_rows(&[(0x51, "x")]).await
+    );
+}
+
+// Rollback's final step deletes the cached bundle of every Application from an external blob store, so v0.16 downloads its own instead of v1's.
+#[tokio::test(flavor = "multi_thread")]
+async fn final_step_discards_cached_app_bundles_in_shared_blob_store() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let rollback = shared_blob_rollback(dir.path(), SharedDeletes::Forbid).await;
+    let outcome = rollback
+        .write_registry(&[RegistryRecord {
+            key: model::RegistryKey::new("Application", 4),
+            json: json!({"enable": true, "description": "web", "resourceUrl": "https://example.org/webui.zip", "urlPrefix": {"admin": true}}),
+        }])
+        .await
+        .expect("application");
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    let blob_store = rollback.server().expect("server").blob_store();
+    let bundle = AppBlobHash::generate(format!("STALWART_APP_{}", Id::new(4)).as_bytes());
+    let other = AppBlobHash::generate(b"STALWART_APP_unrelated");
+    for key in [&bundle, &other] {
+        blob_store
+            .put_blob(key.as_slice(), b"stale bundle", CompressionAlgo::None)
+            .await
+            .expect("cached bundle");
+    }
+    let outcome = rollback
+        .finalize_store(model::CategorySet::defaults())
+        .await
+        .expect("finalize store");
+    assert_eq!(outcome.issues.len(), 1, "{:?}", outcome.issues);
+    assert!(
+        outcome.issues[0].message.contains("cached bundle"),
+        "{:?}",
+        outcome.issues
+    );
+    assert!(
+        blob_store
+            .get_blob(bundle.as_slice(), 0..usize::MAX)
+            .await
+            .expect("bundle")
+            .is_none()
+    );
+    assert!(
+        blob_store
+            .get_blob(other.as_slice(), 0..usize::MAX)
+            .await
+            .expect("other")
+            .is_some()
     );
 }

@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file. This projec
 - Verify no longer reports contact cards whose vCard 3.0 `N` or `ADR` has extra trailing components as mismatched.
 - Removed the OpenTelemetry exporters; the release failed to build because their dependency repository was deleted.
 - Registered accounts without a ChangeId counter (data predating the counter, or never used) were not listed, so run, run --final and verify skipped them silently; rollback had the same gap.
+- With a shared blob store, run --final and rollback now delete the application bundle cached by the other version, so v1 no longer finds v0.16's WebUI and v0.16 no longer serves v1's after a rollback.
 
 ## [1.0.3] - 2026-10-28
 

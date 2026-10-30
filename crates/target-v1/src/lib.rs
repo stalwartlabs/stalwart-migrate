@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
+mod app_bundle;
 mod changelog;
 mod claim;
 mod counters;

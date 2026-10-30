@@ -211,6 +211,8 @@ impl V1Target {
         }
         #[cfg(not(feature = "enterprise"))]
         let _ = server;
-        Ok(WriteOutcome::ok())
+        Ok(WriteOutcome {
+            issues: self.discard_app_bundles().await?,
+        })
     }
 }

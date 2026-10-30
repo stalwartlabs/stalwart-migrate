@@ -20,11 +20,12 @@ use model::{
     SpamClassifierModel, SpamModelChange, SpamModelKind, SpamModelRecord, SpamOptimizer,
     SpamTrainerModel, Target, WriteMode,
 };
+use registry::schema::enums::CompressionAlgo;
 use serde_json::{Value, json};
 use source_v1::spam_archive::{self, SpamBlob};
 use store::{blake3, dispatch::lookup::KeyValue};
 use target_v1::{TargetConfig, V1Target};
-use types::id::Id;
+use types::{blob_hash::BlobHash as AppBlobHash, id::Id};
 
 const ACCOUNT_ID: u32 = 7;
 const BOOT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -482,4 +483,58 @@ async fn final_spam_model_overwrites_shared_blob_store() {
             .await
             .expect("has trainer")
     );
+}
+
+// The final step deletes the cached bundle of every migrated Application from an external blob store, so v1 downloads its own instead of v0.16's.
+#[tokio::test(flavor = "multi_thread")]
+async fn final_step_discards_cached_app_bundles_in_shared_blob_store() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = shared_blob_target(dir.path()).await;
+    let outcome = target
+        .write_registry(&[record(
+            "Application",
+            Some(4),
+            json!({"enable": true, "description": "web", "resourceUrl": "https://example.org/webui.zip", "urlPrefix": {"admin": true}}),
+        )])
+        .await
+        .expect("application");
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    let blob_store = target.server().expect("server").blob_store();
+    let bundle = AppBlobHash::generate(format!("STALWART_APP_{}", Id::new(4)).as_bytes());
+    let other = AppBlobHash::generate(b"STALWART_APP_unrelated");
+    for key in [&bundle, &other] {
+        blob_store
+            .put_blob(key.as_slice(), b"stale bundle", CompressionAlgo::None)
+            .await
+            .expect("cached bundle");
+    }
+    let outcome = target
+        .finalize_store(model::CategorySet::defaults())
+        .await
+        .expect("finalize store");
+    assert_eq!(outcome.issues.len(), 1, "{:?}", outcome.issues);
+    assert!(
+        outcome.issues[0].severity == Severity::Info
+            && outcome.issues[0].kind == IssueKind::Changed
+            && outcome.issues[0].message.contains("cached bundle"),
+        "{:?}",
+        outcome.issues
+    );
+    assert!(
+        !blob_store
+            .has_blob(bundle.as_slice())
+            .await
+            .expect("has bundle")
+    );
+    assert!(
+        blob_store
+            .has_blob(other.as_slice())
+            .await
+            .expect("has other")
+    );
+    let outcome = target
+        .finalize_store(model::CategorySet::defaults())
+        .await
+        .expect("finalize store again");
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
 }

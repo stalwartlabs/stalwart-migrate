@@ -338,7 +338,9 @@ impl Target for V016Target {
 
     async fn finalize_store(&self, categories: CategorySet) -> model::Result<WriteOutcome> {
         let _ = categories;
-        Ok(WriteOutcome::ok())
+        Ok(WriteOutcome {
+            issues: self.discard_app_bundles().await?,
+        })
     }
 }
 

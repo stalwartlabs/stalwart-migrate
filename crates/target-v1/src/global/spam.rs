@@ -69,6 +69,10 @@ fn shared_change(blob: SpamBlob, backend: &str, change: SharedChange) -> Issue {
 }
 
 impl V1Target {
+    pub(crate) async fn external_blob_store(&self) -> model::Result<Option<&'static str>> {
+        Ok(blob_backend(self.singleton(ObjectType::BlobStore).await?))
+    }
+
     pub(super) fn defer_spam_model(records: &[SpamModelRecord]) -> Vec<Issue> {
         records
             .iter()
@@ -83,7 +87,7 @@ impl V1Target {
         if changes.is_empty() {
             return Ok(WriteOutcome::ok());
         }
-        let backend = blob_backend(self.singleton(ObjectType::BlobStore).await?);
+        let backend = self.external_blob_store().await?;
         let server = self.server()?;
         let blob_store = server.blob_store();
         let mut issues = Vec::new();
