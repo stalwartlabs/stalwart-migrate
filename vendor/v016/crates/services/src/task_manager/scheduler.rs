@@ -8,12 +8,12 @@ use std::time::Duration;
 use std::{
     collections::BinaryHeap,
     sync::Arc,
-    time::{Instant, SystemTime},
+    time::Instant,
 };
 
 use common::{
     BuildServer, Inner, LONG_1D_SLUMBER,
-    config::{mailstore::spamfilter, telemetry::OtelMetrics},
+    config::mailstore::spamfilter,
 };
 use registry::{
     schema::{
@@ -36,7 +36,6 @@ enum Event {
     PurgeAccount,
     PurgeDataStore,
     PurgeBlobStore,
-    OtelMetrics,
     CalculateMetrics,
     TrainSpamClassifier,
     RenewNodeIdLease,
@@ -67,7 +66,6 @@ const METRIC_ALERTS_INTERVAL: Duration = Duration::from_secs(5 * 60);
 pub fn spawn_task_scheduler(inner: Arc<Inner>) {
     tokio::spawn(async move {
         trc::event!(TaskManager(TaskManagerEvent::SchedulerStarted));
-        let start_time = SystemTime::now();
 
         // Add all events to queue
         let mut queue = Queue::default();
@@ -118,12 +116,6 @@ pub fn spawn_task_scheduler(inner: Arc<Inner>) {
                     Instant::now() + Duration::from_secs(next_train),
                     Event::TrainSpamClassifier,
                 );
-            }
-
-            // OTEL Push Metrics
-            if let Some(otel) = &server.core.metrics.otel {
-                OtelMetrics::enable_errors();
-                queue.schedule(Instant::now() + otel.interval, Event::OtelMetrics);
             }
 
             // Calculate expensive metrics
@@ -246,35 +238,6 @@ pub fn spawn_task_scheduler(inner: Arc<Inner>) {
                                 trc::error!(err.details("Failed to renew node ID lease"));
                             }
                         });
-                    }
-                    Event::OtelMetrics => {
-                        if let Some(otel) = &server.core.metrics.otel {
-                            queue.schedule(Instant::now() + otel.interval, Event::OtelMetrics);
-
-                            if roles.metrics_push {
-                                let otel = otel.clone();
-
-                                // SPDX-SnippetBegin
-                                // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
-                                // SPDX-License-Identifier: LicenseRef-SEL
-                                #[cfg(feature = "enterprise")]
-                                let is_enterprise = server.is_enterprise_edition();
-                                // SPDX-SnippetEnd
-
-                                #[cfg(not(feature = "enterprise"))]
-                                let is_enterprise = false;
-
-                                tokio::spawn(async move {
-                                    let elapsed = Instant::now();
-                                    otel.push_metrics(is_enterprise, start_time).await;
-
-                                    trc::event!(
-                                        Telemetry(TelemetryEvent::MetricsPushed),
-                                        Elapsed = elapsed.elapsed()
-                                    );
-                                });
-                            }
-                        }
                     }
                     Event::CalculateMetrics => {
                         // Calculate expensive metrics every 5 minutes
@@ -567,7 +530,6 @@ impl Event {
             Event::PurgeAccount => "purgeAccount",
             Event::PurgeDataStore => "purgeDataStore",
             Event::PurgeBlobStore => "purgeBlobStore",
-            Event::OtelMetrics => "otelMetrics",
             Event::CalculateMetrics => "calculateMetrics",
             Event::TrainSpamClassifier => "trainSpamClassifier",
             Event::RenewNodeIdLease => "renewNodeIdLease",

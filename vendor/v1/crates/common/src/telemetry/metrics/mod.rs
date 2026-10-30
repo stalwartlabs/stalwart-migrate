@@ -7,7 +7,6 @@
 use crate::{Inner, network::memory::MemoryClass};
 use trc::{Collector, MetricType};
 
-pub mod otel;
 pub mod prometheus;
 
 // SPDX-SnippetBegin
