@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file. This projec
 - Verify no longer reports emails whose 0.16 keywords include a `\`-prefixed system flag such as `\seen` as mismatched, which blocked finalising the migration.
 - Verify no longer reports contact cards whose vCard 3.0 `N` or `ADR` has extra trailing components as mismatched.
 - Removed the OpenTelemetry exporters; the release failed to build because their dependency repository was deleted.
+- Registered accounts without a ChangeId counter (data predating the counter, or never used) were not listed, so run, run --final and verify skipped them silently; rollback had the same gap.
 
 ## [1.0.3] - 2026-10-28
 

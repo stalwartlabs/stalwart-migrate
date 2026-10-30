@@ -19,6 +19,23 @@ pub struct AccountRef {
     pub change_counter: u64,
 }
 
+impl AccountRef {
+    pub fn registered(mut counted: Vec<AccountRef>, registered: &RoaringBitmap) -> Vec<AccountRef> {
+        counted.sort_unstable_by_key(|account| account.account_id);
+        registered
+            .iter()
+            .map(|account_id| AccountRef {
+                account_id,
+                change_counter: counted
+                    .binary_search_by_key(&account_id, |account| account.account_id)
+                    .ok()
+                    .and_then(|position| counted.get(position))
+                    .map_or(0, |account| account.change_counter),
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChangeBounds {
     collections: [u64; Collection::COUNT],
@@ -289,5 +306,20 @@ mod tests {
         assert_eq!(bounds.log(LogCollection::FileNode), 5);
         assert_eq!(bounds.log(LogCollection::VanishedCalendar), 9);
         assert_eq!(bounds.log(LogCollection::ShareNotification), 0);
+    }
+
+    // Every registered account is listed, without a change counter as 0; counted but unregistered ones are dropped.
+    #[test]
+    fn registered_accounts_include_those_without_a_counter() {
+        let account = |account_id, change_counter| AccountRef {
+            account_id,
+            change_counter,
+        };
+        let registered = RoaringBitmap::from_iter([1, 2, 5, 9]);
+        let counted = vec![account(9, 7), account(3, 4), account(1, 2)];
+        assert_eq!(
+            AccountRef::registered(counted, &registered),
+            [account(1, 2), account(2, 0), account(5, 0), account(9, 7)]
+        );
     }
 }

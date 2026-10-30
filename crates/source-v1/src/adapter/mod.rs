@@ -222,10 +222,9 @@ impl Source for V1Source {
     }
 
     async fn accounts(&self) -> model::Result<Vec<AccountRef>> {
-        let mut accounts = principal::accounts(&self.data).await?;
+        let counted = principal::accounts(&self.data).await?;
         let registered = registry::account_ids(&self.data).await?;
-        accounts.retain(|account| registered.contains(account.account_id));
-        Ok(accounts)
+        Ok(AccountRef::registered(counted, &registered))
     }
 
     async fn stored_accounts(&self) -> model::Result<Vec<AccountRef>> {

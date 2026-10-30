@@ -112,6 +112,36 @@ async fn accounts_pending_destruction_are_not_listed() {
     );
 }
 
+// Registered accounts without a ChangeId counter (data predating the counter, or never used) are listed with counter 0.
+#[tokio::test]
+async fn accounts_without_a_change_counter_are_listed() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    seed(dir.path()).await;
+    {
+        let store = Store::build(rocks(dir.path())).await.expect("writer");
+        register_account(&store, ACCOUNT + 1).await;
+        register_account(&store, ACCOUNT + 2).await;
+        let mut batch = BatchBuilder::new();
+        batch
+            .with_account_id(ACCOUNT + 1)
+            .with_collection(V016Collection::Mailbox)
+            .with_document(0)
+            .set(Field::ARCHIVE, archive(Mailbox::new("Inbox")));
+        store.write(batch.build_all()).await.expect("write");
+    }
+    let accounts = source(dir.path()).await.accounts().await.expect("accounts");
+    assert_eq!(
+        accounts
+            .iter()
+            .map(|account| account.account_id)
+            .collect::<Vec<_>>(),
+        [ACCOUNT, ACCOUNT + 1, ACCOUNT + 2]
+    );
+    assert!(accounts[0].change_counter > 0);
+    assert_eq!(accounts[1].change_counter, 0);
+    assert_eq!(accounts[2].change_counter, 0);
+}
+
 // A thread merge logs delete(old thread prefix) and insert(new prefix) for the same email in one row.
 #[tokio::test]
 async fn thread_merges_are_reinserts() {
