@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use model::{
     BlobHash, CategorySet, Issue, IssueKind, RegistryKey, RegistryRecord, Severity, Source, Subject,
 };
@@ -13,10 +15,13 @@ use source_v1::{registry_object_expires_on_start, registry_object_refreshed_on_s
 
 use super::super::{
     RegistryConverter,
+    blob_check::check_each,
     error::RunError,
     registry::{ConvertedRecord, read_registry, registry_categories},
     retry::{RetryPolicy, retry},
 };
+
+const MAX_UNVERIFIED_BLOBS: usize = 100;
 
 pub(super) struct RegistryCheck {
     pub(super) issues: Vec<Issue>,
@@ -36,6 +41,13 @@ pub(super) struct RegistryHistory<'x> {
     pub(super) skipped: &'x FxHashSet<RegistryKey>,
     pub(super) tracked: &'x [Box<str>],
     pub(super) fell_back: &'x FxHashSet<RegistryKey>,
+    pub(super) blob_progress: &'x BlobProgress,
+}
+
+#[derive(Default)]
+pub(super) struct BlobProgress {
+    pub(super) total: AtomicU64,
+    pub(super) checked: AtomicU64,
 }
 
 pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
@@ -47,6 +59,7 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
     policy: RetryPolicy,
     limit: usize,
 ) -> Result<RegistryCheck, RunError> {
+    let progress = history.blob_progress;
     let categories = registry_categories(categories);
     let objects = read_registry(source, policy, limit).await?.records;
     let stock = converter.missing_spam_tags(&objects);
@@ -209,20 +222,43 @@ pub(super) async fn check<S: Source, R: Source, C: RegistryConverter>(
         );
     }
     blobs.sort_unstable_by(|left, right| left.1.cmp(&right.1));
+    progress.total.store(blobs.len() as u64, Ordering::Relaxed);
     let mut hashes = Vec::with_capacity(limit.min(blobs.len()));
+    let mut unverified = 0;
     for chunk in blobs.chunks(limit.max(1)) {
         hashes.clear();
         hashes.extend(chunk.iter().map(|(hash, _)| *hash));
-        let exist = retry(policy, || target.blobs_exist(&hashes)).await?;
+        let exist = check_each(
+            policy,
+            &hashes,
+            MAX_UNVERIFIED_BLOBS - unverified,
+            |hash| async move { target.blobs_exist(&[hash]).await },
+        )
+        .await?;
         for ((hash, key), exists) in chunk.iter().zip(exist) {
-            if !exists {
-                report(
+            match exists {
+                Ok(true) => {}
+                Ok(false) => report(
                     key,
                     &format!("blob {hash} referenced by the object is missing in the target"),
                     false,
-                );
+                ),
+                Err(err) => {
+                    unverified += 1;
+                    report(
+                        key,
+                        &format!(
+                            "blob {hash} referenced by the object could not be verified: {}",
+                            err.message()
+                        ),
+                        false,
+                    );
+                }
             }
         }
+        progress
+            .checked
+            .fetch_add(chunk.len() as u64, Ordering::Relaxed);
     }
     Ok(result)
 }

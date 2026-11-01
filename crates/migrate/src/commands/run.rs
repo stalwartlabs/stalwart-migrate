@@ -409,6 +409,8 @@ pub(super) async fn verify(
             globals: GlobalCheck::Shared,
             tuning: args.tuning.tuning(),
             retry: args.tuning.retry(),
+            progress_interval: (args.progress_interval > 0)
+                .then(|| Duration::from_secs(args.progress_interval)),
         },
         shutdown,
     )

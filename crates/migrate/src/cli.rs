@@ -360,6 +360,9 @@ pub struct VerifyArgs {
 
     #[command(flatten)]
     pub tuning: TuningArgs,
+
+    #[arg(help = "Seconds between progress lines; 0 disables them", long, default_value_t = PROGRESS_INTERVAL.as_secs(), value_name = "SECONDS")]
+    pub progress_interval: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

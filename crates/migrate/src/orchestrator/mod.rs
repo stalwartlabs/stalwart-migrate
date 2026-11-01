@@ -5,6 +5,7 @@
  */
 
 mod account;
+mod blob_check;
 mod blobs;
 mod context;
 mod error;
@@ -468,6 +469,7 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
                 globals: GlobalCheck::Final,
                 tuning: self.options.tuning,
                 retry: self.options.retry,
+                progress_interval: self.options.progress_interval,
             },
             self.shutdown.clone(),
         )

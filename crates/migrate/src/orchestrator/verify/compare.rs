@@ -49,6 +49,16 @@ fn same_set<T: Ord + Clone>(left: &[T], right: &[T]) -> bool {
     left == right || (left.len() == right.len() && sorted(left) == sorted(right))
 }
 
+fn same_unique<T: Ord + Clone>(left: &[T], right: &[T]) -> bool {
+    if left == right {
+        return true;
+    }
+    let (mut left, mut right) = (sorted(left), sorted(right));
+    left.dedup();
+    right.dedup();
+    left == right
+}
+
 fn keyword_set(keywords: &[Box<str>]) -> Vec<Box<str>> {
     let mut keywords: Vec<Box<str>> = keywords
         .iter()
@@ -860,7 +870,7 @@ pub(super) fn same_log_entry(source: &LogEntry, target: &LogEntry) -> bool {
         (
             LogEntry::Vanished(VanishedRecord::Email(source)),
             LogEntry::Vanished(VanishedRecord::Email(target)),
-        ) => same_set(source, target),
+        ) => same_unique(source, target),
         (
             LogEntry::Vanished(VanishedRecord::Paths(source)),
             LogEntry::Vanished(VanishedRecord::Paths(target)),
@@ -872,6 +882,8 @@ pub(super) fn same_log_entry(source: &LogEntry, target: &LogEntry) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use model::MailboxUid;
+
     use super::*;
 
     fn explained<R: Compare>(source: &R, target: &R, explanations: &[Explanation]) -> bool {
@@ -1129,6 +1141,27 @@ mod tests {
             ..Default::default()
         });
         assert!(!same_log_entry(&source, &moved));
+    }
+
+    // v1 stores vanished email ids sorted and without duplicates, and the paths of named collections as they are.
+    #[test]
+    fn vanished_rows_compare_as_written() {
+        let uid = |uid| MailboxUid { mailbox_id: 1, uid };
+        let email = |uids: &[u32]| {
+            LogEntry::Vanished(VanishedRecord::Email(
+                uids.iter().copied().map(uid).collect(),
+            ))
+        };
+        assert!(same_log_entry(&email(&[7, 3, 7, 3, 9]), &email(&[3, 7, 9])));
+        assert!(!same_log_entry(&email(&[7, 3, 7]), &email(&[3, 9])));
+        assert!(!same_log_entry(&email(&[7, 3, 7]), &email(&[3])));
+        let paths = |paths: &[&str]| {
+            LogEntry::Vanished(VanishedRecord::Paths(
+                paths.iter().copied().map(Box::from).collect(),
+            ))
+        };
+        assert!(same_log_entry(&paths(&["b", "a"]), &paths(&["a", "b"])));
+        assert!(!same_log_entry(&paths(&["a", "a"]), &paths(&["a"])));
     }
 
     #[test]

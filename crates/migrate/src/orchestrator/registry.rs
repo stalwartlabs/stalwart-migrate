@@ -18,6 +18,7 @@ use state::{ContentHash, RegistryState, RegistryStatus, RegistryUpdate, StateSto
 use super::{
     BlobMode, RemovalPolicy, RunDirection,
     account::mass_removal,
+    blob_check::check_each,
     blobs::BLOB_MEMORY_PER_SLOT,
     context::Context,
     error::RunError,
@@ -748,13 +749,16 @@ impl<S: Source, T: Target, St: StateStore, C: RegistryConverter> Context<S, T, S
         let mut missing = Vec::new();
         for chunk in hashes.chunks(self.options.tuning.batch_ops.max(1)) {
             self.check_shutdown()?;
-            let exist = self.retry(|| self.target.stored_blobs_exist(chunk)).await?;
-            missing.extend(
-                chunk
-                    .iter()
-                    .zip(exist)
-                    .filter_map(|(hash, exists)| (!exists).then_some(*hash)),
-            );
+            let target = &*self.target;
+            let exist = check_each(self.options.retry, chunk, 0, |hash| async move {
+                target.stored_blobs_exist(&[hash]).await
+            })
+            .await?;
+            for (hash, exists) in chunk.iter().zip(exist) {
+                if !exists? {
+                    missing.push(*hash);
+                }
+            }
         }
         Ok(missing)
     }

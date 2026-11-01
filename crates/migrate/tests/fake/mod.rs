@@ -1015,6 +1015,7 @@ pub struct TargetWorld {
     pub blobs: BTreeSet<BlobHash>,
     pub blob_data: HashMap<BlobHash, Bytes>,
     pub lost_blobs: BTreeSet<BlobHash>,
+    pub stalled_blobs: BTreeSet<BlobHash>,
     pub stored_blobs: BTreeSet<BlobHash>,
     pub blob_puts: u64,
     pub blob_puts_by_hash: BTreeMap<BlobHash, u64>,
@@ -2279,6 +2280,9 @@ impl Source for FakeReader {
 
     async fn blobs_exist(&self, hashes: &[BlobHash]) -> Result<Vec<bool>> {
         let world = lock(&self.target.world);
+        if hashes.iter().any(|hash| world.stalled_blobs.contains(hash)) {
+            return Err(model::Error::transient("blob check timed out"));
+        }
         Ok(hashes
             .iter()
             .map(|hash| !world.lost_blobs.contains(hash))

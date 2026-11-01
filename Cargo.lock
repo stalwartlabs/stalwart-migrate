@@ -4824,7 +4824,7 @@ checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "mapping"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "flate2",
  "hashify 0.3.1",
@@ -4906,10 +4906,11 @@ checksum = "c797b9d6bb23aab2fc369c65f871be49214f5c759af65bde26ffaaa2b646b492"
 
 [[package]]
 name = "migrate"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "bytes",
  "clap",
+ "futures",
  "hashify 0.3.1",
  "libc",
  "mapping",
@@ -4993,7 +4994,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "bytes",
  "hashify 0.3.1",
@@ -7961,7 +7962,7 @@ dependencies = [
 
 [[package]]
 name = "source-v016"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "bytes",
  "calcard 0.3.14",
@@ -7991,7 +7992,7 @@ dependencies = [
 
 [[package]]
 name = "source-v1"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "bytes",
  "calcard 0.4.0",
@@ -8140,7 +8141,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "state"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "hashify 0.3.1",
  "model",
@@ -8407,7 +8408,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "target-v016"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -8442,7 +8443,7 @@ dependencies = [
 
 [[package]]
 name = "target-v1"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "arc-swap",
  "bytes",

@@ -132,6 +132,7 @@ async fn check_categories(
             globals: GlobalCheck::Final,
             tuning: options().tuning,
             retry: options().retry,
+            progress_interval: None,
         },
         Shutdown::default(),
     )
@@ -183,6 +184,35 @@ async fn clean_copy_verifies() {
     assert!(
         target.world.lock().expect("lock").reader_catch_ups > catch_ups,
         "verify must refresh the target reader before reading it"
+    );
+}
+
+// A registry blob that keeps stalling is reported as unverified, and verify still reaches the accounts.
+#[tokio::test]
+async fn stalled_registry_blob_does_not_stop_verify() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = FakeSource::new();
+    let target = FakeTarget::new();
+    seed(&source);
+    let hash = model::BlobHash([7; 32]);
+    target.world.lock().expect("lock").stored_blobs.insert(hash);
+    source.put_registry("SpamTrainingSample", 4, serde_json::json!({"blob": 7}));
+    migrate(&source, &target, dir.path()).await;
+    target
+        .world
+        .lock()
+        .expect("lock")
+        .stalled_blobs
+        .insert(hash);
+    let (summary, rows) = check_min(&source, &target, dir.path(), VerifyScope::Full, 0).await;
+    assert_eq!(summary.accounts_checked, 2);
+    assert_eq!(summary.status, RunStatus::Failed);
+    assert!(
+        messages(&rows).iter().any(|row| row.contains(&format!(
+            "blob {hash} referenced by the object could not be verified"
+        ))),
+        "{:?}",
+        messages(&rows)
     );
 }
 
@@ -550,6 +580,7 @@ async fn check_globals(
             globals,
             tuning: options().tuning,
             retry: options().retry,
+            progress_interval: None,
         },
         Shutdown::default(),
     )

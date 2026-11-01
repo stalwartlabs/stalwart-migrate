@@ -866,6 +866,7 @@ async fn verify_reports_missing_documents() {
         globals: GlobalCheck::Final,
         tuning: options(RunKind::Incremental).tuning,
         retry: RetryPolicy::default(),
+        progress_interval: None,
     };
     let state = Arc::new(state(dir.path()));
     let summary = verify(
@@ -902,6 +903,7 @@ fn verify_options(globals: GlobalCheck, categories: CategorySet) -> VerifyOption
         globals,
         tuning: options(RunKind::Incremental).tuning,
         retry: RetryPolicy::default(),
+        progress_interval: None,
     }
 }
 

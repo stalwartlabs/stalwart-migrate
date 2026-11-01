@@ -16,6 +16,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use model::{
@@ -32,7 +33,8 @@ use state::{
 };
 
 use super::{
-    RegistryConverter, Tuning,
+    AbortOnDrop, RegistryConverter, Tuning,
+    blob_check::check_each,
     context::issue_row,
     error::RunError,
     executor::for_each_bounded,
@@ -44,6 +46,7 @@ use compare::{Outcome, compare_batches};
 use explain::{Explanations, Scope, missing_registry};
 pub use global::GlobalCheck;
 use global::GlobalVerify;
+use registry::BlobProgress;
 
 const MAX_ROWS_PER_COLLECTION: u64 = 100;
 const MAX_SHARE_ROWS: u64 = 100;
@@ -79,6 +82,7 @@ pub struct VerifyOptions {
     pub globals: GlobalCheck,
     pub tuning: Tuning,
     pub retry: RetryPolicy,
+    pub progress_interval: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,7 +104,9 @@ struct Verifier<S, R, St, C> {
     run_id: RunId,
     accepted: Option<RunId>,
     shares_retained: bool,
+    accounts_total: AtomicU64,
     accounts_checked: AtomicU64,
+    registry_blobs: BlobProgress,
     mismatches: AtomicU64,
     unexplained: AtomicU64,
 }
@@ -131,11 +137,30 @@ pub async fn verify<S: Source, R: Source, St: StateStore, C: RegistryConverter>(
         options,
         shutdown,
         run_id: start.run_id,
+        accounts_total: AtomicU64::new(0),
         accounts_checked: AtomicU64::new(0),
+        registry_blobs: BlobProgress::default(),
         mismatches: AtomicU64::new(0),
         unexplained: AtomicU64::new(0),
     });
+    let progress = verifier
+        .options
+        .progress_interval
+        .map(|interval| {
+            let verifier = verifier.clone();
+            tokio::spawn(async move {
+                let mut ticks = tokio::time::interval(interval);
+                ticks.tick().await;
+                loop {
+                    ticks.tick().await;
+                    verifier.log_progress();
+                }
+            })
+            .abort_handle()
+        })
+        .map(AbortOnDrop);
     let result = verifier.clone().run().await;
+    drop(progress);
     let accounts_checked = verifier.accounts_checked.load(Ordering::Relaxed);
     let mismatches = verifier.mismatches.load(Ordering::Relaxed);
     let unexplained = verifier.unexplained.load(Ordering::Relaxed);
@@ -281,6 +306,18 @@ impl CollectionFindings<'_> {
 }
 
 impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, St, C> {
+    fn log_progress(&self) {
+        tracing::info!(
+            run_id = self.run_id,
+            registry_blobs_checked = self.registry_blobs.checked.load(Ordering::Relaxed),
+            registry_blobs = self.registry_blobs.total.load(Ordering::Relaxed),
+            accounts_checked = self.accounts_checked.load(Ordering::Relaxed),
+            accounts = self.accounts_total.load(Ordering::Relaxed),
+            mismatches = self.mismatches.load(Ordering::Relaxed),
+            "verify progress"
+        );
+    }
+
     async fn run(self: Arc<Self>) -> Result<(), RunError> {
         self.verify_registry().await?;
         let policy = self.options.retry;
@@ -327,6 +364,8 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
                     .map(|account| (account, states.remove(&account.account_id))),
             );
         }
+        self.accounts_total
+            .store(work.len() as u64, Ordering::Relaxed);
         let verifier = self.clone();
         for_each_bounded(
             work,
@@ -394,6 +433,7 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
                 skipped: &explained,
                 tracked: &tracked,
                 fell_back: &fell_back,
+                blob_progress: &self.registry_blobs,
             },
             self.options.retry,
             self.options.tuning.batch_ops,
@@ -851,10 +891,13 @@ impl<S: Source, R: Source, St: StateStore, C: RegistryConverter> Verifier<S, R, 
         }
         hashes.clear();
         hashes.extend(refs.iter().map(|(hash, _)| *hash));
-        let hashes = &*hashes;
-        let exist = retry(self.options.retry, || self.target.blobs_exist(hashes)).await?;
+        let target = &*self.target;
+        let exist = check_each(self.options.retry, hashes, 0, |hash| async move {
+            target.blobs_exist(&[hash]).await
+        })
+        .await?;
         for ((_, document_id), exists) in refs.iter().zip(exist) {
-            if !exists {
+            if !exists? {
                 found.differs(*document_id, &["blob"], "", false);
             }
         }

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-11-01
+
+### Added
+- `verify` prints progress lines, also during the verification after `run --final`, and accepts `--progress-interval`.
+
+### Changed
+- The tool raises its soft open file limit to the hard limit when it starts, so large RocksDB migrations no longer stop with `Too many open files` under a low soft limit.
+
+### Fixed
+- Verify no longer reports `VanishedEmail` changelog rows holding duplicate entries as mismatched, which blocked finalising the migration.
+- A stalled blob store request no longer stops verify: each blob is retried on its own, and a blob that keeps failing is reported as `could not be verified` while verify carries on.
+
 ## [1.0.4] - 2026-10-29
 
 ### Fixed
