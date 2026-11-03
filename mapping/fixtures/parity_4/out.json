@@ -609,6 +609,12 @@
       "path": "memberTenantId"
     },
     {
+      "change": "tenant_mismatch",
+      "key": "x:Account/b",
+      "level": "error",
+      "path": "domainId"
+    },
+    {
       "change": "transformed",
       "key": "x:Account/b",
       "level": "info",

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.7] - Unreleased
+
+### Fixed
+- `prepare` now reports an error when an account, DKIM key or other tenant-scoped object references a domain in another tenant, instead of passing and having v1 reject the object during `run`.
+
 ## [1.0.6] - 2026-11-03
 
 ### Changed

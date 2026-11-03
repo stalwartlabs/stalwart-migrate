@@ -370,7 +370,7 @@ fn entry_issue(entry: &Entry, originals: &FxHashMap<ObjectKey, RegistryKey>) -> 
         | Change::ReferenceCleared { .. }
         | Change::ReferenceOutsideTenant { .. } => IssueKind::Dropped,
         Change::Clamped { .. } => IssueKind::Clamped,
-        Change::Dangling { .. } => IssueKind::Failed,
+        Change::Dangling { .. } | Change::TenantMismatch { .. } => IssueKind::Failed,
         Change::DefaultPinned { .. }
         | Change::DefaultInherited { .. }
         | Change::Transformed { .. }

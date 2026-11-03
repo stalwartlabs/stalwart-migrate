@@ -666,3 +666,83 @@ fn tenant_domains_get_a_copy_of_a_global_provider() {
         outcome.report.entries
     );
 }
+
+// An account or DKIM key whose domain is in another tenant cannot be written to v1, so prepare reports it as an error.
+#[test]
+fn references_to_a_domain_in_another_tenant_are_errors() {
+    let mapping = Mapping::embedded().expect("mapping");
+    let answers = Answers::default();
+    let object = |object: &str, id: u64, value: Value| SourceObject {
+        key: ObjectKey::with_id(object, id),
+        value,
+    };
+    let dkim = |domain: &str| {
+        json!({"@type": "Dkim1RsaSha256", "domainId": domain, "selector": "s1", "publicKey": "x",
+               "privateKey": {"@type": "Text", "secret": "y"}, "memberTenantId": "b"})
+    };
+    let outcome = mapping
+        .session(Direction::Forward, &answers, options())
+        .convert_all(vec![
+            object("x:Tenant", 1, json!({"name": "first"})),
+            object("x:Tenant", 2, json!({"name": "second"})),
+            object("x:Domain", 5, json!({"name": "a.example.org"})),
+            object(
+                "x:Domain",
+                6,
+                json!({"name": "b.example.org", "memberTenantId": "c"}),
+            ),
+            object(
+                "x:Domain",
+                10,
+                json!({"name": "c.example.org", "memberTenantId": "b"}),
+            ),
+            object(
+                "x:Account",
+                7,
+                json!({"@type": "User", "name": "jane", "domainId": "f", "memberTenantId": "b"}),
+            ),
+            object(
+                "x:Account",
+                8,
+                json!({"@type": "User", "name": "john", "domainId": "k", "memberTenantId": "b"}),
+            ),
+            object("x:DkimSignature", 20, dkim("g")),
+            object("x:DkimSignature", 21, dkim("k")),
+        ]);
+    let tenant = |id| ObjectKey::with_id("x:Tenant", id);
+    let mismatches: Vec<_> = outcome
+        .report
+        .entries
+        .iter()
+        .map(|e| (e.key.clone(), e.path.to_string(), e.change.clone()))
+        .collect();
+    assert_eq!(
+        mismatches,
+        [
+            (
+                ObjectKey::with_id("x:Account", 7),
+                "domainId".to_string(),
+                Change::TenantMismatch {
+                    target: ObjectKey::with_id("x:Domain", 5),
+                    tenant: tenant(1),
+                    target_tenant: None,
+                }
+            ),
+            (
+                ObjectKey::with_id("x:DkimSignature", 20),
+                "domainId".to_string(),
+                Change::TenantMismatch {
+                    target: ObjectKey::with_id("x:Domain", 6),
+                    tenant: tenant(1),
+                    target_tenant: Some(tenant(2)),
+                }
+            ),
+        ]
+    );
+    assert!(!outcome.is_complete());
+    let text = outcome.report.entries[0].to_string();
+    assert!(
+        text.contains("x:Domain/f, which is not in any tenant, while this object is in x:Tenant/b"),
+        "{text}"
+    );
+}

@@ -103,6 +103,11 @@ pub enum Change {
     Dangling {
         target: ObjectKey,
     },
+    TenantMismatch {
+        target: ObjectKey,
+        tenant: ObjectKey,
+        target_tenant: Option<ObjectKey>,
+    },
     Moved {
         to: Box<str>,
     },
@@ -131,7 +136,7 @@ pub struct Entry {
 impl Entry {
     pub fn level(&self) -> Level {
         match &self.change {
-            Change::Dangling { .. } => Level::Error,
+            Change::Dangling { .. } | Change::TenantMismatch { .. } => Level::Error,
             Change::Dropped { .. }
             | Change::Unknown
             | Change::Clamped { .. }
@@ -203,6 +208,21 @@ impl fmt::Display for Entry {
                 write!(
                     f,
                     ": references {target}, which is not migrated, and cannot be cleared"
+                )
+            }
+            Change::TenantMismatch {
+                target,
+                tenant,
+                target_tenant,
+            } => {
+                write!(f, ": references {target}, which is ")?;
+                match target_tenant {
+                    Some(target_tenant) => write!(f, "in {target_tenant}")?,
+                    None => f.write_str("not in any tenant")?,
+                }
+                write!(
+                    f,
+                    ", while this object is in {tenant}; v1 requires both in the same tenant, so give them the same tenant in v0.16 (or remove it from both) and run prepare again"
                 )
             }
             Change::Moved { to } => write!(f, ": moved to {to}"),

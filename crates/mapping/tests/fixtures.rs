@@ -30,6 +30,7 @@ fn change_kind(change: &Change) -> &'static str {
         Change::ReferenceOutsideTenant { .. } => "reference_outside_tenant",
         Change::ReferenceCopiedIntoTenant { .. } => "reference_copied_into_tenant",
         Change::Dangling { .. } => "dangling",
+        Change::TenantMismatch { .. } => "tenant_mismatch",
         Change::Moved { .. } => "moved",
         Change::ReferenceCycle => "reference_cycle",
         Change::ReferenceDeferred => "reference_deferred",

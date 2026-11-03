@@ -474,6 +474,12 @@
       "path": "memberTenantId"
     },
     {
+      "change": "tenant_mismatch",
+      "key": "x:MailingList/b",
+      "level": "error",
+      "path": "domainId"
+    },
+    {
       "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",

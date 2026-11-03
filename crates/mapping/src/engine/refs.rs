@@ -52,17 +52,32 @@ struct Fixer<'s, 'r> {
     pending: Vec<(String, ObjectKey, Gap)>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Gap {
     Missing,
-    OtherTenant,
+    OtherTenant { tenant: u64, target: Option<u64> },
 }
 
 impl Gap {
     fn cleared(self, target: ObjectKey) -> Change {
         match self {
             Gap::Missing => Change::ReferenceCleared { target },
-            Gap::OtherTenant => Change::ReferenceOutsideTenant { target },
+            Gap::OtherTenant { .. } => Change::ReferenceOutsideTenant { target },
+        }
+    }
+
+    fn unresolved(self, target: ObjectKey) -> Change {
+        let tenant_key = |id| ObjectKey::with_id(TENANT_OBJECT, id);
+        match self {
+            Gap::Missing => Change::Dangling { target },
+            Gap::OtherTenant {
+                tenant,
+                target: target_tenant,
+            } => Change::TenantMismatch {
+                target,
+                tenant: tenant_key(tenant),
+                target_tenant: target_tenant.map(tenant_key),
+            },
         }
     }
 }
@@ -136,11 +151,7 @@ pub(super) fn fix_dangling(session: &Session, outcome: &mut Outcome) {
                 continue;
             }
             for (path, target, gap) in pending {
-                if gap == Gap::Missing {
-                    fixer
-                        .report
-                        .push(fixer.key, &path, Change::Dangling { target });
-                }
+                fixer.report.push(fixer.key, &path, gap.unresolved(target));
             }
         }
     }
@@ -230,9 +241,7 @@ impl Fixer<'_, '_> {
     }
 
     fn tenant_copy(&mut self, missing: &ObjectKey, gap: Gap) -> Option<u64> {
-        let (Gap::OtherTenant, Some(tenant), Instance::Id(id)) =
-            (gap, self.tenant, &missing.instance)
-        else {
+        let (Gap::OtherTenant { tenant, .. }, Instance::Id(id)) = (gap, &missing.instance) else {
             return None;
         };
         let ids = self.present.get(&missing.object)?;
@@ -260,16 +269,17 @@ impl Fixer<'_, '_> {
     fn missing(&self, object: &str, id: &str) -> Option<(ObjectKey, Gap)> {
         let object = self.schema.reference_target(object)?;
         let id = JmapId::parse(id)?.0;
-        let gap = match self.present.get(object).and_then(|ids| ids.get(&id)) {
-            None => Gap::Missing,
-            Some(tenant)
-                if self.tenant.is_some()
-                    && *tenant != self.tenant
-                    && self.scoped.contains(object) =>
+        let gap = match (
+            self.present.get(object).and_then(|ids| ids.get(&id)),
+            self.tenant,
+        ) {
+            (None, _) => Gap::Missing,
+            (Some(&target), Some(tenant))
+                if target != Some(tenant) && self.scoped.contains(object) =>
             {
-                Gap::OtherTenant
+                Gap::OtherTenant { tenant, target }
             }
-            Some(_) => return None,
+            (Some(_), _) => return None,
         };
         Some((ObjectKey::with_id(object, id), gap))
     }
@@ -352,7 +362,7 @@ impl Fixer<'_, '_> {
                 } else if self
                     .pending
                     .iter()
-                    .all(|(_, _, gap)| *gap == Gap::OtherTenant)
+                    .all(|(_, _, gap)| matches!(gap, Gap::OtherTenant { .. }))
                 {
                     outside.append(&mut self.pending);
                 } else {
