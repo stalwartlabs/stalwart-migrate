@@ -996,13 +996,13 @@ dependencies = [
 
 [[package]]
 name = "calcard"
-version = "0.4.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "encodify",
  "hashify 0.3.1",
  "jiff",
- "jmap-tools 0.1.9",
+ "jmap-tools 1.0.2",
  "mail-parser 1.0.0",
  "memchr",
  "rkyv 0.8.18",
@@ -1354,8 +1354,8 @@ dependencies = [
  "psl",
  "quick-xml 0.41.0",
  "quick_cache",
- "rasn 0.28.15",
- "rasn-pkix 0.28.15",
+ "rasn",
+ "rasn-pkix",
  "rcgen",
  "regex",
  "registry 0.16.27",
@@ -1372,7 +1372,7 @@ dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.1",
  "sieve-rs 0.7.3",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "socket2",
  "store 0.16.27",
  "tinyvec",
@@ -1391,7 +1391,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "aes-gcm-siv",
  "ahash",
@@ -1400,11 +1400,12 @@ dependencies = [
  "bincode",
  "bumpalo",
  "bytes",
- "calcard 0.4.0",
+ "calcard 1.0.2",
  "compact_str 0.10.0",
- "coordinator 1.0.0",
+ "coordinator 1.0.2",
+ "crypto",
  "decancer 4.0.0",
- "directory 1.0.0",
+ "directory 1.0.2",
  "dns-update",
  "encodify",
  "futures",
@@ -1417,16 +1418,16 @@ dependencies = [
  "infer 0.22.0",
  "itoa",
  "jiff",
- "jmap_proto 1.0.0",
+ "jmap_proto 1.0.2",
  "jsonwebtoken",
  "libc",
  "lz4_flex",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
  "md5",
  "memchr",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "nohash-hasher",
  "p256 0.14.0",
  "p384 0.14.0",
@@ -1435,16 +1436,13 @@ dependencies = [
  "percent-encoding",
  "pkcs8 0.11.0",
  "privdrop",
- "prometheus",
  "proxy-header",
  "psl",
  "quick-xml 0.42.0",
  "quick_cache",
- "rasn 0.29.0",
- "rasn-pkix 0.29.0",
  "rcgen",
  "regex-automata",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "rkyv 0.8.18",
  "rsa",
@@ -1452,24 +1450,25 @@ dependencies = [
  "rustls-pemfile",
  "rustls-pki-types",
  "sd-notify",
- "sequoia-openpgp",
  "serde",
  "serde_json",
  "sha1 0.11.0",
  "sha2 0.11.1",
- "sieve-rs 2.0.0",
+ "sieve-rs 1.0.2",
  "siphasher",
- "smtp-proto 0.2.5",
+ "smallvec",
+ "smtp-proto 1.0.2",
  "smtp-report",
  "socket2",
- "store 1.0.0",
+ "store 1.0.2",
+ "telemetry",
  "tinyvec",
  "tokio",
  "tokio-rustls",
- "trc 1.0.0",
- "types 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
  "unicode-security",
- "utils 1.0.0",
+ "utils 1.0.2",
  "whatlang",
  "x509-parser",
  "xxhash-rust",
@@ -1591,13 +1590,13 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
- "registry 1.0.0",
- "store 1.0.0",
+ "registry 1.0.2",
+ "store 1.0.2",
  "tokio",
- "trc 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -1734,6 +1733,21 @@ name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
+
+[[package]]
+name = "crypto"
+version = "1.0.2"
+dependencies = [
+ "aes 0.9.3",
+ "aws-lc-rs",
+ "ed448-goldilocks",
+ "encodify",
+ "hashify 0.3.1",
+ "mail-parser 1.0.0",
+ "memchr",
+ "shake",
+ "zeroize",
+]
 
 [[package]]
 name = "crypto-bigint"
@@ -2195,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "directory"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "argon2 0.6.0",
@@ -2211,18 +2225,18 @@ dependencies = [
  "parking_lot 0.13.0",
  "pbkdf2",
  "pwhash",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "scrypt",
  "serde",
  "serde_json",
  "sha1 0.11.0",
  "sha2 0.11.1",
- "store 1.0.0",
+ "store 1.0.2",
  "tokio",
  "totp-rs",
- "trc 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -2371,6 +2385,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed448-goldilocks"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88322282bccdc6fa7ab65b0c30cb877fba541547653436d08bb775fa4a4307b4"
+dependencies = [
+ "fiat-crypto 0.1.20",
+ "hex",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2440,9 +2466,9 @@ dependencies = [
  "mail-parser 0.11.9",
  "nlp 0.16.27",
  "rand 0.8.8",
- "rasn 0.28.15",
- "rasn-cms 0.28.15",
- "rasn-pkix 0.28.15",
+ "rasn",
+ "rasn-cms",
+ "rasn-pkix",
  "registry 0.16.27",
  "rkyv 0.8.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "rsa",
@@ -2457,39 +2483,30 @@ dependencies = [
 
 [[package]]
 name = "email"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
- "aes 0.9.3",
- "aes-gcm 0.11.1",
  "bytecount",
- "cbc 0.2.1",
- "chacha20poly1305",
- "common 1.0.0",
+ "common 1.0.2",
  "compact_str 0.10.0",
- "encodify",
- "groupware 1.0.0",
+ "crypto",
+ "groupware 1.0.2",
  "hashify 0.3.1",
- "jmap-tools 0.1.9",
- "jmap_proto 1.0.0",
+ "jmap-tools 1.0.2",
+ "jmap_proto 1.0.2",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "rand 0.8.8",
- "rasn 0.29.0",
- "rasn-cms 0.29.0",
- "rasn-pkix 0.29.0",
- "registry 1.0.0",
+ "registry 1.0.2",
  "rkyv 0.8.18",
- "rsa",
- "sequoia-openpgp",
- "sieve-rs 2.0.0",
- "store 1.0.0",
+ "sieve-rs 1.0.2",
+ "store 1.0.2",
  "text-extract",
  "tinyvec",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -2577,7 +2594,7 @@ dependencies = [
 
 [[package]]
 name = "event_macro"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "quote",
  "syn 3.0.9",
@@ -2687,6 +2704,12 @@ dependencies = [
  "rand_core 0.10.1",
  "subtle",
 ]
+
+[[package]]
+name = "fiat-crypto"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 
 [[package]]
 name = "fiat-crypto"
@@ -3096,11 +3119,11 @@ dependencies = [
 
 [[package]]
 name = "groupware"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
- "calcard 0.4.0",
- "common 1.0.0",
+ "calcard 1.0.2",
+ "common 1.0.2",
  "compact_str 0.10.0",
  "hashify 0.3.1",
  "icu_datetime",
@@ -3109,19 +3132,19 @@ dependencies = [
  "icu_provider",
  "indexmap",
  "jiff",
- "jmap-tools 0.1.9",
- "nlp 1.0.0",
+ "jmap-tools 1.0.2",
+ "nlp 1.0.2",
  "percent-encoding",
- "registry 1.0.0",
+ "registry 1.0.2",
  "rkyv 0.8.18",
  "serde",
  "serde_json",
- "store 1.0.0",
+ "store 1.0.2",
  "text-extract",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -3454,18 +3477,18 @@ dependencies = [
 
 [[package]]
 name = "http_proto"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
- "common 1.0.0",
+ "common 1.0.2",
  "compact_str 0.10.0",
  "form_urlencoded",
  "http-body-util",
  "hyper",
  "percent-encoding",
- "registry 1.0.0",
+ "registry 1.0.2",
  "serde",
  "serde_json",
- "trc 1.0.0",
+ "trc 1.0.2",
 ]
 
 [[package]]
@@ -4163,7 +4186,7 @@ dependencies = [
  "sha2 0.11.1",
  "sieve-rs 0.7.3",
  "smtp 0.16.27",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "spam-filter 0.16.27",
  "store 0.16.27",
  "tokio",
@@ -4176,51 +4199,52 @@ dependencies = [
 
 [[package]]
 name = "jmap"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "async-stream",
- "calcard 0.4.0",
- "common 1.0.0",
+ "calcard 1.0.2",
+ "common 1.0.2",
  "compact_str 0.10.0",
- "directory 1.0.0",
- "email 1.0.0",
+ "crypto",
+ "directory 1.0.2",
+ "email 1.0.2",
  "encodify",
  "futures-util",
- "groupware 1.0.0",
+ "groupware 1.0.2",
  "hashify 0.3.1",
  "http-body-util",
- "http_proto 1.0.0",
+ "http_proto 1.0.2",
  "hyper",
  "hyper-util",
  "jiff",
- "jmap-tools 0.1.9",
- "jmap_proto 1.0.0",
- "mail-auth 0.14.0",
+ "jmap-tools 1.0.2",
+ "jmap_proto 1.0.2",
+ "mail-auth 0.15.1",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
  "memchr",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "p256 0.14.0",
  "rand 0.10.3",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "rkyv 0.8.18",
  "serde",
  "serde_json",
- "services 1.0.0",
+ "services 1.0.2",
  "sha1 0.11.0",
  "sha2 0.11.1",
- "sieve-rs 2.0.0",
- "smtp 1.0.0",
- "smtp-proto 0.2.5",
- "spam-filter 1.0.0",
- "store 1.0.0",
+ "sieve-rs 1.0.2",
+ "smtp 1.0.2",
+ "smtp-proto 1.0.2",
+ "spam-filter 1.0.2",
+ "store 1.0.2",
  "tokio",
  "tokio-tungstenite",
- "trc 1.0.0",
+ "trc 1.0.2",
  "tungstenite",
- "types 1.0.0",
- "utils 1.0.0",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -4237,7 +4261,7 @@ dependencies = [
 
 [[package]]
 name = "jmap-tools"
-version = "0.1.9"
+version = "1.0.2"
 dependencies = [
  "rkyv 0.8.18",
  "serde",
@@ -4265,24 +4289,24 @@ dependencies = [
 
 [[package]]
 name = "jmap_proto"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
- "calcard 0.4.0",
+ "calcard 1.0.2",
  "compact_str 0.10.0",
  "encodify",
  "hashify 0.3.1",
- "jmap-tools 0.1.9",
+ "jmap-tools 1.0.2",
  "mail-parser 1.0.0",
- "registry 1.0.0",
+ "registry 1.0.2",
  "rkyv 0.8.18",
  "serde",
  "serde_json",
  "simdutf8",
  "sonic-rs",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -4715,9 +4739,9 @@ dependencies = [
 
 [[package]]
 name = "mail-auth"
-version = "0.14.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4088404a46241a57782e9cb2c27c9c5708c42e5a9783e9a3225befbc5934829"
+checksum = "a3a38e106bc724fb87601fce70bef65c12498b19cdb320994330eae1080d035f"
 dependencies = [
  "aws-lc-rs",
  "aws-lc-sys",
@@ -4824,7 +4848,7 @@ checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "mapping"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "flate2",
  "hashify 0.3.1",
@@ -4906,10 +4930,12 @@ checksum = "c797b9d6bb23aab2fc369c65f871be49214f5c759af65bde26ffaaa2b646b492"
 
 [[package]]
 name = "migrate"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "bytes",
  "clap",
+ "common 0.16.27",
+ "common 1.0.2",
  "futures",
  "hashify 0.3.1",
  "libc",
@@ -4920,6 +4946,7 @@ dependencies = [
  "rusqlite",
  "rustc-hash",
  "rustls",
+ "serde",
  "serde_json",
  "source-v016",
  "source-v1",
@@ -4932,7 +4959,7 @@ dependencies = [
  "tokio-postgres",
  "tracing",
  "tracing-subscriber",
- "types 1.0.0",
+ "types 1.0.2",
 ]
 
 [[package]]
@@ -4994,7 +5021,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "bytes",
  "hashify 0.3.1",
@@ -5188,7 +5215,7 @@ dependencies = [
 
 [[package]]
 name = "nlp"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "hashify 0.3.1",
@@ -6350,29 +6377,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
- "rasn-derive 0.28.15",
- "serde_json",
- "snafu",
- "xml-no-std",
-]
-
-[[package]]
-name = "rasn"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c442ad572d02886fe3a24f770763cb39afb9b3dfe16e05fcdf133b3895e4a24"
-dependencies = [
- "bitvec",
- "bytes",
- "cfg-if",
- "chrono",
- "either",
- "nom",
- "num-bigint 0.4.8",
- "num-integer",
- "num-traits",
- "once_cell",
- "rasn-derive 0.29.0",
+ "rasn-derive",
  "serde_json",
  "snafu",
  "xml-no-std",
@@ -6384,18 +6389,8 @@ version = "0.28.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d11eca85a3699d3e52795874704ddd6d2f03bda3585be3e6655a0d9a166e84e"
 dependencies = [
- "rasn 0.28.15",
- "rasn-pkix 0.28.15",
-]
-
-[[package]]
-name = "rasn-cms"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e30155c100fb601e0e82c125214dfc7d3fc7c91a36a5001336ec01d36c52872d"
-dependencies = [
- "rasn 0.29.0",
- "rasn-pkix 0.29.0",
+ "rasn",
+ "rasn-pkix",
 ]
 
 [[package]]
@@ -6405,18 +6400,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fe71aa61cfb0191e50b95ebd72d454e9eeabff8a35b6252b99f2e90b7ef4c6d"
 dependencies = [
  "proc-macro2",
- "rasn-derive-impl 0.28.15",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "rasn-derive"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261556388c573dde262717e06ad2c9a9ed78405418f16f2789a0dd8004793fba"
-dependencies = [
- "proc-macro2",
- "rasn-derive-impl 0.29.0",
+ "rasn-derive-impl",
  "syn 2.0.119",
 ]
 
@@ -6435,35 +6419,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "rasn-derive-impl"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e17b9360b511cde533e75baa711dc652f6f613457afe02a66c748ccd6c31ef7"
-dependencies = [
- "either",
- "itertools 0.13.0",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "uuid",
-]
-
-[[package]]
 name = "rasn-pkix"
 version = "0.28.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773eb443e9c58d9d356c065bbfea2c04322277c44073b4e0716967d8ccd7ef58"
 dependencies = [
- "rasn 0.28.15",
-]
-
-[[package]]
-name = "rasn-pkix"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e0869fd5847184c93887f98eeb0aa2f70cc3f1eec1f0adf3ff8f0f867d60b4e"
-dependencies = [
- "rasn 0.29.0",
+ "rasn",
 ]
 
 [[package]]
@@ -6617,20 +6578,20 @@ dependencies = [
 
 [[package]]
 name = "registry"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "compact_str 0.10.0",
  "hashify 0.3.1",
- "jmap-tools 0.1.9",
+ "jmap-tools 1.0.2",
  "lz4_flex",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "serde",
  "smtp-report",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -7096,7 +7057,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s3"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -7443,7 +7404,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "smtp 0.16.27",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "spam-filter 0.16.27",
  "store 0.16.27",
  "tokio",
@@ -7454,39 +7415,40 @@ dependencies = [
 
 [[package]]
 name = "services"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "aes-gcm 0.11.1",
  "aho-corasick",
- "calcard 0.4.0",
- "common 1.0.0",
+ "calcard 1.0.2",
+ "common 1.0.2",
  "compact_str 0.10.0",
- "coordinator 1.0.0",
+ "coordinator 1.0.2",
+ "crypto",
  "dns-update",
- "email 1.0.0",
- "groupware 1.0.0",
+ "email 1.0.2",
+ "groupware 1.0.2",
  "hkdf 0.13.0",
- "jmap-tools 0.1.9",
- "jmap_proto 1.0.0",
+ "jmap-tools 1.0.2",
+ "jmap_proto 1.0.2",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
  "memory-stats",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "p256 0.14.0",
  "psl",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "serde_json",
  "sha2 0.11.1",
- "smtp 1.0.0",
- "smtp-proto 0.2.5",
- "spam-filter 1.0.0",
- "store 1.0.0",
+ "smtp 1.0.2",
+ "smtp-proto 1.0.2",
+ "spam-filter 1.0.2",
+ "store 1.0.2",
  "text-extract",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -7647,7 +7609,7 @@ dependencies = [
 
 [[package]]
 name = "sieve-rs"
-version = "2.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "bumpalo",
@@ -7802,7 +7764,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "sieve-rs 0.7.3",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "spam-filter 0.16.27",
  "store 0.16.27",
  "tokio",
@@ -7815,23 +7777,24 @@ dependencies = [
 
 [[package]]
 name = "smtp"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "blake3",
- "common 1.0.0",
+ "common 1.0.2",
  "compact_str 0.10.0",
- "directory 1.0.0",
- "email 1.0.0",
+ "crypto",
+ "directory 1.0.2",
+ "email 1.0.2",
  "encodify",
  "hashify 0.3.1",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
  "memchr",
  "parking_lot 0.13.0",
  "rand 0.10.3",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "rkyv 0.8.18",
  "rustls",
@@ -7840,26 +7803,17 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
- "sieve-rs 2.0.0",
- "smtp-proto 0.2.5",
+ "sieve-rs 1.0.2",
+ "smtp-proto 1.0.2",
  "smtp-report",
- "spam-filter 1.0.0",
- "store 1.0.0",
+ "spam-filter 1.0.2",
+ "store 1.0.2",
  "tokio",
  "tokio-rustls",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
  "x509-parser",
-]
-
-[[package]]
-name = "smtp-proto"
-version = "0.2.5"
-dependencies = [
- "memchr",
- "rkyv 0.8.18",
- "serde",
 ]
 
 [[package]]
@@ -7874,12 +7828,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "smtp-proto"
+version = "1.0.2"
+dependencies = [
+ "memchr",
+ "rkyv 0.8.18",
+ "serde",
+]
+
+[[package]]
 name = "smtp-report"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "flate2",
  "hashify 0.3.1",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "mail-builder 2.0.0",
  "mail-parser 1.0.0",
  "memchr",
@@ -7962,7 +7925,7 @@ dependencies = [
 
 [[package]]
 name = "source-v016"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "bytes",
  "calcard 0.3.14",
@@ -7980,7 +7943,7 @@ dependencies = [
  "rustc-hash",
  "serde_json",
  "smtp 0.16.27",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "spam-filter 0.16.27",
  "store 0.16.27",
  "tempfile",
@@ -7992,34 +7955,34 @@ dependencies = [
 
 [[package]]
 name = "source-v1"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "bytes",
- "calcard 0.4.0",
- "common 1.0.0",
- "directory 1.0.0",
- "email 1.0.0",
+ "calcard 1.0.2",
+ "common 1.0.2",
+ "directory 1.0.2",
+ "email 1.0.2",
  "futures",
- "groupware 1.0.0",
- "jmap 1.0.0",
- "jmap-tools 0.1.9",
- "jmap_proto 1.0.0",
+ "groupware 1.0.2",
+ "jmap 1.0.2",
+ "jmap-tools 1.0.2",
+ "jmap_proto 1.0.2",
  "model",
- "nlp 1.0.0",
- "registry 1.0.0",
+ "nlp 1.0.2",
+ "registry 1.0.2",
  "roaring",
  "rustc-hash",
  "serde_json",
- "smtp 1.0.0",
- "smtp-proto 0.2.5",
- "spam-filter 1.0.0",
- "store 1.0.0",
+ "smtp 1.0.2",
+ "smtp-proto 1.0.2",
+ "spam-filter 1.0.2",
+ "store 1.0.2",
  "target-v1",
  "tempfile",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -8041,7 +8004,7 @@ dependencies = [
  "rkyv 0.8.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "sha1 0.11.0",
- "smtp-proto 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smtp-proto 0.2.5",
  "store 0.16.27",
  "tokio",
  "trc 0.16.27",
@@ -8054,35 +8017,35 @@ dependencies = [
 
 [[package]]
 name = "spam-filter"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
- "common 1.0.0",
+ "common 1.0.2",
  "compact_str 0.10.0",
  "decancer 4.0.0",
  "hashify 0.3.1",
  "hyper",
  "idna",
  "infer 0.22.0",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "mail-parser 1.0.0",
  "memchr",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "psl",
- "registry 1.0.0",
+ "registry 1.0.2",
  "rkyv 0.8.18",
  "serde",
  "serde_json",
  "sha1 0.11.0",
- "smtp-proto 0.2.5",
- "store 1.0.0",
+ "smtp-proto 1.0.2",
+ "store 1.0.2",
  "sync_wrapper",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
  "unicode-general-category",
  "unicode-normalization",
  "unicode-security",
- "utils 1.0.0",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -8141,7 +8104,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "state"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "hashify 0.3.1",
  "model",
@@ -8213,7 +8176,7 @@ dependencies = [
 
 [[package]]
 name = "store"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -8238,7 +8201,7 @@ dependencies = [
  "lru-cache",
  "lz4_flex",
  "mysql_async",
- "nlp 1.0.0",
+ "nlp 1.0.2",
  "nohash-hasher",
  "num_cpus",
  "papaya",
@@ -8248,7 +8211,7 @@ dependencies = [
  "rand 0.10.3",
  "rayon",
  "redis",
- "registry 1.0.0",
+ "registry 1.0.2",
  "reqwest 0.13.5",
  "rkyv 0.8.18",
  "roaring",
@@ -8263,9 +8226,9 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-rustls",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
  "x509-parser",
  "xxhash-rust",
  "zstd 0.14.3",
@@ -8408,7 +8371,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "target-v016"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -8443,41 +8406,64 @@ dependencies = [
 
 [[package]]
 name = "target-v1"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "arc-swap",
  "bytes",
- "calcard 0.4.0",
- "common 1.0.0",
- "directory 1.0.0",
- "email 1.0.0",
+ "calcard 1.0.2",
+ "common 1.0.2",
+ "directory 1.0.2",
+ "email 1.0.2",
  "foundationdb",
  "futures",
- "groupware 1.0.0",
+ "groupware 1.0.2",
  "hashify 0.3.1",
- "jmap 1.0.0",
- "jmap-tools 0.1.9",
- "jmap_proto 1.0.0",
+ "jmap 1.0.2",
+ "jmap-tools 1.0.2",
+ "jmap_proto 1.0.2",
  "mail-parser 1.0.0",
  "model",
- "registry 1.0.0",
+ "registry 1.0.2",
  "roaring",
  "rocksdb",
  "rusqlite",
  "rustls",
  "serde",
  "serde_json",
- "services 1.0.0",
- "sieve-rs 2.0.0",
- "smtp 1.0.0",
- "smtp-proto 0.2.5",
+ "services 1.0.2",
+ "sieve-rs 1.0.2",
+ "smtp 1.0.2",
+ "smtp-proto 1.0.2",
  "source-v1",
- "store 1.0.0",
+ "store 1.0.2",
  "tempfile",
  "tokio",
- "trc 1.0.0",
- "types 1.0.0",
- "utils 1.0.0",
+ "trc 1.0.2",
+ "types 1.0.2",
+ "utils 1.0.2",
+]
+
+[[package]]
+name = "telemetry"
+version = "1.0.2"
+dependencies = [
+ "ahash",
+ "bytes",
+ "encodify",
+ "hashify 0.3.1",
+ "http",
+ "http-body-util",
+ "httpdate",
+ "hyper",
+ "hyper-util",
+ "itoa",
+ "memchr",
+ "rustls",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls",
+ "trc 1.0.2",
+ "zmij",
 ]
 
 [[package]]
@@ -8513,7 +8499,7 @@ dependencies = [
 
 [[package]]
 name = "text-extract"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "aws-lc-rs",
  "encoding_rs",
@@ -8962,15 +8948,15 @@ dependencies = [
 
 [[package]]
 name = "trc"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "compact_str 0.10.0",
  "encodify",
- "event_macro 1.0.0",
+ "event_macro 1.0.1",
  "hashify 0.3.1",
  "itoa",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "mail-parser 1.0.0",
  "parking_lot 0.13.0",
  "reqwest 0.13.5",
@@ -9058,19 +9044,19 @@ dependencies = [
 
 [[package]]
 name = "types"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "blake3",
  "compact_str 0.10.0",
  "encodify",
  "hashify 0.3.1",
- "jmap-tools 0.1.9",
+ "jmap-tools 1.0.2",
  "memchr",
  "rkyv 0.8.18",
  "serde",
- "trc 1.0.0",
+ "trc 1.0.2",
  "unicode-normalization",
- "utils 1.0.0",
+ "utils 1.0.2",
 ]
 
 [[package]]
@@ -9276,7 +9262,7 @@ dependencies = [
 
 [[package]]
 name = "utils"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "ahash",
  "arcstr",
@@ -9290,7 +9276,7 @@ dependencies = [
  "idna",
  "jiff",
  "libc",
- "mail-auth 0.14.0",
+ "mail-auth 0.15.1",
  "memchr",
  "nohash-hasher",
  "privdrop",
@@ -9305,7 +9291,7 @@ dependencies = [
  "simdutf8",
  "tokio",
  "tokio-rustls",
- "trc 1.0.0",
+ "trc 1.0.2",
  "url",
  "windows-sys 0.61.2",
  "xxhash-rust",

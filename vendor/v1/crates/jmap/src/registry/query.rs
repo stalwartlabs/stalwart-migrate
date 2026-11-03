@@ -25,7 +25,7 @@ use jmap_proto::{
 };
 use registry::{
     schema::{
-        enums::{AccountType, Permission},
+        enums::{AccountType, ExternalPublicKeyStatus, Permission},
         prelude::{ObjectType, Property},
     },
     types::{
@@ -192,9 +192,7 @@ impl RegistryQuery for Server {
                 }
                 // SPDX-SnippetEnd
                 let can_impersonate = access_token.has_permission(Permission::Impersonate);
-                if !can_impersonate {
-                    query = query.with_account(request.account_id.document_id());
-                }
+                let mut has_account_filter = false;
                 let indexes = object_type.indexes();
                 request.extract_filters(|property, op, value| match property {
                     // SPDX-SnippetBegin
@@ -230,6 +228,13 @@ impl RegistryQuery for Server {
                                 AccountType::parse(&value)
                                     .map(|id| RegistryFilterValue::from(id.to_id()))
                             }
+                            (IndexSchemaValueType::Enum, serde_json::Value::String(value))
+                                if (property == Property::Status
+                                    && object_type == ObjectType::ExternalPublicKey) =>
+                            {
+                                ExternalPublicKeyStatus::parse(&value)
+                                    .map(|id| RegistryFilterValue::from(id.to_id()))
+                            }
                             (IndexSchemaValueType::Boolean, serde_json::Value::Bool(value)) => {
                                 Some(RegistryFilterValue::from(value))
                             }
@@ -247,6 +252,7 @@ impl RegistryQuery for Server {
                         };
 
                         if let Some(value) = value {
+                            has_account_filter |= property == Property::AccountId;
                             query.filters.push(store::registry::RegistryFilter {
                                 property,
                                 op,
@@ -260,6 +266,9 @@ impl RegistryQuery for Server {
                         }
                     }
                 })?;
+                if !has_account_filter {
+                    query = query.with_account(request.account_id.document_id());
+                }
 
                 let params = request
                     .extract_parameters(self.core.jmap.query_max_results, Some(Property::Id))?;

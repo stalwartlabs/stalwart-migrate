@@ -11,6 +11,7 @@ use crate::{
 
 const SUPPORTED_VERSION: u32 = 1;
 const WILDCARD: &str = "*";
+const PERMISSION_ENUM: &str = "Permission";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Conversion {
@@ -139,6 +140,12 @@ pub struct Grant {
     pub when_any: Box<[Box<str>]>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct DefaultRoleRules {
+    pub added_in_v016: Box<[Box<str>]>,
+    pub min_coverage: u8,
+}
+
 #[derive(Debug, Clone)]
 pub struct Separator {
     pub from: Box<str>,
@@ -161,6 +168,8 @@ pub struct RuleSet {
     pub separators: FxHashMap<Box<str>, Separator>,
     pub defaults: FxHashMap<Box<str>, DefaultsTable>,
     pub grants: Box<[Grant]>,
+    pub sign_in_grants: Box<[Box<str>]>,
+    pub default_roles: DefaultRoleRules,
     pub functions: FxHashMap<Box<str>, FunctionRule>,
     pub spam_tags: SpamTags,
 }
@@ -287,6 +296,28 @@ impl RuleSet {
                 when_any: old.into_iter().map(Into::into).collect(),
             })
             .collect();
+        rules.sign_in_grants = raw
+            .sign_in_grants
+            .permissions
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        if raw.default_roles.min_coverage > 100 {
+            return Err(Error::rule(
+                file,
+                "default_roles.min_coverage",
+                "must be a percentage",
+            ));
+        }
+        rules.default_roles = DefaultRoleRules {
+            added_in_v016: raw
+                .default_roles
+                .added_in_v016
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            min_coverage: raw.default_roles.min_coverage,
+        };
         rules.spam_tags = SpamTags {
             renamed: raw
                 .spam_tags
@@ -344,6 +375,26 @@ impl RuleSet {
                         format!("{target_fields}.{target_prop} is not a target property"),
                     ));
                 }
+            }
+        }
+        let permissions = self
+            .grants
+            .iter()
+            .map(|g| (&g.permission, new))
+            .chain(
+                self.grants
+                    .iter()
+                    .flat_map(|g| g.when_any.iter().map(|p| (p, old))),
+            )
+            .chain(self.sign_in_grants.iter().map(|p| (p, new)))
+            .chain(self.default_roles.added_in_v016.iter().map(|p| (p, old)));
+        for (permission, schema) in permissions {
+            if !schema.enum_has(PERMISSION_ENUM, permission) {
+                return Err(Error::rule(
+                    file,
+                    &**permission,
+                    "not a permission of its version",
+                ));
             }
         }
         for (name, table) in &self.enums {
@@ -550,11 +601,31 @@ struct RawRules {
     #[serde(default)]
     permission_grants: BTreeMap<String, Vec<String>>,
     #[serde(default)]
+    sign_in_grants: RawSignInGrants,
+    #[serde(default)]
+    default_roles: RawDefaultRoles,
+    #[serde(default)]
     expression_functions: BTreeMap<String, RawFunction>,
     #[serde(default)]
     spam_tags: RawSpamTags,
     #[serde(default, rename = "populated")]
     _populated: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RawSignInGrants {
+    #[serde(default)]
+    permissions: Vec<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RawDefaultRoles {
+    #[serde(default)]
+    added_in_v016: Vec<String>,
+    #[serde(default)]
+    min_coverage: u8,
 }
 
 #[derive(Deserialize, Default)]

@@ -302,6 +302,27 @@ pollingInterval = "pollInterval"
 [properties."x:Domain"]
 isEnabled = "enable"
 
+# Encryption at rest (v1.0.2): the cipher variants of EncryptionAtRest became
+# Enabled, and v1 selects the cipher from the public key (transform
+# encryption_at_rest, which also asks for the header protection of the new
+# headerProtection setting). AES-256-GCM and ChaCha20-Poly1305 accounts set
+# authenticatedEncryption on their S/MIME key (transform public_key_encryption).
+# The global switches moved: Email.encryptAtRest to Encryption.atRestEnable,
+# and Email.encryptOnAppend, which gated the per-account setting in v0.16, is
+# folded into each account's encryptOnAppend.
+[properties."x:Email"]
+encryptAtRest = { move = "x:Encryption.atRestEnable" }
+encryptOnAppend = { transform = "email_encrypt_on_append" }
+
+[properties."x:UserAccount"]
+encryptionAtRest = { transform = "encryption_at_rest" }
+
+[properties."x:AccountSettings"]
+encryptionAtRest = { transform = "encryption_at_rest" }
+
+[properties."x:PublicKey"]
+key = { transform = "public_key_encryption" }
+
 [properties."x:EmailAlias"]
 enabled = "enable"
 
@@ -761,6 +782,26 @@ addresses = "pin"
 counter_incr = "key_incr"
 counter_get = { to = "key_incr", append_args = ["0"], prompt = "counter_read" }
 
+# Permissions the `permissions` transform grants, whatever the
+# `new_permissions` answer, to every role and permission list that enables
+# `authenticate`: users list and revoke the consents they gave OAuth clients
+# (OAuthGrant, new in v1).
+[sign_in_grants]
+permissions = ["sysOAuthGrantGet", "sysOAuthGrantQuery", "sysOAuthGrantDestroy"]
+
+# Default roles are the roles listed in Authentication.default*RoleIds. The
+# `permissions` transform adds to each one the permissions that the v1 default
+# role of its kind (User, Group, Tenant Administrator, System Administrator)
+# holds and that a role seeded by v0.16.0 lacks: permissions new in v1 and the
+# v0.16 permissions added after v0.16.0 (`added_in_v016`), so a role seeded by
+# an older release gets what v1 seeds. Permissions the role disables are not
+# added. A listed role is completed only when it holds `min_coverage` percent
+# of the remaining defaults of its kind, so a custom role added to a default
+# list does not receive superuser permissions.
+[default_roles]
+added_in_v016 = ["jmapFileNodeCopy", "scimAccess"]
+min_coverage = 90
+
 # Grants applied by the `permissions` transform when the `new_permissions`
 # prompt is answered with `grant`: a role or permission list that enables (or
 # disables) any of the listed v0.16 permissions also enables (or disables) the
@@ -774,15 +815,17 @@ jmapMetadataSet = ["jmapMailboxUpdate"]
 jmapMetadataPrivate = ["jmapMailboxUpdate"]
 sysMetadataGet = ["sysImapGet"]
 sysMetadataUpdate = ["sysImapUpdate"]
-sysOAuthGrantGet = ["sysOAuthClientGet", "sysAppPasswordGet"]
-sysOAuthGrantQuery = ["sysOAuthClientQuery", "sysAppPasswordQuery"]
-sysOAuthGrantDestroy = ["sysOAuthClientDestroy", "sysAppPasswordDestroy"]
+sysOAuthGrantGet = ["sysAppPasswordGet"]
+sysOAuthGrantQuery = ["sysAppPasswordQuery"]
+sysOAuthGrantDestroy = ["sysAppPasswordDestroy"]
 sysIndexQueueStatusGet = ["sysTaskGet"]
 sysIndexQueueStatusUpdate = ["sysTaskUpdate"]
 sysIndexQueueStatusQuery = ["sysTaskQuery"]
 taskShareRevokeCleanup = ["taskAccountMaintenance"]
 taskDmarcReportWindow = ["taskDmarcReport"]
 taskTlsReportWindow = ["taskTlsReport"]
+sysEncryptionGet = ["sysEmailGet"]
+sysEncryptionUpdate = ["sysEmailUpdate"]
 
 # Task manager (v1 Tasks redesign): v1 retries
 # transient failures until the task succeeds or fails permanently and marks a

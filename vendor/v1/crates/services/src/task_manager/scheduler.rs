@@ -8,18 +8,22 @@ use std::time::Duration;
 use std::{
     collections::BinaryHeap,
     sync::Arc,
-    time::Instant,
+    time::{Instant, SystemTime},
 };
 
 use crate::task_manager::reconcile::insert_task_if_absent;
 use common::{
     BuildServer, Inner, LONG_1D_SLUMBER,
     config::mailstore::spamfilter,
+    gateway::store::{ExternalPublicKeyStore, KEY_CHECK_INTERVAL},
 };
 use registry::{
     schema::{
         enums::{TaskSpamFilterMaintenanceType, TaskStoreMaintenanceType, TaskType},
-        structs::{Task, TaskSpamFilterMaintenance, TaskStatus, TaskStoreMaintenance},
+        structs::{
+            Task, TaskExternalPublicKeyMaintenance, TaskSpamFilterMaintenance, TaskStatus,
+            TaskStoreMaintenance,
+        },
     },
     types::EnumImpl,
 };
@@ -43,8 +47,10 @@ enum Event {
     PurgeAccount,
     PurgeDataStore,
     PurgeBlobStore,
+    OtelMetrics,
     CalculateMetrics,
     TrainSpamClassifier,
+    CheckExternalPublicKeys,
     RenewNodeIdLease,
     // SPDX-SnippetBegin
     // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
@@ -73,6 +79,7 @@ const METRIC_ALERTS_INTERVAL: Duration = Duration::from_secs(5 * 60);
 pub fn spawn_task_scheduler(inner: Arc<Inner>) {
     tokio::spawn(async move {
         trc::event!(TaskManager(TaskManagerEvent::SchedulerStarted));
+        let start_time = SystemTime::now();
 
         // Add all events to queue
         let mut queue = Queue::default();
@@ -123,6 +130,17 @@ pub fn spawn_task_scheduler(inner: Arc<Inner>) {
                     Instant::now() + Duration::from_secs(next_train),
                     Event::TrainSpamClassifier,
                 );
+            }
+
+            // Refresh external keys
+            queue.schedule(
+                Instant::now() + KEY_CHECK_INTERVAL,
+                Event::CheckExternalPublicKeys,
+            );
+
+            // OTEL Push Metrics
+            if let Some(otel) = &server.core.metrics.otel {
+                queue.schedule(Instant::now() + otel.interval, Event::OtelMetrics);
             }
 
             // Calculate expensive metrics
@@ -252,6 +270,39 @@ pub fn spawn_task_scheduler(inner: Arc<Inner>) {
                                 trc::error!(err.details("Failed to renew node ID lease"));
                             }
                         });
+                    }
+                    Event::OtelMetrics => {
+                        if let Some(otel) = &server.core.metrics.otel {
+                            queue.schedule(Instant::now() + otel.interval, Event::OtelMetrics);
+
+                            if roles.metrics_push {
+                                let otel = otel.clone();
+
+                                // SPDX-SnippetBegin
+                                // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+                                // SPDX-License-Identifier: LicenseRef-SEL
+                                #[cfg(feature = "enterprise")]
+                                let is_enterprise = server.is_enterprise_edition();
+                                // SPDX-SnippetEnd
+
+                                #[cfg(not(feature = "enterprise"))]
+                                let is_enterprise = false;
+
+                                if is_enterprise {
+                                    server.inner.refresh_live_gauges();
+                                }
+
+                                tokio::spawn(async move {
+                                    let elapsed = Instant::now();
+                                    otel.push_metrics(is_enterprise, start_time).await;
+
+                                    trc::event!(
+                                        Telemetry(TelemetryEvent::MetricsPushed),
+                                        Elapsed = elapsed.elapsed()
+                                    );
+                                });
+                            }
+                        }
                     }
                     Event::CalculateMetrics => {
                         // Calculate expensive metrics every 5 minutes
@@ -418,6 +469,30 @@ pub fn spawn_task_scheduler(inner: Arc<Inner>) {
                                 Elapsed = elapsed.elapsed()
                             );
                         });
+                    }
+                    Event::CheckExternalPublicKeys => {
+                        queue.schedule(
+                            Instant::now() + KEY_CHECK_INTERVAL,
+                            Event::CheckExternalPublicKeys,
+                        );
+
+                        if server.core.email.gateway.is_some()
+                            && let Some(tasks) = tasks.as_mut()
+                        {
+                            match server.has_due_external_public_keys(now()).await {
+                                Ok(true) => {
+                                    tasks.push(Task::ExternalPublicKeyMaintenance(
+                                        TaskExternalPublicKeyMaintenance {
+                                            status: TaskStatus::now(),
+                                        },
+                                    ));
+                                }
+                                Ok(false) => {}
+                                Err(err) => {
+                                    trc::error!(err.caused_by(trc::location!()));
+                                }
+                            }
+                        }
                     }
                     Event::TrainSpamClassifier => {
                         if let Some(train_interval) = server
@@ -667,8 +742,10 @@ impl Event {
             Event::PurgeAccount => "purgeAccount",
             Event::PurgeDataStore => "purgeDataStore",
             Event::PurgeBlobStore => "purgeBlobStore",
+            Event::OtelMetrics => "otelMetrics",
             Event::CalculateMetrics => "calculateMetrics",
             Event::TrainSpamClassifier => "trainSpamClassifier",
+            Event::CheckExternalPublicKeys => "checkExternalPublicKeys",
             Event::RenewNodeIdLease => "renewNodeIdLease",
             // SPDX-SnippetBegin
             // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <info@stalwartlabs.com>

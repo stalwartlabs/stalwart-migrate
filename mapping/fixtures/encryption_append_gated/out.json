@@ -1,0 +1,76 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "reference_deferred",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
+    }
+  ],
+  "deferred": [
+    {
+      "key": "x:Account/c",
+      "properties": {
+        "encryptionAtRest": {
+          "@type": "Enabled",
+          "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
+          "publicKey": "m"
+        }
+      }
+    }
+  ],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Email",
+      "source": "x:Email",
+      "value": {
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "appender@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "appender"
+      }
+    },
+    {
+      "key": "x:PublicKey/m",
+      "source": "x:PublicKey/m",
+      "value": {
+        "accountId": "c",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
+    }
+  ]
+}

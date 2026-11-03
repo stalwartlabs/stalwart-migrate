@@ -1,14 +1,14 @@
-# Schema changes: v0.16 to v1.0
+# Schema changes: v0.16 to v1.0.2
 
 Scope: structural differences between the Stalwart v0.16.27 and v1 configuration schemas. For the meaning of each setting, see the Stalwart documentation.
 
 ## 0. Method and legend
 
-- Baseline: the v0.16.27 schema. Target: the v1 schema (Enterprise edition; the open-source edition omits the enterprise items listed in 1.3).
+- Baseline: the v0.16.27 schema. Target: the v1.0.2 schema (Enterprise edition; the open-source edition omits the enterprise items listed in 1.3). The changes v1.0.1 and v1.0.2 made to v1.0.0 are summarized in 1.7 and included in the tables below.
 - Both schemas were compared structurally (objects, properties, flags, variants and group variants), together with the numeric id lists, the permissions and the telemetry definitions. Every rename was confirmed against the history of the schema.
 - The compiled v0.16.27 schema omits the 14 `_reserved_*` `Locale` placeholders that the v0.16 source schema still defines; the `Locale` counts in this document include them (see section 4).
 - Most renames keep the same description text. The following 18 were matched even though the description changed: `address->host`, `addresses->hosts`, `brokers->hosts`, `apiKey->apiKeyId`, `apiUser->username`, `secretId->accessKeyId`, `secretApiKey->secret`, `autoUpdateFrequency->autoUpdateInterval`, `trainFrequency->trainInterval`, `concurrency->maxConcurrentRequests`, `maxConcurrent->maxConcurrentConnections`, `maxRequestRate->rateLimit`, `maxRetries->maxPolls`, `timeout->connectTimeout`, `dnsRbl->spamLookup`, `logoUrl->logo`, `requireAudience->acceptedAudiences`, `SenderAuth.dkimSignDomain` (moved). Removals that have no rename (`accessKey`/`sasToken` of Azure, `email`, `secret`, `threadPoolSize`, `useXForwarded`, OIDC provider fields, ...) are classified as restructured or removed in 3.2 and 3.4.
-- Schema snapshots: `mapping/schema/v0.16.27.json.gz` (v0.16.27) and `mapping/schema/v1.json.gz` / `v1_oss.json.gz` (v1 Enterprise and open-source editions). The schema comparison over the snapshots gives 171 removed and 237 added properties in schemas present in both versions and 7 type changes in shared property names; a completeness check verifies that `mapping/v016_to_v1.toml` covers every removal, type change and changed default.
+- Schema snapshots: `mapping/schema/v0.16.27.json.gz` (v0.16.27) and `mapping/schema/v1.json.gz` / `v1_oss.json.gz` (v1.0.2 Enterprise and open-source editions, `resources/schema` of the v1.0.2 release). The schema comparison over the snapshots gives 173 removed and 255 added properties in schemas present in both versions and 7 type changes in shared property names; a completeness check verifies that `mapping/v016_to_v1.toml` covers every removal, type change and changed default.
 - Names are JMAP/registry property names (camelCase). Rust struct fields are snake_case of the same name.
 - Rename confidence: **[C]** confirmed (the old field was removed and the new one added in the same change with identical type/flags/default, or the change is explicit); **[L]** likely (shape matches, semantics shifted or only inferred); **[U]** uncertain (do not map automatically without review).
 - `T|null` = nullable, `T[]` = list, `K[V]` = map. `(E)` = enterprise-only.
@@ -21,9 +21,9 @@ All numeric id spaces were re-sorted/renumbered, not only appended to:
 
 | Id space | Old entries | New entries | Shared names | Shared names with a different id |
 |---|---|---|---|---|
-| Server objects | 117 | 120 | 116 | 68 |
-| Server properties | 935 | 1011 | 853 | 836 |
-| Server permissions | 661 | 643 | 624 | 561 |
+| Server objects | 117 | 123 | 116 | 68 |
+| Server properties | 935 | 1056 | 853 | 836 |
+| Server permissions | 661 | 656 | 624 | 561 |
 | User properties | 47 | 48 | 47 | 33 |
 
 - Event ids: 558 of the 585 shared events changed id; metric ids: 290 events changed `metric-id`. See section 6.
@@ -86,6 +86,17 @@ Objects that lost operations (the matching `sys<Object>Create|Update|Destroy|Get
 
 Useful to pattern-match renames not listed explicitly: `enabled`/`isEnabled` -> `enable`; `*Frequency`/`*Interval` -> `*Interval`; `xMaxY` -> `maxXY`; `timeoutX` -> `xTimeout`; `capacityX` -> `xCapacity`; `endpoint`/`baseUrl`/`customEndpoint` -> `url`; `addresses`/`brokers`/`hostname`/`address` (server names) -> `hosts`/`host`; `accessKey`/`apiKey` -> `accessKeyId`/`apiKeyId`; `authToken` -> `token`; `sourceIp(s)` -> `localIp(s)`; `envFrom`/`envRcptTo` -> `mailFrom`/`rcptTo`.
 
+### 1.7 Changes in v1.0.1 and v1.0.2
+
+v1.0.1 changed no stored schema. v1.0.2 appended ids only (objects 120 -> 123, properties +45, permissions 643 -> 656, events and metrics +13 each), so no existing id shifted. Its schema changes:
+
+- Encryption at rest: the cipher variants `Aes128`, `Aes256`, `Aes256Gcm`, `ChaCha20Poly1305` of `EncryptionAtRest` are replaced by one `Enabled@EncryptionSettings` (position 5); `EncryptionSettings` gains `headerProtection: HeaderProtection` (default `noConfidentiality`). `Email.encryptAtRest` and `Email.encryptOnAppend` are removed: the switch is `Encryption.atRestEnable` (new singleton, default true) and the append setting is the per-account `encryptOnAppend`. `PublicKey` gains `strictKeyWrapEncoding` and `authenticatedEncryption` and the server-set `kind`, `keyType`, `fingerprints`, `capabilities`, `warnings`. The conversion is in 3.2.
+- New objects `Encryption` (singleton), `ExternalPublicKey`, `SmimeTrustAnchor`; new task `ExternalPublicKeyMaintenance`; 13 new permissions (section 5).
+- `DkimSignature` variant `Dkim2MlDsa44Ed25519Sha512` renamed `Dkim2MlDsa44` (same position 4), with the `DkimSignatureType` value; v0.16 has no post-quantum DKIM2 variant, so no conversion names either.
+- Appended fields: `Application.oauthScopes`, `Cache.externalPublicKeys`, `OidcDirectory.trustedProvider` (E), `OAuthGrant.clientHash`, `Metrics.serviceName/serviceNamespace/resourceAttributes`, `MetricsOtelGrpc.allowInvalidCerts/httpAuth/httpHeaders`, `TracerOtelGrpc.allowInvalidCerts`.
+- Appended enum values: `DeliveryErrorType.encryptionError`, `ExpressionConstant` `opportunistic`, `required`, `manual`, `verified`, `discovered`, `harvested`, `unverified`, `ExpressionVariable.is_signed`; new enums `HeaderProtection`, `PublicKeyKind`, `PublicKeyCapability`, `PublicKeyWarning`, `ExternalPublicKeyStatus`, `KeyDiscoverySource`, `KeySourceType`, `KeyTrust`, `SmimeCipher`.
+- The snapshots write expression, rate and list defaults in the wire form (`{"else": ...}`, milliseconds, sets); the default comparison treats both forms alike.
+
 ## 2. Objects
 
 ### 2.1 New objects (registry objects/singletons)
@@ -95,6 +106,9 @@ Useful to pattern-match renames not listed explicitly: `enabled`/`isEnabled` -> 
 | `SpamAi` | singleton (E) | group `Disable` / `Enable@SpamAiProperties`; replaces `SpamLlm` (see 2.3) |
 | `Metadata` | singleton | `dataTypes: MetadataDataType[]` (default all 8), `vendorNamespaces: Boolean` (true), `privateMetadata: Boolean` (true), `maxDepth: UnsignedInt\|null` (8), `maxEntrySize: Size` (8192), `maxSize: Size` (65536), `maxPrivateSize: Size` (16384), `maxEntries: UnsignedInt` (128), `maxQueryScan: UnsignedInt` (50000), `imapServerComment: Text\|null`, `imapServerAdmin: Uri\|null` |
 | `OAuthGrant` | object (`filter-account`, `sequential-id`, plural "connected applications") | `accountId: @Account`, `clientId: String`, `clientName: String\|null`, `clientKind: OAuthClientKind`, `scopes: OAuthScope[]`, `remoteIp: IpAddr\|null`, `createdAt`, `lastUsedAt: UTCDateTime`, `generation: UnsignedInt` (0), `pending: Boolean` (false) |
+| `Encryption` | singleton (v1.0.2) | `atRestEnable` (true), encryption gateway (`gatewayEnable` false, `gatewayOutbound`, `gatewayMinTrust`, `gatewayMethods`, `gatewayHeaderProtection`, `gatewayEncryptSigned`), key discovery (`harvestKeys`, `hkpServers`, `discoveryProxy`, `sourceTimeout`, `keyRefreshInterval`, `negativeCacheTtl`), S/MIME trust (`useBundledRoots`, `maxCrlSize`); receives `Email.encryptAtRest` (3.2) |
+| `ExternalPublicKey` | object (v1.0.2) | superuser-managed OpenPGP keys and S/MIME certificates of remote recipients for the encryption gateway |
+| `SmimeTrustAnchor` | object (v1.0.2) | `certificate`, `description`, `enable`, server-set `subject`, `expiresAt` |
 | `IndexQueueStatus` | object, serialization none | `index: IndexType`, `partition: UnsignedInt` (0), `queuedUpdates: UnsignedInt` (0), `queuedDeletions: UnsignedInt` (0), `status: IndexStatus` (group `Running` / `Failed@IndexStatusFailed{reason: Text, nextRetry: UTCDateTime}`) |
 
 `SpamAiProperties` fields: `mode: SpamAiMode` (Automatic), `condition: Expression` (default expression over `spam_score`/`spam_threshold`/`spam_probability`), `tiers: SpamAiTier[]` (min 1), `instructions: Text` (long default), `categories: SpamAiCategory[]`, `signals: SpamAiSignal[]`, `bucketHigh` 0.85, `bucketMedium` 0.65, `uncertainBelow` 0.3, `verbalHigh` 0.9, `verbalMedium` 0.7, `verbalLow` 0.55, `explanation` false, `addHeader` true, `maxInputChars` 6000, `maxLinks` 20, `maxAttachments` 10, `trimQuotes` true, `includeAuth` true, `includeLinks` true, `includeAttachments` true, `deadline` "10s", `breakerThreshold` 5, `breakerCooldown` "1m", `learn: SpamAiLearn` (group `Disable` / `Enable@{minProbability 0.95, sampleRate 0.1}`), `webSearch: SpamAiWebSearch` (group `Disable` / ...).
@@ -263,6 +277,8 @@ Pattern notes: the DNS provider key renames apply to the matching `DnsServer*` g
 | `AcmeProvider` | `description`: `server-set`, `no-store`, `hide:ui` (computed, not stored) | `description`: stored, trimmed, text-indexed (`index-text-as-text`); new server-set `accountHashPrefix: Uri\|null`, `issuerDomainNames: String[]`, `caaIdentities: String[]` | C |
 | `Enterprise` | `logoUrl: Uri\|null` (E, trim) | `logo: String\|null` (E): URL or base64 image | L |
 | `Metric` (packed) | no node | + `nodeId: UnsignedInt` (0) via `MetricBase` (and filter/column in `Metric` list) | added |
+| `UserAccount`, `AccountSettings` | `encryptionAtRest`: `Aes128`/`Aes256`/`Aes256Gcm`/`ChaCha20Poly1305` `@EncryptionSettings{publicKey, encryptOnAppend, allowSpamTraining}` | `Enabled@EncryptionSettings` + `headerProtection` (operator choice, question `encryption_at_rest`: `noConfidentiality` like new v1 settings, or `none` like v0.16); v1 selects the cipher from the key, so `Aes256Gcm`/`ChaCha20Poly1305` with an S/MIME key set `PublicKey.authenticatedEncryption`; `encryptOnAppend` is cleared when `Email.encryptOnAppend` was off. Reverse: `Enabled` -> `Aes256Gcm` for an S/MIME key with `authenticatedEncryption`, `Aes256` otherwise; `headerProtection` dropped | C |
+| `Email` | `encryptAtRest: Boolean` (true), `encryptOnAppend: Boolean` (false) | `encryptAtRest` -> `Encryption.atRestEnable`; `encryptOnAppend` folded into each account's `encryptOnAppend`. Reverse: `Email.encryptOnAppend` is set when an account has `encryptOnAppend` | C |
 | Report settings | expressions use `system('domain')` | defaults use `system('report_domain')`; `outboundReportDomain` form label "Default Domain" -> "Report Domain" (see 3.6) | C |
 
 ### 3.3 Added fields
@@ -370,6 +386,8 @@ Fields of objects that still exist in v1. Fields that only moved to a parent cla
 | DmarcReportSettings | aggregateSubject | `Expression`, default `"'DMARC Aggregate Report'"` | no equivalent (aggregate report subject no longer configurable) |
 | DnsServerCloudflare | email | `String\|null` | retired stored field in v0.16 (deprecated, `no-store`) |
 | DnsServerDnsimple | secret | `SecretKey` | retired stored field in v0.16 (deprecated); live field is `token` |
+| Email | encryptAtRest | `Boolean`, default `true` | -> `Encryption.atRestEnable` (v1.0.2, see 3.2) |
+| Email | encryptOnAppend | `Boolean`, default `false` | folded into the per-account `encryptOnAppend` (v1.0.2, see 3.2) |
 | Http | useXForwarded | `Boolean`, default `false` | -> `clientIpSource` (+ `forwardedHops`); false -> `peer`; true -> `forwarded` or `xForwardedFor` [L]; v0.16 reads the `Forwarded` header |
 | OidcDirectory | requireScopes | `String[]`, default `["openid","email"]` | no equivalent field (default was `["openid","email"]`) |
 | OidcProvider | authCodeMaxAttempts | `UnsignedInt`, default `3`, min-value:1, max-value:1000 | no equivalent |
@@ -519,9 +537,10 @@ Positions are the stored discriminants (section 1.1). "Append" means no shift of
 | Enum / group | Change |
 |---|---|
 | `DnsServer` (group) | `Deprecated1@` (position 1) removed; every later variant shifts by -1 (71 -> 70 variants) |
-| `DkimSignature` (group) | append `Dkim2MlDsa44Ed25519Sha512@Dkim2Signature` (position 4); `Dkim2Signature` gains `instanceHashes: Dkim2HashAlgorithm[]` (default `["sha256"]`) |
+| `DkimSignature` (group) | append `Dkim2MlDsa44@Dkim2Signature` (position 4; named `Dkim2MlDsa44Ed25519Sha512` in v1.0.0 and v1.0.1); `Dkim2Signature` gains `instanceHashes: Dkim2HashAlgorithm[]` (default `["sha256"]`) |
 | `Task` (group) | remove `IndexDocument`, `UnindexDocument`, `IndexTrace` (positions 0-2); append `ShareRevokeCleanup@TaskShareRevokeCleanup`, `DmarcReportWindow@TaskReportWindow`, `TlsReportWindow@TaskReportWindow`; 18 -> 18 variants, all others shift by -3; `RestoreArchivedItem`, `TenantMaintenance` now enterprise |
 | `Action` (group) | `ReloadSettings@` -> `ReloadSettings@ReloadSettingsResult` (same position) |
+| `EncryptionAtRest` (group) | `Aes128`, `Aes256`, `Aes256Gcm`, `ChaCha20Poly1305` (positions 1-4) removed; `Enabled@EncryptionSettings` (position 5) added; `Disabled` kept at 0 (see 3.2) |
 | `AiModel` (group) | new: `OpenAi`, `Anthropic`, `Gemini`, `Ollama`, `TypeSafe` (was a plain object) |
 | `BlobStore`, `InMemoryStore`, `LookupStore` (groups) | `Sharded@...` now enterprise; `InMemoryStore.Default` relabelled (3.6) |
 | `Dkim2Flag` | remove `donotmodify`, `donotexplode` (3 -> 1: only `feedback` left) |
@@ -540,7 +559,7 @@ Other enum additions listed in 2.4 (`OAuth*`, `Oidc*`, `ClientIpSource`, `Metada
 
 ## 5. Permissions
 
-Declared (non-`sys*`) permissions and the per-object `sys*` permissions. 37 names removed, 19 added, 561 of 624 shared names changed numeric id.
+Declared (non-`sys*`) permissions and the per-object `sys*` permissions. 37 names removed, 32 added, 561 of 624 shared names changed numeric id.
 
 Removed (37):
 - Category `OAuth` deleted: `oAuthClientRegistration`, `oAuthClientOverride`.
@@ -549,7 +568,9 @@ Removed (37):
 - `sysSpamLlmGet`, `sysSpamLlmUpdate` (object renamed: now `sysSpamAiGet`, `sysSpamAiUpdate`) [C].
 - Task permissions: `taskIndexDocument`, `taskUnindexDocument`, `taskIndexTrace`.
 
-Added (19): `imapMetadataGet`, `imapMetadataSet`, `imapMetadataPrivate`, `jmapMetadataGet`, `jmapMetadataSet`, `jmapMetadataPrivate` (new categories `ImapMetadata`, `JmapMetadata`), `sysMetadataGet`, `sysMetadataUpdate`, `sysSpamAiGet`, `sysSpamAiUpdate`, `sysOAuthGrantGet`, `sysOAuthGrantQuery`, `sysOAuthGrantDestroy`, `sysIndexQueueStatusGet`, `sysIndexQueueStatusUpdate`, `sysIndexQueueStatusQuery`, `taskShareRevokeCleanup`, `taskDmarcReportWindow`, `taskTlsReportWindow`.
+Added (19): `imapMetadataGet`, `imapMetadataSet`, `imapMetadataPrivate`, `jmapMetadataGet`, `jmapMetadataSet`, `jmapMetadataPrivate` (new categories `ImapMetadata`, `JmapMetadata`), `sysMetadataGet`, `sysMetadataUpdate`, `sysSpamAiGet`, `sysSpamAiUpdate`, `sysOAuthGrantGet`, `sysOAuthGrantQuery`, `sysOAuthGrantDestroy`, `sysIndexQueueStatusGet`, `sysIndexQueueStatusUpdate`, `sysIndexQueueStatusQuery`, `taskShareRevokeCleanup`, `taskDmarcReportWindow`, `taskTlsReportWindow`; in v1.0.2 `sysEncryptionGet`, `sysEncryptionUpdate`, `sysExternalPublicKeyGet/Create/Update/Destroy/Query`, `sysSmimeTrustAnchorGet/Create/Update/Destroy/Query`, `taskExternalPublicKeyMaintenance` (ids 643-655, superuser defaults only).
+
+The conversion grants new permissions in three ways (transform `permissions`, see `mapping/v016_to_v1.toml`): the roles listed in `Authentication.default{User,Group,Tenant,Admin}RoleIds` are completed to the v1.0.2 defaults of their kind with the permissions a role seeded by v0.16.0 lacks (the new ones plus `jmapFileNodeCopy` and `scimAccess`, added in v0.16.6 and v0.16.20); every role or permission list that enables `authenticate` gets `sysOAuthGrantGet/Query/Destroy`; and, when the `new_permissions` question is answered `grant`, the `[permission_grants]` rules add a new permission next to the v0.16 one it extends.
 
 Enterprise flag added: `interactAi`, `Live.tracing`, `Live.metrics`, `Scim.access`. Roles that stored a removed permission lose it; roles carry permission names/ids that must be translated through names (ids in 1.1).
 
@@ -557,6 +578,7 @@ Enterprise flag added: `interactAi`, `Live.tracing`, `Live.metrics`, `Scim.acces
 
 Events referenced from settings (`EventTracingLevel.event`, `TracingEventSelection.events`, `Metrics.metrics`, `Alert`, `Log.event`) are event and metric types stored as their numeric id, so the id renumbering matters for stored tracer/alert/metric selections.
 
+- v1.0.2 appends 13 events (11 `Encryption.*`, `Dkim2.DsnNotAligned`, `Dkim2.DsnPropagated`) and 13 metrics (the same plus the `Encryption.KeyLookupTime` histogram, without `Encryption.KeyUnusable`); no existing id changed.
 - Events: 637 -> 655 (52 removed, 70 added). 558 of 585 shared events changed `id`; 290 changed `metric-id`. New metric-ids on `Ai.ApiError` (332), `Queue.BackPressure` (347), `TaskManager.TaskFailed` (361), `TaskManager.TaskRetry` (362).
 - Level changes (info -> debug): `Dane.TlsaRecordNotDnssecSigned`, `Delivery.AttemptStart`, `Delivery.Completed`, `Delivery.DomainDeliveryStart`, `Delivery.Connect`, `Delivery.StartTls`, `Delivery.DsnSuccess`, `MtaSts.Authorized`, `MtaSts.PolicyFetch`, `MtaSts.PolicyNotFound`, `TlsRpt.RecordFetch`, `TlsRpt.RecordNotFound`, `Delivery.AttemptEnd`, `Delivery.StartTlsUnavailable`.
 - Removed events (52):

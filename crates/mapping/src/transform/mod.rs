@@ -1,6 +1,8 @@
 mod ai;
 mod auth;
+mod encryption;
 mod misc;
+mod permissions;
 
 pub(crate) use misc::report_strings;
 mod stores;
@@ -8,7 +10,7 @@ mod stores;
 use serde_json::{Map, Value};
 
 use crate::{
-    engine::{Direction, Flow, Walker},
+    engine::{Direction, Flow, SourceObject, Walker},
     schema::TypeDef,
 };
 
@@ -87,6 +89,9 @@ transforms! {
     ExpressionRemovedVars => "expression_removed_vars", Property, always: false, reverse: false, triggers: [];
     WebuiBundle => "webui_bundle", Property, always: false, reverse: false, triggers: [];
     SpamTag => "spam_tag", Value, always: false, reverse: false, triggers: [];
+    EncryptionAtRest => "encryption_at_rest", Group, always: false, reverse: true, triggers: ["encryptionAtRest"];
+    EmailEncryptOnAppend => "email_encrypt_on_append", Property, always: false, reverse: false, triggers: [];
+    PublicKeyEncryption => "public_key_encryption", Group, always: false, reverse: true, triggers: ["authenticatedEncryption", "strictKeyWrapEncoding"];
 }
 
 impl Transform {
@@ -133,7 +138,19 @@ impl Transform {
             (Transform::ClientIpSource, Direction::Reverse) => {
                 misc::client_ip_source_reverse(w, src, out)
             }
-            (Transform::Permissions, Direction::Forward) => auth::permissions(w, src, out),
+            (Transform::Permissions, Direction::Forward) => permissions::permissions(w, src, out),
+            (Transform::EncryptionAtRest, Direction::Forward) => {
+                encryption::encryption_at_rest_forward(w, src, out)
+            }
+            (Transform::EncryptionAtRest, Direction::Reverse) => {
+                encryption::encryption_at_rest_reverse(w, src, out)
+            }
+            (Transform::PublicKeyEncryption, Direction::Forward) => {
+                encryption::public_key_forward(w, src, out)
+            }
+            (Transform::PublicKeyEncryption, Direction::Reverse) => {
+                encryption::public_key_reverse(w, src, out)
+            }
             (Transform::DmarcEnvelopeFrom, Direction::Forward) => {
                 misc::dmarc_envelope_from(w, src, out)
             }
@@ -164,12 +181,33 @@ impl Transform {
             (Transform::WebuiBundle, Direction::Forward) => {
                 misc::webui_bundle(w, name, ty, value, out)
             }
+            (Transform::EmailEncryptOnAppend, Direction::Forward) => {
+                encryption::email_encrypt_on_append(w, name, ty, value, out)
+            }
             _ => {
                 let mut value = value;
                 let flow = w.walk_value(ty, &mut value);
                 out.insert(name.to_string(), value);
                 flow
             }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct Facts {
+    pub encryption: encryption::EncryptionFacts,
+    pub default_roles: permissions::DefaultRoles,
+}
+
+impl Facts {
+    pub(crate) fn scan(direction: Direction, inputs: &[SourceObject]) -> Self {
+        Facts {
+            encryption: encryption::EncryptionFacts::scan(direction, inputs),
+            default_roles: match direction {
+                Direction::Forward => permissions::DefaultRoles::scan(inputs),
+                Direction::Reverse => permissions::DefaultRoles::default(),
+            },
         }
     }
 }

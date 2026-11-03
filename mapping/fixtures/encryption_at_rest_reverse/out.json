@@ -1,0 +1,236 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:Account/c",
+      "level": "warning",
+      "path": "encryptionAtRest/headerProtection",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Encryption",
+      "level": "warning",
+      "path": "",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:ExternalPublicKey/b",
+      "level": "warning",
+      "path": "",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:PublicKey/m",
+      "level": "warning",
+      "path": "strictKeyWrapEncoding",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:PublicKey/n",
+      "level": "warning",
+      "path": "authenticatedEncryption",
+      "reason": "no equivalent in the target version"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SmimeTrustAnchor/b",
+      "level": "warning",
+      "path": "",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "moved",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptOnAppend"
+    },
+    {
+      "change": "moved",
+      "key": "x:Encryption",
+      "level": "info",
+      "path": "encryptAtRest"
+    },
+    {
+      "change": "reference_deferred",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "reference_deferred",
+      "key": "x:Account/d",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "reference_deferred",
+      "key": "x:Account/f",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/d",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/f",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:PublicKey/m",
+      "level": "info",
+      "path": "authenticatedEncryption"
+    }
+  ],
+  "deferred": [
+    {
+      "key": "x:Account/c",
+      "properties": {
+        "encryptionAtRest": {
+          "@type": "Aes256Gcm",
+          "encryptOnAppend": true,
+          "publicKey": "m"
+        }
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "properties": {
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "encryptOnAppend": false,
+          "publicKey": "n"
+        }
+      }
+    },
+    {
+      "key": "x:Account/f",
+      "properties": {
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "encryptOnAppend": true,
+          "publicKey": "o"
+        }
+      }
+    }
+  ],
+  "dropped": [
+    "x:Encryption",
+    "x:ExternalPublicKey/b",
+    "x:SmimeTrustAnchor/b"
+  ],
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "source": "x:Domain/b",
+      "value": {
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Account/e",
+      "source": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "plain@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "plain"
+      }
+    },
+    {
+      "key": "x:Email",
+      "source": "x:Email",
+      "value": {
+        "encryptAtRest": false,
+        "encryptOnAppend": true,
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "source": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "smime@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "smime"
+      }
+    },
+    {
+      "key": "x:PublicKey/m",
+      "source": "x:PublicKey/m",
+      "value": {
+        "accountId": "c",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "source": "x:Account/d",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "pgp@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "pgp"
+      }
+    },
+    {
+      "key": "x:PublicKey/n",
+      "source": "x:PublicKey/n",
+      "value": {
+        "accountId": "d",
+        "description": "key",
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ0000\n-----END PGP PUBLIC KEY BLOCK-----\n"
+      }
+    },
+    {
+      "key": "x:Account/f",
+      "source": "x:Account/f",
+      "value": {
+        "@type": "User",
+        "domainId": "b",
+        "emailAddress": "smime2@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        },
+        "name": "smime2"
+      }
+    },
+    {
+      "key": "x:PublicKey/o",
+      "source": "x:PublicKey/o",
+      "value": {
+        "accountId": "f",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    }
+  ],
+  "questions": []
+}

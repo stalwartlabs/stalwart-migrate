@@ -1,0 +1,7 @@
+{
+  "global": {
+    "encryption_at_rest": {
+      "header_protection": "none"
+    }
+  }
+}

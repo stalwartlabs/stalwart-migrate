@@ -38,6 +38,9 @@ types = { path = "../../vendor/v1/crates/types" }
 tikv-jemallocator = "0.7"
 
 [dev-dependencies]
+common-v016 = { package = "common", path = "../../vendor/v016/crates/common" }
+common-v1 = { package = "common", path = "../../vendor/v1/crates/common" }
+serde = "1.0"
 mysql_async = { version = "0.37.1", default-features = false, features = ["default-rustls", "minimal"] }
 rusqlite = "0.41"
 source-v016 = { workspace = true, features = ["testkit"] }

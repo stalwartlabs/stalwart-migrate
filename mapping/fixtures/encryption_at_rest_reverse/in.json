@@ -1,0 +1,123 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Email",
+      "value": {
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "value": {
+        "atRestEnable": false,
+        "gatewayEnable": true
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "smime",
+        "domainId": "b",
+        "emailAddress": "smime@example.com",
+        "encryptionAtRest": {
+          "@type": "Enabled",
+          "publicKey": "m",
+          "encryptOnAppend": true,
+          "headerProtection": "noConfidentiality"
+        }
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "value": {
+        "@type": "User",
+        "name": "pgp",
+        "domainId": "b",
+        "emailAddress": "pgp@example.com",
+        "encryptionAtRest": {
+          "@type": "Enabled",
+          "publicKey": "n",
+          "encryptOnAppend": false,
+          "headerProtection": "none"
+        }
+      }
+    },
+    {
+      "key": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "name": "plain",
+        "domainId": "b",
+        "emailAddress": "plain@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        }
+      }
+    },
+    {
+      "key": "x:Account/f",
+      "value": {
+        "@type": "User",
+        "name": "smime2",
+        "domainId": "b",
+        "emailAddress": "smime2@example.com",
+        "encryptionAtRest": {
+          "@type": "Enabled",
+          "publicKey": "o",
+          "encryptOnAppend": true
+        }
+      }
+    },
+    {
+      "key": "x:PublicKey/m",
+      "value": {
+        "accountId": "c",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n",
+        "authenticatedEncryption": true,
+        "strictKeyWrapEncoding": true
+      }
+    },
+    {
+      "key": "x:PublicKey/n",
+      "value": {
+        "accountId": "d",
+        "description": "key",
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ0000\n-----END PGP PUBLIC KEY BLOCK-----\n",
+        "authenticatedEncryption": true
+      }
+    },
+    {
+      "key": "x:PublicKey/o",
+      "value": {
+        "accountId": "f",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n",
+        "authenticatedEncryption": false,
+        "strictKeyWrapEncoding": false
+      }
+    },
+    {
+      "key": "x:ExternalPublicKey/b",
+      "value": {
+        "emailAddress": "remote@example.org",
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ0000\n-----END PGP PUBLIC KEY BLOCK-----\n"
+      }
+    },
+    {
+      "key": "x:SmimeTrustAnchor/b",
+      "value": {
+        "description": "ca",
+        "certificate": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    }
+  ]
+}

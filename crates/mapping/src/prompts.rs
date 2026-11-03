@@ -47,6 +47,7 @@ prompt_ids! {
     InMemoryCluster => "in_memory_cluster",
     EnterpriseOnOss => "enterprise_on_oss",
     NewPermissions => "new_permissions",
+    EncryptionAtRest => "encryption_at_rest",
     ChangedDefaults => "changed_defaults",
 }
 

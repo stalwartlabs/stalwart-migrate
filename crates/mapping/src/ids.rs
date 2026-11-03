@@ -60,6 +60,15 @@ pub enum Instance {
     Label(Box<str>),
 }
 
+impl Instance {
+    pub fn parse_reference(value: &str) -> Option<Self> {
+        match value.strip_prefix('#') {
+            Some(client) => (!client.is_empty()).then(|| Instance::Client(client.into())),
+            None => JmapId::parse(value).map(|id| Instance::Id(id.0)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ObjectKey {
     pub object: Box<str>,

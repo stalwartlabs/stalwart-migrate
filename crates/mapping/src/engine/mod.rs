@@ -16,6 +16,7 @@ use crate::{
     report::{Change, Question, Report},
     rules::RuleSet,
     schema::Schema,
+    transform::Facts,
 };
 
 pub(crate) use defaults::expression_mentions;
@@ -290,6 +291,7 @@ impl<'a> Session<'a> {
                 }
             }
         }
+        let facts = Facts::scan(self.direction, &inputs);
         let mut moves = Vec::new();
         let mut originals = Vec::new();
         for (position, input) in inputs.into_iter().enumerate() {
@@ -302,7 +304,7 @@ impl<'a> Session<'a> {
             {
                 normalize::normalize_object(self, &input.key, &mut value, &mut outcome.report);
             }
-            let mut walker = Walker::new(self, &mut outcome.report, &input.key);
+            let mut walker = Walker::new(self, &mut outcome.report, &input.key, &facts);
             walker.coordinator = coordinator.as_deref();
             let converted = walker.convert(value);
             moves.append(&mut walker.moves);

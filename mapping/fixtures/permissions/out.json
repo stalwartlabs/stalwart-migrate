@@ -55,7 +55,6 @@
           "imapMetadataGet": true,
           "imapSelect": true,
           "sysOAuthClientGet": true,
-          "sysOAuthGrantGet": true,
           "sysSpamAiGet": true
         },
         "roleIds": {}

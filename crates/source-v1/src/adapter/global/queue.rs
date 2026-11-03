@@ -105,7 +105,7 @@ fn record(queue_id: u64, message: Message) -> QueuedMessageRecord {
                     id,
                 }),
                 Metadata::Headers { value, id } => Some(QueueMetadata::Headers { value, id }),
-                Metadata::Submission { .. } => None,
+                Metadata::Submission { .. } | Metadata::Blob(_) => None,
             })
             .collect(),
     }
@@ -158,6 +158,7 @@ fn failure(details: ErrorDetails) -> Box<DeliveryFailure> {
             Error::RateLimited => DeliveryError::RateLimited,
             Error::ConcurrencyLimited => DeliveryError::ConcurrencyLimited,
             Error::Io(err) => DeliveryError::Io(err),
+            Error::EncryptionError(err) => DeliveryError::Encryption(err),
         },
     })
 }

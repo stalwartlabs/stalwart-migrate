@@ -446,6 +446,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:AccountSettings",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",
       "path": ""
@@ -473,6 +479,12 @@
       "key": "x:Directory/b",
       "level": "info",
       "path": ""
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -721,9 +733,10 @@
       "value": {
         "description": "s0",
         "encryptionAtRest": {
-          "@type": "Aes256Gcm",
+          "@type": "Enabled",
           "allowSpamTraining": false,
           "encryptOnAppend": true,
+          "headerProtection": "noConfidentiality",
           "publicKey": "c"
         },
         "locale": "es-AR",
@@ -1363,7 +1376,6 @@
             "name": "s2"
           }
         },
-        "encryptOnAppend": true,
         "maxMailboxDepth": 10,
         "maxMailboxNameLength": 1001,
         "maxMailboxes": 1,
@@ -2778,6 +2790,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
     }
   ]
 }

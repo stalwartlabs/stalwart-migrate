@@ -10,7 +10,7 @@ use crate::{
     report::{COUNTER_READ, Change, DropReason, Report},
     rules::{Conversion, EnumRule, ObjectAction, PropertyRule, VariantRule},
     schema::{SchemaDef, Type, TypeDef},
-    transform::{Transform, TransformKind},
+    transform::{Facts, Transform, TransformKind},
 };
 
 pub(crate) const TYPE_KEY: &str = "@type";
@@ -33,11 +33,17 @@ pub(crate) struct Walker<'s, 'r> {
     changed_defaults: Option<Answer>,
     pub abort: bool,
     pub coordinator: Option<&'r str>,
+    pub facts: &'r Facts,
     drop_expression: bool,
 }
 
 impl<'s, 'r> Walker<'s, 'r> {
-    pub fn new(session: &'s Session<'s>, report: &'r mut Report, key: &'r ObjectKey) -> Self {
+    pub fn new(
+        session: &'s Session<'s>,
+        report: &'r mut Report,
+        key: &'r ObjectKey,
+        facts: &'r Facts,
+    ) -> Self {
         Walker {
             session,
             report,
@@ -48,6 +54,7 @@ impl<'s, 'r> Walker<'s, 'r> {
             changed_defaults: None,
             abort: false,
             coordinator: None,
+            facts,
             drop_expression: false,
         }
     }

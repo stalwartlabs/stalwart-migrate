@@ -1,0 +1,116 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Email",
+      "value": {
+        "encryptAtRest": false,
+        "encryptOnAppend": true
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "pgp128",
+        "domainId": "b",
+        "emailAddress": "pgp128@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes128",
+          "publicKey": "m",
+          "encryptOnAppend": true,
+          "allowSpamTraining": true
+        }
+      }
+    },
+    {
+      "key": "x:Account/d",
+      "value": {
+        "@type": "User",
+        "name": "smimegcm",
+        "domainId": "b",
+        "emailAddress": "smimegcm@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256Gcm",
+          "publicKey": "n",
+          "encryptOnAppend": false
+        }
+      }
+    },
+    {
+      "key": "x:Account/e",
+      "value": {
+        "@type": "User",
+        "name": "pgpchacha",
+        "domainId": "b",
+        "emailAddress": "pgpchacha@example.com",
+        "encryptionAtRest": {
+          "@type": "ChaCha20Poly1305",
+          "publicKey": "o"
+        }
+      }
+    },
+    {
+      "key": "x:Account/f",
+      "value": {
+        "@type": "User",
+        "name": "plain",
+        "domainId": "b",
+        "emailAddress": "plain@example.com",
+        "encryptionAtRest": {
+          "@type": "Disabled"
+        }
+      }
+    },
+    {
+      "key": "x:Account/g",
+      "value": {
+        "@type": "User",
+        "name": "smime256",
+        "domainId": "b",
+        "emailAddress": "smime256@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "publicKey": "p"
+        }
+      }
+    },
+    {
+      "key": "x:PublicKey/m",
+      "value": {
+        "accountId": "c",
+        "description": "key",
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ0000\n-----END PGP PUBLIC KEY BLOCK-----\n"
+      }
+    },
+    {
+      "key": "x:PublicKey/n",
+      "value": {
+        "accountId": "d",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    },
+    {
+      "key": "x:PublicKey/o",
+      "value": {
+        "accountId": "e",
+        "description": "key",
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ0000\n-----END PGP PUBLIC KEY BLOCK-----\n"
+      }
+    },
+    {
+      "key": "x:PublicKey/p",
+      "value": {
+        "accountId": "g",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    }
+  ]
+}

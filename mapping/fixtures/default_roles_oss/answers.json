@@ -1,0 +1,13 @@
+{
+  "global": {
+    "new_permissions": {
+      "action": "none"
+    },
+    "edition": {
+      "edition": "oss"
+    },
+    "enterprise_on_oss": {
+      "action": "drop"
+    }
+  }
+}

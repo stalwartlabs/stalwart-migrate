@@ -473,6 +473,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -535,7 +541,19 @@
       "change": "transformed",
       "key": "x:Account/b",
       "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/b",
+      "level": "info",
       "path": "permissions/disabledPermissions"
+    },
+    {
+      "change": "transformed",
+      "key": "x:AccountSettings",
+      "level": "info",
+      "path": "encryptionAtRest"
     },
     {
       "change": "transformed",
@@ -584,6 +602,12 @@
       "key": "x:DmarcReportSettings",
       "level": "warning",
       "path": "failureFromAddress"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -851,9 +875,10 @@
       "source": "x:AccountSettings",
       "value": {
         "encryptionAtRest": {
-          "@type": "Aes128",
+          "@type": "Enabled",
           "allowSpamTraining": true,
           "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "c"
         },
         "locale": "lv-LV",
@@ -1391,8 +1416,6 @@
             "subscribe": false
           }
         },
-        "encryptAtRest": true,
-        "encryptOnAppend": true,
         "maxIdentities": 1001,
         "maxMailboxDepth": 10,
         "maxMailboxNameLength": 1002,
@@ -1402,6 +1425,13 @@
         "maxMessages": 1,
         "maxPublicKeys": 5,
         "maxSubmissions": 100
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": true
       }
     },
     {
@@ -2142,9 +2172,10 @@
         "description": null,
         "domainId": "c",
         "encryptionAtRest": {
-          "@type": "Aes256Gcm",
+          "@type": "Enabled",
           "allowSpamTraining": false,
           "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "d"
         },
         "externalId": "s5",
@@ -2855,6 +2886,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
     },
     {
       "answered": false,

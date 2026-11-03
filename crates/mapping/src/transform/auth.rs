@@ -8,9 +8,6 @@ use crate::{
     transform::Transform,
 };
 
-const PERMISSION_ENUM: &str = "Permission";
-const PERMISSION_PROPERTIES: &[&str] =
-    &["enabledPermissions", "disabledPermissions", "permissions"];
 const LIFETIMES: &[(&str, &str, u64)] = &[
     ("authCodeExpiry", "auth_code_expiry", 600_000),
     ("accessTokenExpiry", "access_token_expiry", 600_000),
@@ -195,51 +192,6 @@ pub(super) fn oidc_token_lifetimes(
             w.path.pop();
             value = Value::from(replacement);
         }
-        out.insert((*property).into(), value);
-    }
-    Flow::Keep
-}
-
-pub(super) fn permissions(
-    w: &mut Walker,
-    src: &mut Map<String, Value>,
-    out: &mut Map<String, Value>,
-) -> Flow {
-    let session = w.session;
-    let grants = &session.rules.grants;
-    let mut grant_answer = None;
-    for property in PERMISSION_PROPERTIES {
-        let Some(mut value) = src.remove(*property) else {
-            continue;
-        };
-        let Value::Object(members) = &mut value else {
-            out.insert((*property).into(), value);
-            continue;
-        };
-        let granted: Vec<&str> = grants
-            .iter()
-            .filter(|g| {
-                !members.contains_key(&*g.permission)
-                    && g.when_any.iter().any(|o| members.contains_key(&**o))
-            })
-            .map(|g| &*g.permission)
-            .collect();
-        w.path.push(property);
-        w.remap_enum_keys(PERMISSION_ENUM, members);
-        if !granted.is_empty() {
-            let answer = grant_answer.get_or_insert_with(|| w.ask_global(PromptId::NewPermissions));
-            if answer.str("action") == Some("grant") {
-                for permission in &granted {
-                    members.insert((*permission).to_string(), Value::Bool(true));
-                }
-                w.transformed(
-                    Transform::Permissions,
-                    "",
-                    format!("granted {}", granted.join(", ")),
-                );
-            }
-        }
-        w.path.pop();
         out.insert((*property).into(), value);
     }
     Flow::Keep

@@ -9,6 +9,7 @@ pub mod tracers;
 pub mod webhooks;
 
 use tracers::log::spawn_log_tracer;
+use tracers::otel::spawn_otel_tracer;
 use tracers::stdout::spawn_console_tracer;
 use trc::{Collector, ipc::subscriber::SubscriberBuilder};
 use webhooks::spawn_webhook_tracer;
@@ -79,6 +80,7 @@ impl TelemetrySubscriberType {
             }
             TelemetrySubscriberType::LogTracer(settings) => spawn_log_tracer(builder, settings),
             TelemetrySubscriberType::Webhook(settings) => spawn_webhook_tracer(builder, settings),
+            TelemetrySubscriberType::OtelTracer(settings) => spawn_otel_tracer(builder, settings),
             #[cfg(unix)]
             TelemetrySubscriberType::JournalTracer(subscriber) => {
                 tracers::journald::spawn_journald_tracer(builder, subscriber)

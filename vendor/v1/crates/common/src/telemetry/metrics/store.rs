@@ -86,6 +86,16 @@ persisted_metrics!(
         SmtpDkim2Fail,
         SmtpDmarcPass,
         SmtpDmarcFail,
+        EncryptionAtRestEncrypted,
+        EncryptionEncryptionSkipped,
+        EncryptionGatewayEncrypted,
+        EncryptionGatewayPlaintext,
+        EncryptionGatewayBounced,
+        EncryptionKeyLookup,
+        EncryptionKeyHarvested,
+        EncryptionKeyChange,
+        EncryptionCrlFetchFailed,
+        EncryptionDnssecBogus,
     ]
 );
 
@@ -115,6 +125,7 @@ persisted_metrics!(
         DeliveryTotalTime,
         DeliveryAttemptTime,
         DnsLookupTime,
+        EncryptionKeyLookupTime,
         StoreDataReadTime,
         StoreDataWriteTime,
         StoreBlobReadTime,
@@ -134,7 +145,7 @@ pub trait MetricsStore: Sync + Send {
 
 #[derive(Default)]
 pub struct MetricsHistory {
-    events: AHashMap<MetricType, u32>,
+    events: AHashMap<MetricType, u64>,
     histograms: AHashMap<MetricType, HistogramHistory>,
     id_generator: SnowflakeIdGenerator,
 }
@@ -178,7 +189,7 @@ impl MetricsStore for Store {
                         batch.set(
                             ValueClass::Telemetry(TelemetryClass::Metric(metric_id)),
                             Metric::Counter(MetricCount {
-                                count: diff as u64,
+                                count: diff,
                                 metric: event,
                                 node_id,
                             })

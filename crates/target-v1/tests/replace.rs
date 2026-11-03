@@ -15,7 +15,7 @@ use model::{
     AclRecord, AddressBookRecord, BlobHash, CalendarEventRecord, CalendarRecord, CategorySet,
     Collection, ContactRecord, Counters, DavNameRecord, DeadPropertyRecord, DeadPropertyTag,
     Edition, EmailRecord, MailboxRecord, MailboxUid, RecordBatch, RegistryCounter, RegistryKey,
-    RegistryRecord, Target, WriteMode,
+    RegistryRecord, Severity, Subject, Target, WriteMode,
 };
 use registry::{schema::prelude::ObjectType, types::EnumImpl};
 use serde_json::{Value, json};
@@ -46,6 +46,7 @@ const MESSAGE: &[u8] = b"From: Alice <alice@example.org>\r\nTo: bob@example.org\
 const DELETED: &[u8] = b"From: Alice <alice@example.org>\r\nTo: bob@example.org\r\nSubject: Deleted\r\nMessage-ID: <r2@example.org>\r\n\r\nBye.\r\n";
 const CARD: &str = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:card-1@example.org\r\nFN:Carol Example\r\nEMAIL:carol@example.org\r\nEND:VCARD\r\n";
 const EVENT: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nBEGIN:VEVENT\r\nUID:event-1@example.org\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20300101T100000Z\r\nDTEND:20300101T110000Z\r\nSUMMARY:Planning\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\nDESCRIPTION:Reminder\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+const SMIME_CERTIFICATE: &str = include_str!("data/smime-rsa2048.pem");
 const REPLACED: u32 = 200;
 const DELETED_ID: u32 = 500;
 const SEARCH_INDEXES: [SearchIndex; 4] = [
@@ -966,8 +967,9 @@ async fn registry_duplicate_keys_apply_in_order() {
         map.insert(
             "encryptionAtRest".into(),
             json!({
-                "@type": "Aes256",
+                "@type": "Enabled",
                 "publicKey": Id::new(5).to_string(),
+                "headerProtection": "noConfidentiality",
                 "encryptOnAppend": true,
                 "allowSpamTraining": false
             }),
@@ -977,7 +979,7 @@ async fn registry_duplicate_keys_apply_in_order() {
         key: RegistryKey::new("PublicKey", 5),
         json: json!({
             "accountId": Id::new(9).to_string(),
-            "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ\n-----END PGP PUBLIC KEY BLOCK-----\n",
+            "key": SMIME_CERTIFICATE,
             "description": "dave",
             "createdAt": "2026-01-01T00:00:00Z"
         }),
@@ -1000,6 +1002,46 @@ async fn registry_duplicate_keys_apply_in_order() {
         "{}",
         stored.json
     );
+}
+
+// A public key that v1.0.2 cannot encrypt with is written with a warning; a supported certificate is written silently.
+#[tokio::test(flavor = "multi_thread")]
+async fn registry_warns_about_public_keys_v1_cannot_use() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = setup(dir.path()).await;
+    let key = |id: u64, text: &str| RegistryRecord {
+        key: RegistryKey::new("PublicKey", id),
+        json: json!({
+            "accountId": Id::new(9).to_string(),
+            "key": text,
+            "description": "dave",
+            "createdAt": "2026-01-01T00:00:00Z"
+        }),
+    };
+    let outcome = target
+        .write_registry(&[
+            account(9, "dave"),
+            key(5, SMIME_CERTIFICATE),
+            key(6, "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEZ\n-----END PGP PUBLIC KEY BLOCK-----\n"),
+        ])
+        .await
+        .expect("registry");
+    let [issue] = outcome.issues.as_slice() else {
+        panic!("expected one warning: {:?}", outcome.issues);
+    };
+    assert_eq!(issue.severity, Severity::Warning, "{issue:?}");
+    assert_eq!(
+        issue.subject,
+        Subject::Registry(RegistryKey::new("PublicKey", 6))
+    );
+    let stored = target
+        .read_registry(&[
+            RegistryKey::new("PublicKey", 5),
+            RegistryKey::new("PublicKey", 6),
+        ])
+        .await
+        .expect("read");
+    assert!(stored.iter().all(Option::is_some), "{stored:?}");
 }
 
 // The same registry key twice in one page is applied in order, the last write wins and the unique names it replaced are released.

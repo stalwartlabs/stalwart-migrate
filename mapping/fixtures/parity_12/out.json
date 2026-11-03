@@ -396,6 +396,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -486,6 +492,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:AccountSettings",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",
       "path": ""
@@ -537,6 +549,12 @@
       "key": "x:DmarcReportSettings",
       "level": "warning",
       "path": "failureSendFrequency"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -781,9 +799,10 @@
       "value": {
         "description": null,
         "encryptionAtRest": {
-          "@type": "Aes256",
+          "@type": "Enabled",
           "allowSpamTraining": false,
-          "encryptOnAppend": true,
+          "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "c"
         }
       }
@@ -1646,8 +1665,6 @@
             "name": "s3"
           }
         },
-        "encryptAtRest": true,
-        "encryptOnAppend": false,
         "maxAttachmentSize": 1,
         "maxIdentities": 20,
         "maxMailboxDepth": 1001,
@@ -1657,6 +1674,13 @@
         "maxMessageSize": 100,
         "maxMessages": 1001,
         "maxPublicKeys": 1
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": true
       }
     },
     {
@@ -3110,6 +3134,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
     }
   ]
 }

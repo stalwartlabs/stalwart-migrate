@@ -6,7 +6,7 @@
 
 use std::sync::atomic::Ordering;
 
-use atomics::{array::AtomicU32Array, gauge::AtomicGauge, histogram::AtomicHistogram};
+use atomics::{array::AtomicU64Array, gauge::AtomicGauge, histogram::AtomicHistogram};
 use event::UNCOUNTED_EVENTS;
 use ipc::{
     collector::{Collector, GlobalInterests},
@@ -17,7 +17,7 @@ use crate::*;
 
 pub(crate) static METRIC_INTERESTS: GlobalInterests = GlobalInterests::new();
 
-static EVENT_COUNTERS: AtomicU32Array<TOTAL_EVENT_COUNT> = AtomicU32Array::new();
+static EVENT_COUNTERS: AtomicU64Array<TOTAL_EVENT_COUNT> = AtomicU64Array::new();
 static CONNECTION_METRICS: [ConnectionMetrics; TOTAL_CONN_TYPES] = init_conn_metrics();
 
 static MESSAGE_INGESTION_TIME: AtomicHistogram<12> =
@@ -45,6 +45,8 @@ static STORE_BLOB_WRITE_TIME: AtomicHistogram<12> =
 
 static DNS_LOOKUP_TIME: AtomicHistogram<12> =
     AtomicHistogram::<10>::new_short_durations(MetricType::DnsLookupTime);
+static ENCRYPTION_KEY_LOOKUP_TIME: AtomicHistogram<12> =
+    AtomicHistogram::<10>::new_short_durations(MetricType::EncryptionKeyLookupTime);
 
 // SPDX-SnippetBegin
 // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
@@ -106,7 +108,7 @@ pub struct ConnectionMetrics {
 
 pub struct EventCounter {
     id: EventType,
-    value: u32,
+    value: u64,
 }
 
 impl Collector {
@@ -211,6 +213,9 @@ impl Collector {
                 if elapsed > 0 =>
             {
                 DNS_LOOKUP_TIME.observe(elapsed);
+            }
+            EventType::Encryption(EncryptionEvent::KeyLookup) => {
+                ENCRYPTION_KEY_LOOKUP_TIME.observe(elapsed);
             }
             EventType::MessageIngest(
                 MessageIngestEvent::Ham
@@ -362,6 +367,7 @@ impl Collector {
             &STORE_BLOB_READ_TIME,
             &STORE_BLOB_WRITE_TIME,
             &DNS_LOOKUP_TIME,
+            &ENCRYPTION_KEY_LOOKUP_TIME,
             &AI_REQUEST_TIME,
             &AI_INPUT_TOKENS,
             &AI_OUTPUT_TOKENS,
@@ -380,6 +386,7 @@ impl Collector {
             &STORE_BLOB_READ_TIME,
             &STORE_BLOB_WRITE_TIME,
             &DNS_LOOKUP_TIME,
+            &ENCRYPTION_KEY_LOOKUP_TIME,
         ];
         static C_HISTOGRAMS: &[&AtomicHistogram<12>] = &[
             &MESSAGE_DELIVERY_TIME,
@@ -399,7 +406,7 @@ impl Collector {
     }
 
     #[inline(always)]
-    pub fn read_metric_counter(metric_id: usize) -> u32 {
+    pub fn read_metric_counter(metric_id: usize) -> u64 {
         EVENT_COUNTERS.get(metric_id)
     }
 
@@ -422,6 +429,7 @@ impl Collector {
             MetricType::StoreBlobReadTime => STORE_BLOB_READ_TIME.average(),
             MetricType::StoreBlobWriteTime => STORE_BLOB_WRITE_TIME.average(),
             MetricType::DnsLookupTime => DNS_LOOKUP_TIME.average(),
+            MetricType::EncryptionKeyLookupTime => ENCRYPTION_KEY_LOOKUP_TIME.average(),
             // SPDX-SnippetBegin
             // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
             // SPDX-License-Identifier: LicenseRef-SEL
@@ -504,7 +512,7 @@ impl Collector {
         }
     }
 
-    pub fn update_event_counter(event_type: EventType, value: u32) {
+    pub fn update_event_counter(event_type: EventType, value: u64) {
         EVENT_COUNTERS.add(event_type.into(), value);
     }
 
@@ -517,6 +525,7 @@ impl Collector {
                 CONNECTION_METRICS[CONN_SMTP_OUT].elapsed.observe(value)
             }
             MetricType::DnsLookupTime => DNS_LOOKUP_TIME.observe(value),
+            MetricType::EncryptionKeyLookupTime => ENCRYPTION_KEY_LOOKUP_TIME.observe(value),
             // SPDX-SnippetBegin
             // SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
             // SPDX-License-Identifier: LicenseRef-SEL
@@ -542,7 +551,7 @@ impl EventCounter {
     }
 
     pub fn value(&self) -> u64 {
-        self.value as u64
+        self.value
     }
 }
 

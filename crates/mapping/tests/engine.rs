@@ -237,10 +237,15 @@ fn reverse_direction_never_prompts_for_defaults() {
     assert_eq!(outcome.objects[0].value, json!({}));
 }
 
+fn encryption_answers() -> Answers {
+    Answers::parse("version = 1\n[global.encryption_at_rest]\nheader_protection = \"none\"\n")
+        .expect("answers")
+}
+
 #[test]
 fn cycles_are_split_into_deferred_updates() {
     let mapping = Mapping::embedded().expect("mapping");
-    let answers = Answers::default();
+    let answers = encryption_answers();
     let outcome = mapping
         .session(Direction::Forward, &answers, options())
         .convert_all(vec![
@@ -270,7 +275,7 @@ fn cycles_are_split_into_deferred_updates() {
     assert_eq!(deferred.key.to_string(), "x:Account/c");
     assert_eq!(
         deferred.properties.get("encryptionAtRest"),
-        Some(&json!({"@type": "Aes128", "publicKey": "d"}))
+        Some(&json!({"@type": "Enabled", "publicKey": "d", "headerProtection": "none"}))
     );
     assert!(outcome.is_complete());
 }
@@ -278,7 +283,7 @@ fn cycles_are_split_into_deferred_updates() {
 #[test]
 fn cycle_break_never_picks_an_object_that_only_depends_on_the_cycle() {
     let mapping = Mapping::embedded().expect("mapping");
-    let answers = Answers::default();
+    let answers = encryption_answers();
     let outcome = mapping
         .session(Direction::Forward, &answers, options())
         .convert_all(vec![
@@ -354,7 +359,7 @@ fn delete_plan_breaks_cycles_before_deleting() {
         target(
             "x:Account/c",
             json!({"@type": "User", "name": "u", "domainId": "b",
-                   "encryptionAtRest": {"@type": "Aes128", "publicKey": "d"}}),
+                   "encryptionAtRest": {"@type": "Enabled", "publicKey": "d"}}),
         ),
         target("x:PublicKey/d", json!({"accountId": "c", "key": "k"})),
     ]);
@@ -430,13 +435,16 @@ fn target_object_follows_renames_in_both_directions() {
 fn references_follow_nested_objects_and_resolve_ids() {
     // An account's domain and its encryption key are both found, in either schema version.
     let mapping = Mapping::embedded().expect("mapping");
-    let account = json!({
-        "@type": "User",
-        "name": "alice",
-        "domainId": "b",
-        "encryptionAtRest": {"@type": "Aes256", "publicKey": "d", "encryptOnAppend": true}
-    });
-    for version in [SchemaVersion::V016, SchemaVersion::V1] {
+    for (version, variant) in [
+        (SchemaVersion::V016, "Aes256"),
+        (SchemaVersion::V1, "Enabled"),
+    ] {
+        let account = json!({
+            "@type": "User",
+            "name": "alice",
+            "domainId": "b",
+            "encryptionAtRest": {"@type": variant, "publicKey": "d", "encryptOnAppend": true}
+        });
         for object in ["Account", "x:Account"] {
             assert_eq!(
                 mapping.references(version, object, &account),

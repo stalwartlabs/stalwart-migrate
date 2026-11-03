@@ -364,6 +364,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -424,6 +430,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:AccountSettings",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
       "key": "x:AcmeProvider/c",
       "level": "info",
       "path": "description"
@@ -439,6 +451,12 @@
       "key": "x:Alert/c",
       "level": "info",
       "path": "condition"
+    },
+    {
+      "change": "transformed",
+      "key": "x:ApiKey/b",
+      "level": "info",
+      "path": "permissions/permissions"
     },
     {
       "change": "transformed",
@@ -469,6 +487,12 @@
       "key": "x:DmarcReportSettings",
       "level": "warning",
       "path": "failureFromName"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -852,9 +876,10 @@
       "value": {
         "description": null,
         "encryptionAtRest": {
-          "@type": "Aes256",
+          "@type": "Enabled",
           "allowSpamTraining": false,
           "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "b"
         },
         "timeZone": "Europe/Simferopol"
@@ -971,6 +996,7 @@
             "imapIdle": true,
             "sysDkimSignatureGet": true,
             "sysEmailGet": true,
+            "sysEncryptionGet": true,
             "sysMtaMilterDestroy": true,
             "sysRoleDestroy": true
           }
@@ -1517,8 +1543,6 @@
             "subscribe": false
           }
         },
-        "encryptAtRest": false,
-        "encryptOnAppend": true,
         "maxIdentities": 100,
         "maxMailboxDepth": 10,
         "maxMailboxNameLength": 255,
@@ -1527,6 +1551,13 @@
         "maxMessageSize": 75000000,
         "maxPublicKeys": 100,
         "maxSubmissions": 1
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": false
       }
     },
     {
@@ -3045,6 +3076,16 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "new_permissions"
     }
   ]
 }

@@ -147,11 +147,12 @@ async fn import_matches_stock_restore_ingest() {
         .expect("blob");
     let received_at = now();
     let server = target.server().expect("server");
+    let parsed = MessageParser::new().parse(MESSAGE);
     let stock = server
         .email_ingest(IngestEmail {
             raw_message: MESSAGE,
             blob_hash: Some(&V1BlobHash(hash.0)),
-            message: MessageParser::new().parse(MESSAGE),
+            message: parsed.as_ref(),
             access_token: &AccessToken::from_id_maybe_invalid(ACCOUNT_ID),
             mailbox_ids: vec![0],
             keywords: vec![Keyword::Seen],

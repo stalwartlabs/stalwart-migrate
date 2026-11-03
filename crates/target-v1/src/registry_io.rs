@@ -5,6 +5,7 @@
  */
 
 use crate::failpoint::failpoint;
+use common::storage::encryption::PublicKeyParse;
 use model::{
     BlobHash, Issue, IssueKind, RegistryCounter, RegistryId, RegistryKey, RegistryRecord,
     Rejection, Severity, Subject, WriteOutcome,
@@ -22,7 +23,7 @@ use store::{
     ValueKey,
     ahash::{AHashMap, AHashSet},
     registry::write::{RegistryWrite, RegistryWriteResult},
-    write::{BatchBuilder, RegistryClass, ValueClass},
+    write::{BatchBuilder, RegistryClass, ValueClass, now},
 };
 use types::id::Id;
 
@@ -61,6 +62,17 @@ fn failed(key: &RegistryKey, message: impl Into<Box<str>>) -> Issue {
         IssueKind::Failed,
         Subject::Registry(key.clone()),
         message,
+    )
+}
+
+fn unusable_key(key: &RegistryKey, reason: &str) -> Issue {
+    Issue::new(
+        Severity::Warning,
+        IssueKind::Changed,
+        Subject::Registry(key.clone()),
+        format!(
+            "v1 cannot encrypt with this public key ({reason}); accounts that use it for encryption at rest store new messages unencrypted until a supported key is set"
+        ),
     )
 }
 
@@ -121,7 +133,16 @@ impl V1Target {
                 continue;
             };
             match ObjectInner::deserialize(object_type, &record.json) {
-                Ok(inner) => parsed.push((record, object_type, Object::new(inner))),
+                Ok(inner) => {
+                    if let ObjectInner::PublicKey(key) = &inner
+                        && let Err(err) = key.parse_keys(now())
+                    {
+                        outcome
+                            .issues
+                            .push(unusable_key(&record.key, err.description()));
+                    }
+                    parsed.push((record, object_type, Object::new(inner)))
+                }
                 Err(err) => outcome.issues.push(
                     failed(&record.key, format!("invalid v1 object: {err}"))
                         .rejected(Rejection::Invalid),
@@ -507,7 +528,8 @@ fn tag_rejection(issue: Issue, result: &RegistryWriteResult) -> Issue {
     match result {
         RegistryWriteResult::PrimaryKeyConflict { .. } => issue.rejected(Rejection::Conflict),
         RegistryWriteResult::ValidationError { .. }
-        | RegistryWriteResult::InvalidForeignKey { .. } => issue.rejected(Rejection::Invalid),
+        | RegistryWriteResult::InvalidForeignKey { .. }
+        | RegistryWriteResult::ForeignKeyOutOfScope { .. } => issue.rejected(Rejection::Invalid),
         _ => issue,
     }
 }

@@ -6,6 +6,12 @@
       "key": "x:Account/c",
       "level": "info",
       "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
     }
   ],
   "deferred": [
@@ -13,9 +19,10 @@
       "key": "x:Account/c",
       "properties": {
         "encryptionAtRest": {
-          "@type": "Aes256",
+          "@type": "Enabled",
           "allowSpamTraining": false,
-          "encryptOnAppend": true,
+          "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "d"
         }
       }
@@ -66,5 +73,11 @@
       }
     }
   ],
-  "questions": []
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
+    }
+  ]
 }

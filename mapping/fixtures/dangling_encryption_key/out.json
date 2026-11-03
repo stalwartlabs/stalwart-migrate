@@ -6,6 +6,12 @@
       "key": "x:Account/c",
       "level": "error",
       "path": "encryptionAtRest/publicKey"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/c",
+      "level": "info",
+      "path": "encryptionAtRest"
     }
   ],
   "deferred": [],
@@ -27,13 +33,20 @@
         "domainId": "b",
         "emailAddress": "alice@example.com",
         "encryptionAtRest": {
-          "@type": "Aes256",
-          "encryptOnAppend": true,
+          "@type": "Enabled",
+          "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "z"
         },
         "name": "alice"
       }
     }
   ],
-  "questions": []
+  "questions": [
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
+    }
+  ]
 }

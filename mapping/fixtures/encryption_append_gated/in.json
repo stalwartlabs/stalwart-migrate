@@ -1,0 +1,38 @@
+{
+  "objects": [
+    {
+      "key": "x:Domain/b",
+      "value": {
+        "name": "example.com"
+      }
+    },
+    {
+      "key": "x:Email",
+      "value": {
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:Account/c",
+      "value": {
+        "@type": "User",
+        "name": "appender",
+        "domainId": "b",
+        "emailAddress": "appender@example.com",
+        "encryptionAtRest": {
+          "@type": "Aes256",
+          "publicKey": "m",
+          "encryptOnAppend": true
+        }
+      }
+    },
+    {
+      "key": "x:PublicKey/m",
+      "value": {
+        "accountId": "c",
+        "description": "key",
+        "key": "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n"
+      }
+    }
+  ]
+}

@@ -346,6 +346,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -424,6 +430,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:Account/b",
+      "level": "info",
+      "path": "encryptionAtRest"
+    },
+    {
+      "change": "transformed",
       "key": "x:AiModel/b",
       "level": "info",
       "path": ""
@@ -463,6 +475,12 @@
       "key": "x:DsnReportSettings",
       "level": "info",
       "path": "fromAddress"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -803,9 +821,10 @@
         },
         "domainId": "d",
         "encryptionAtRest": {
-          "@type": "Aes256Gcm",
+          "@type": "Enabled",
           "allowSpamTraining": false,
           "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "c"
         },
         "externalId": "s3",
@@ -1522,8 +1541,6 @@
       "source": "x:Email",
       "value": {
         "compressionAlgorithm": "lz4",
-        "encryptAtRest": true,
-        "encryptOnAppend": false,
         "maxIdentities": 20,
         "maxMailboxDepth": 1,
         "maxMailboxNameLength": 100,
@@ -1532,6 +1549,13 @@
         "maxMessages": 1002,
         "maxPublicKeys": 1001,
         "maxSubmissions": null
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": true
       }
     },
     {
@@ -2908,6 +2932,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
     }
   ]
 }

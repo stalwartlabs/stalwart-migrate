@@ -357,6 +357,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -402,6 +408,12 @@
       "key": "x:TlsExternalReport/b",
       "level": "warning",
       "path": "memberTenantId"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Account/b",
+      "level": "info",
+      "path": "encryptionAtRest"
     },
     {
       "change": "transformed",
@@ -701,9 +713,10 @@
         "domainId": "c",
         "emailAddress": "a@b.c",
         "encryptionAtRest": {
-          "@type": "ChaCha20Poly1305",
+          "@type": "Enabled",
           "allowSpamTraining": true,
           "encryptOnAppend": false,
+          "headerProtection": "noConfidentiality",
           "publicKey": "d"
         },
         "locale": "en-ZW",
@@ -1368,7 +1381,6 @@
             "name": "s3"
           }
         },
-        "encryptAtRest": true,
         "maxMailboxNameLength": 1001,
         "maxMailboxes": 1001,
         "maxMaskedAddresses": 1,
@@ -1376,6 +1388,13 @@
         "maxMessages": null,
         "maxPublicKeys": 1002,
         "maxSubmissions": null
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": true
       }
     },
     {
@@ -2827,6 +2846,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "encryption_at_rest"
     }
   ]
 }

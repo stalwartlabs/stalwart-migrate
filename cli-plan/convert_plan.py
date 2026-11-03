@@ -98,7 +98,7 @@ RETIRED_PROMPT_IDS = {"target_store"}
 PROMPT_IDS = [
     "blob_store", "edition", "categories", "oidc_directory", "oidc_token_lifetimes", "oauth_registration", "counter_read",
     "http_forwarded", "spam_ai", "ai_model_provider", "dns_sig0", "azure_auth", "in_memory_cluster",
-    "enterprise_on_oss", "new_permissions", "changed_defaults",
+    "enterprise_on_oss", "new_permissions", "encryption_at_rest", "changed_defaults",
 ]
 
 
@@ -413,6 +413,12 @@ class Rules:
         self.separators = {name: (sep["from"], sep["to"]) for name, sep in raw.get("enum_separators", {}).items()}
         self.defaults = raw.get("defaults", {})
         self.grants = [(new, old) for new, old in raw.get("permission_grants", {}).items()]
+        self.sign_in_grants = list(raw.get("sign_in_grants", {}).get("permissions", []))
+        default_roles = raw.get("default_roles", {})
+        self.added_in_v016 = set(default_roles.get("added_in_v016", []))
+        self.min_coverage = int(default_roles.get("min_coverage", 0))
+        if not 0 <= self.min_coverage <= 100:
+            raise MappingError(f"{file}: default_roles.min_coverage must be a percentage")
         spam_tags = raw.get("spam_tags", {})
         self.spam_tag_renames = dict(spam_tags.get("renamed", {}))
         self.spam_tag_removed_prefixes = tuple(spam_tags.get("removed_prefixes", []))
@@ -659,6 +665,7 @@ class Session:
         self.target_full = mapping.v1
         self.target = mapping.v1_oss if self.edition == "oss" else mapping.v1
         self.coordinator = None
+        self.facts = Facts([])
 
     def answer(self, report, pid, key, defaults, context):
         given = self.answers.get(pid, key)
@@ -688,6 +695,7 @@ class Session:
             self.coordinator = coordinator_type(inputs)
             if self.coordinator is not None and all(item[0] != ObjectKey(IN_MEMORY_STORE) for item in inputs):
                 inputs.append((ObjectKey(IN_MEMORY_STORE), {TYPE_KEY: IN_MEMORY_DEFAULT}))
+        self.facts = Facts(inputs)
         given = len(inputs)
         if self.options.synthesize_singletons:
             present = {item[0] for item in inputs}
@@ -1743,7 +1751,151 @@ def t_client_ip_source_forward(w, src, out):
     return KEEP
 
 
-PERMISSION_PROPERTIES = ["enabledPermissions", "disabledPermissions", "permissions"]
+PERMISSION_PROPERTIES = ["disabledPermissions", "enabledPermissions", "permissions"]
+SIGN_IN = "authenticate"
+ROLE_OBJECT = "x:Role"
+AUTHENTICATION_OBJECT = "x:Authentication"
+ROLE_KINDS = [
+    ("user", "defaultUserRoleIds", "User"),
+    ("group", "defaultGroupRoleIds", "Group"),
+    ("tenant", "defaultTenantRoleIds", "Tenant Administrator"),
+    ("superuser", "defaultAdminRoleIds", "System Administrator"),
+]
+ROLE_EXACT = {
+    "authenticate": {"user", "superuser", "tenant"},
+    "authenticateWithAlias": {"user", "superuser", "tenant"},
+    "interactAi": {"user", "superuser", "tenant"},
+    "impersonate": {"superuser"},
+    "unlimitedRequests": {"superuser"},
+    "unlimitedUploads": {"superuser"},
+    "liveMetrics": {"superuser"},
+    "liveTracing": {"superuser"},
+    "fetchAnyBlob": {"superuser", "tenant"},
+    "liveDeliveryTest": {"superuser", "tenant"},
+}
+MEMBER_PREFIXES = ("jmap", "imap", "pop3", "calendar", "email", "dav", "sieve")
+SELF_SERVICE_PREFIXES = ("sysMaskedEmail", "sysArchivedItem", "sysAccountSettings", "sysPublicKey")
+CREDENTIAL_PREFIXES = ("sysAccountPassword", "sysApiKey", "sysAppPassword", "sysOAuthGrant")
+TENANT_PREFIXES = ("sysDomain", "sysDkimSignature", "sysAcmeProvider", "sysAccount", "sysRole", "sysOAuthClient",
+                   "sysMailingList", "sysExternalReport", "sysDnsServer", "sysQueuedMessage")
+
+
+def role_kinds_of(permission):
+    if permission in ROLE_EXACT:
+        return ROLE_EXACT[permission]
+    if permission.startswith(MEMBER_PREFIXES):
+        return {"user", "group"}
+    if permission.startswith(SELF_SERVICE_PREFIXES) or (
+            permission.startswith("sysSpamTrainingSample") and "Create" not in permission):
+        return {"user", "group", "superuser"}
+    if permission.startswith(CREDENTIAL_PREFIXES):
+        return {"user", "superuser"}
+    if permission.startswith(TENANT_PREFIXES):
+        return {"tenant", "superuser"}
+    return {"superuser"}
+
+
+def reference_key(obj, reference):
+    if not isinstance(reference, str):
+        return None
+    if reference.startswith("#"):
+        return ObjectKey(obj, ObjectKey.CLIENT, reference[1:]) if len(reference) > 1 else None
+    value = jmap_id_parse(reference)
+    return None if value is None else ObjectKey(obj, ObjectKey.ID, value)
+
+
+ENCRYPTION_AT_REST = "encryptionAtRest"
+ENCRYPT_ON_APPEND = "encryptOnAppend"
+AUTHENTICATED_ENCRYPTION = "authenticatedEncryption"
+EMAIL_OBJECT = "x:Email"
+PUBLIC_KEY_OBJECT = "x:PublicKey"
+CIPHER_LABELS = {"Aes128": "AES-128", "Aes256": "AES-256", "Aes256Gcm": "AES-256-GCM",
+                 "ChaCha20Poly1305": "ChaCha20-Poly1305"}
+AEAD_CIPHERS = ("Aes256Gcm", "ChaCha20Poly1305")
+
+
+def key_kind(text):
+    text = text.lstrip() if isinstance(text, str) else ""
+    if not text.startswith("-----BEGIN "):
+        return None
+    label, sep, _ = text[len("-----BEGIN "):].partition("-----")
+    if not sep:
+        return None
+    if label.startswith("PGP "):
+        return "openPgp"
+    return "smime" if "CERTIFICATE" in label else None
+
+
+class Facts:
+    def __init__(self, inputs):
+        self.email_encrypt_on_append = False
+        self.encrypted_accounts = 0
+        self.default_roles = {}
+        smime_keys = set()
+        aead_keys = []
+        for item in inputs:
+            key, value = item[0], item[1]
+            if not isinstance(value, dict):
+                continue
+            if key.object == EMAIL_OBJECT:
+                self.email_encrypt_on_append = value.get(ENCRYPT_ON_APPEND) is True
+            elif key.object == PUBLIC_KEY_OBJECT and key_kind(value.get("key")) == "smime":
+                smime_keys.add(key)
+            elif key.object == AUTHENTICATION_OBJECT:
+                for kind, prop, _ in ROLE_KINDS:
+                    ids = value.get(prop)
+                    for role in ids if isinstance(ids, dict) else ():
+                        role_key = reference_key(ROLE_OBJECT, role)
+                        if role_key is not None:
+                            self.default_roles.setdefault(role_key, set()).add(kind)
+            settings = value.get(ENCRYPTION_AT_REST)
+            if not isinstance(settings, dict) or settings.get(TYPE_KEY) in (None, "Disabled"):
+                continue
+            self.encrypted_accounts += 1
+            if settings.get(TYPE_KEY) in AEAD_CIPHERS:
+                public_key = reference_key(PUBLIC_KEY_OBJECT, settings.get("publicKey"))
+                if public_key is not None:
+                    aead_keys.append(public_key)
+        self.authenticated_keys = {k for k in aead_keys if k in smime_keys}
+
+
+def grant_permission(w, members, disabled, permission, added):
+    if permission not in members and permission not in disabled and w.session.target.enum_has("Permission", permission):
+        members[permission] = True
+        added.append(permission)
+
+
+def report_granted(w, reason, added):
+    if added:
+        w.transformed("permissions", "", f"{reason}: " + ", ".join(added))
+        added.clear()
+
+
+def complete_default_role(w, members, disabled, added):
+    kinds = w.session.facts.default_roles.get(w.key, set())
+    if not kinds:
+        return False
+    renamed = {t for targets in w.rules.enums.get("Permission", {}).values() if targets for t in targets}
+
+    def is_new(permission):
+        return permission in w.rules.added_in_v016 or not (
+            w.session.source.enum_has("Permission", permission) or permission in renamed)
+
+    permissions = w.session.target.enum_values.get("Permission", [])
+    completed = False
+    for kind, _, label in ROLE_KINDS:
+        if kind not in kinds:
+            continue
+        seeded = [p for p in permissions if kind in role_kinds_of(p) and not is_new(p)]
+        held = sum(1 for p in seeded if p in members)
+        if not seeded or held * 100 < len(seeded) * w.rules.min_coverage:
+            continue
+        completed = True
+        for permission in permissions:
+            if kind in role_kinds_of(permission) and is_new(permission):
+                grant_permission(w, members, disabled, permission, added)
+        report_granted(w, f"completed with the v1 {label} role defaults", added)
+    return completed
 
 
 def t_permissions(w, src, out):
@@ -1765,8 +1917,62 @@ def t_permissions(w, src, out):
                 for permission in granted:
                     value[permission] = True
                 w.transformed("permissions", "", "granted " + ", ".join(granted))
+        if prop == "enabledPermissions":
+            disabled = out.get("disabledPermissions")
+            disabled = disabled if isinstance(disabled, dict) else {}
+            added = []
+            is_default_role = w.key.object == ROLE_OBJECT and complete_default_role(w, value, disabled, added)
+            if not is_default_role and SIGN_IN in value:
+                for permission in w.rules.sign_in_grants:
+                    grant_permission(w, value, disabled, permission, added)
+                report_granted(w, "granted to a role or list that allows sign-in", added)
         w.path.pop()
         out[prop] = value
+    return KEEP
+
+
+def t_encryption_at_rest_forward(w, src, out):
+    if ENCRYPTION_AT_REST not in src:
+        return KEEP
+    value = src.pop(ENCRYPTION_AT_REST)
+    cipher = value.get(TYPE_KEY) if isinstance(value, dict) else None
+    if cipher in CIPHER_LABELS:
+        facts = w.session.facts
+        context = [("accountsWithEncryption", facts.encrypted_accounts)]
+        answer = w.session.answer(w.report, "encryption_at_rest", None, w.prompt_defaults("encryption_at_rest"),
+                                  context)
+        protection = answer_str(answer, "header_protection") or "noConfidentiality"
+        value[TYPE_KEY] = "Enabled"
+        value["headerProtection"] = protection
+        detail = (f"{CIPHER_LABELS[cipher]} became Enabled (header protection {protection}); "
+                  "v1 selects the cipher from the public key")
+        if cipher in AEAD_CIPHERS:
+            if reference_key(PUBLIC_KEY_OBJECT, value.get("publicKey")) in facts.authenticated_keys:
+                detail += ", with authenticated encryption on its S/MIME certificate"
+            else:
+                detail += "; the key is not an S/MIME certificate, so v1 has no authenticated encryption setting for it"
+        if not facts.email_encrypt_on_append and value.get(ENCRYPT_ON_APPEND) is True:
+            value[ENCRYPT_ON_APPEND] = False
+            detail += "; encryptOnAppend turned off because Email.encryptOnAppend was off in v0.16"
+        w.transformed("encryption_at_rest", ENCRYPTION_AT_REST, detail)
+    out[ENCRYPTION_AT_REST] = value
+    return KEEP
+
+
+def t_email_encrypt_on_append(w, name, ty, value, out):
+    if value is True:
+        detail = "applied to the encryptOnAppend setting of each account"
+    else:
+        detail = "encryptOnAppend turned off for every account with encryption at rest"
+    w.transformed("email_encrypt_on_append", "", detail)
+    return KEEP
+
+
+def t_public_key_encryption_forward(w, src, out):
+    if w.key in w.session.facts.authenticated_keys:
+        out[AUTHENTICATED_ENCRYPTION] = True
+        w.transformed("public_key_encryption", AUTHENTICATED_ENCRYPTION,
+                      "set for an account that used AES-256-GCM or ChaCha20-Poly1305")
     return KEEP
 
 
@@ -1886,6 +2092,9 @@ TRANSFORMS = {
     "expression_removed_vars": Transform("property", prop=t_expression_removed_vars),
     "webui_bundle": Transform("property", prop=t_webui_bundle),
     "spam_tag": Transform("value", value=t_spam_tag),
+    "encryption_at_rest": Transform("group", group=t_encryption_at_rest_forward),
+    "email_encrypt_on_append": Transform("property", prop=t_email_encrypt_on_append),
+    "public_key_encryption": Transform("group", group=t_public_key_encryption_forward),
 }
 
 

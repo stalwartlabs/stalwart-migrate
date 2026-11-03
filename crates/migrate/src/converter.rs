@@ -1592,7 +1592,7 @@ mod tests {
                     "@type": "User",
                     "name": "alice",
                     "domainId": "b",
-                    "encryptionAtRest": {"@type": "Aes256", "publicKey": "d", "encryptOnAppend": true, "allowSpamTraining": false}
+                    "encryptionAtRest": {"@type": "Enabled", "publicKey": "d", "encryptOnAppend": true, "allowSpamTraining": false}
                 }),
             },
         ]);
@@ -1715,7 +1715,7 @@ mod tests {
         let account = json!({
             "@type": "User",
             "name": "alice",
-            "encryptionAtRest": {"@type": "Aes256", "publicKey": "d", "encryptOnAppend": true, "allowSpamTraining": false}
+            "encryptionAtRest": {"@type": "Enabled", "publicKey": "d", "encryptOnAppend": true, "allowSpamTraining": false}
         });
         let public_key = json!({"accountId": "c", "description": "alice", "key": "k"});
         let plan = converter.delete_plan(vec![

@@ -29,7 +29,7 @@
 </p>
 
 
-`stalwart-migrate` moves the data of a [Stalwart Mail and Collaboration Server](https://stalw.art) v0.16.27 deployment to Stalwart v1, and can move it back again if the upgrade has to be reverted.
+`stalwart-migrate` moves the data of a [Stalwart Mail and Collaboration Server](https://stalw.art) v0.16.27 deployment to Stalwart v1, and can move it back again if the upgrade has to be reverted. It writes stores for Stalwart v1.0.2 and later.
 
 Stalwart v1 changes the on-disk layout of the data store, so a v0.16 store cannot be upgraded in place. The tool instead copies every account, message, calendar, address book, file and setting from the running v0.16 store into a new, empty v1 store, converting each object with the v1 code as it goes. The copy can be repeated while v0.16 keeps serving users; each repetition transfers only what changed, so the final switch needs only a short downtime window.
 
@@ -281,6 +281,7 @@ The remaining questions appear only when the v0.16 settings contain the object c
 | In-memory store in a cluster | a cluster coordinator is enabled while the in-memory store is the default one (the data store), which v1 refuses: it needs a Redis, Redis Cluster, Redis Sentinel or sharded Redis store |
 | Features missing from the v1 server build | the tool is the open source build and the v0.16 settings use enterprise-only objects, which it cannot store |
 | New permissions | custom roles grant permissions that have new v1 counterparts |
+| Encryption at rest | an account has encryption at rest enabled: whether newly encrypted messages carry protected headers, as new v1 settings do, or none, as in v0.16 |
 | Changed defaults | settings still hold a v0.16 default that changed in v1: keep every v0.16 default, adopt every v1 default, or follow the recommendation per setting |
 
 When every question has an answer, `prepare` prints a summary with the number of objects to write, the objects dropped, warnings and errors. With an external blob store and the `spam_model` category, the summary also states that the final run overwrites the spam models in that blob store (see [Shared blob stores](#shared-blob-stores)). After confirmation it writes two files into the state directory:
@@ -449,6 +450,8 @@ Severities are `info`, `warning`, `error` and `verify`. Error rows make a run fa
 Two conversions go beyond renaming settings:
 
 - **Spam filter tags.** v1 imports the stock spam filter rules only into a store that holds no spam rules, so a migrated deployment keeps the tags of the rules release it imported under v0.16. The conversion renames `DISPOSABLE_REPLYTO` to `DISPOSABLE_REPLY_TO`, the tag the server emits, and drops the `LLM_*` tags, which v1 replaces with the `AI_*` tags of its AI classifier. The final run then adds every stock tag of the current rules that the settings lack (the `AI_*`, `DKIM2_*`, `MIME_LIMIT_EXCEEDED`, `URL_REDIRECTOR_INSECURE`, `DISPOSABLE_BCC` and `FREEMAIL_BCC` tags) with its stock score, and reports each one. Tags that already exist keep their scores, and spam rules, DNSBL servers and lookups stay as migrated.
+- **Default roles and sign-in permissions.** The roles listed in the default user, group, tenant administrator and administrator roles of the authentication settings get the permissions that the v1 default role of their kind holds and that a role seeded by v0.16.0 lacks, such as `scimAccess`, which roles seeded before v0.16.20 lack, and the permissions new in v1. Each addition is reported, and permissions a role disables are not added. A role in one of those lists that holds less than 90% of the defaults of its kind is treated as a custom role. Every role and account permission list that allows sign-in also gets the permissions to list and revoke connected OAuth applications. Both apply whatever the answer to the new permissions question.
+- **Encryption at rest.** v1 selects the cipher from the account's public key, so an account that chose AES-128, AES-256, AES-256-GCM or ChaCha20-Poly1305 keeps encryption on with its key; accounts that chose AES-256-GCM or ChaCha20-Poly1305 with an S/MIME certificate get authenticated encryption on the key. The server-wide switch moves to the encryption settings, and the v0.16 switch for messages appended over IMAP and JMAP is folded into each account's setting. A key that v1 cannot encrypt with is copied with a warning; the account then stores new messages unencrypted until a supported key is set.
 - **Web interface.** v1 serves only version 2 of the web interface. An application that downloads an official version 1 bundle is pointed to the version 2 bundle, and an application with a custom bundle URL keeps it with a warning, since a custom build of an older web interface is not served.
 
 ## Rolling back to v0.16
@@ -493,7 +496,7 @@ The options decide how much of the original state can be restored and how far th
 
 The rollback asks the operator to type `yes` to confirm that v1 is stopped, like `run --final`. Before copying anything, it prints what it would delete or overwrite outside the new v0.16 store, and whether `--allow-shared-deletes` permits it. When the new v0.16 store shares its blob store with v1, the spam model keys hold the v1 format, which v0.16 cannot load, so the rollback refuses to start until one of `--allow-shared-deletes` (write the v0.16 models back) or `--keep-v1-spam-model` (keep the v1 models) is given.
 
-Some data is not rolled back. Queued messages, the outbound DMARC and TLS report aggregation, scheduled tasks and telemetry stay with v1, which keeps delivering what is queued in it. A held or pending email submission comes back to v0.16 as sent, because the message itself stays in the v1 queue; let the v1 queue drain before stopping v1 for the rollback. The rollback states this in its output and records it as a warning. Data that exists only in v1 is dropped and reported: v1-only settings and objects, private metadata, per-instance event data such as colours, keywords and alerts, direct calendar notifications, file symlinks, and similar fields with no v0.16 equivalent. Changelogs are copied back where v0.16 can encode them, and DAV clients fetch their data once more after the rollback.
+Some data is not rolled back. Queued messages, the outbound DMARC and TLS report aggregation, scheduled tasks and telemetry stay with v1, which keeps delivering what is queued in it. A held or pending email submission comes back to v0.16 as sent, because the message itself stays in the v1 queue; let the v1 queue drain before stopping v1 for the rollback. The rollback states this in its output and records it as a warning. Data that exists only in v1 is dropped and reported: v1-only settings and objects, private metadata, per-instance event data such as colours, keywords and alerts, direct calendar notifications, file symlinks, and similar fields with no v0.16 equivalent. Changelogs are copied back where v0.16 can encode them, and DAV clients fetch their data once more after the rollback. Accounts with encryption at rest come back with AES-256, or AES-256-GCM when their S/MIME certificate has authenticated encryption, and lose the header protection setting; external public keys, S/MIME trust anchors and the encryption gateway settings are v1-only.
 
 ## Migrating CLI plans
 
@@ -504,7 +507,7 @@ Plans are converted separately from the data migration. The migrated v1 store al
 The converter is not part of the release archives or the Docker image. It requires Python 3.11 or later and no other modules, and it runs from a checkout of this repository at the tag of the release, because it reads the schema snapshots and mapping rules in `mapping/`:
 
 ```sh
-git clone --depth 1 --branch v1.0.3 https://github.com/stalwartlabs/stalwart-migrate.git
+git clone --depth 1 --branch v1.0.6 https://github.com/stalwartlabs/stalwart-migrate.git
 cd stalwart-migrate
 ```
 

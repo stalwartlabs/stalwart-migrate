@@ -113,6 +113,7 @@ pub enum DeliveryError {
     RateLimited,
     ConcurrencyLimited,
     Io(Box<str>),
+    Encryption(Box<str>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

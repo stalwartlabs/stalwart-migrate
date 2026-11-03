@@ -317,11 +317,25 @@ scope = "global"
 trigger = "a role or permission list grants a permission that has a new v1 counterpart (transform permissions)"
 title = "New permissions"
 v016 = "Roles listed the permissions they grant; 37 permissions no longer exist in v1 and are removed."
-v1 = "v1 adds permissions for IMAP and JMAP metadata, the metadata settings, connected OAuth applications, the search index queue and share cleanup tasks. Custom roles do not get them automatically."
+v1 = "v1 adds permissions for IMAP and JMAP metadata, the metadata settings, the encryption settings, connected OAuth applications, the search index queue and share cleanup tasks. Custom roles do not get them automatically; the default roles and every role that allows sign-in get their v1 defaults whatever the answer."
 fields = [
   { name = "action", label = "New permissions", kind = "choice", default = "grant", options = [
     { value = "grant", label = "Grant each new permission to roles that had the matching old one" },
     { value = "none", label = "Do not grant them" },
+  ] },
+]
+
+[prompt.encryption_at_rest]
+section = "other"
+scope = "global"
+trigger = "an account has encryption at rest enabled (transform encryption_at_rest)"
+title = "Encryption at rest"
+v016 = "Each account chose a cipher (AES-128, AES-256, AES-256-GCM or ChaCha20-Poly1305), and encrypted messages carried no header protection."
+v1 = "v1 selects the cipher from the account's public key: OpenPGP keys use SEIPD v1 or v2 by their features, S/MIME certificates use AES-256-CBC, or AES-256-GCM with RSA-OAEP when the key has authenticatedEncryption, which is set for accounts that used AES-256-GCM or ChaCha20-Poly1305. Encrypted messages can also carry protected headers (RFC 9788), which new v1 settings do by default."
+fields = [
+  { name = "header_protection", label = "Header protection", kind = "choice", default = "noConfidentiality", options = [
+    { value = "noConfidentiality", label = "Protect headers without hiding them, like new v1 settings (recommended)" },
+    { value = "none", label = "No header protection, like v0.16" },
   ] },
 ]
 

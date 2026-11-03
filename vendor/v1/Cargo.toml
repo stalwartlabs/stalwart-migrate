@@ -28,6 +28,7 @@ members = [
     "crates/utils",
     "crates/common",
     "crates/trc",
+    "crates/telemetry",
     "crates/text-extract",
     "crates/smtp-proto",
     "crates/smtp-report",
@@ -35,6 +36,7 @@ members = [
     "crates/sieve",
     "crates/jmap-tools",
     "crates/s3",
+    "crates/crypto",
 ]
 default-members = [
     "crates/main",
@@ -64,6 +66,7 @@ default-members = [
     "crates/utils",
     "crates/common",
     "crates/trc",
+    "crates/telemetry",
     "crates/text-extract",
     "crates/smtp-proto",
     "crates/smtp-report",
@@ -135,3 +138,4 @@ rpath = false
 hickory-proto = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
 hickory-net = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
 hickory-resolver = { git = "https://github.com/stalwartlabs/hickory-dns", branch = "stalwart/0.26" }
+librocksdb-sys = { git = "https://github.com/stalwartlabs/rust-rocksdb", branch = "stalwart/0.25" }

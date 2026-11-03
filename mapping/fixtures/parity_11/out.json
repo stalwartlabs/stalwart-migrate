@@ -414,6 +414,12 @@
       "reason": "no equivalent in the target version"
     },
     {
+      "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "atRestEnable"
+    },
+    {
       "change": "reference_cleared",
       "key": "x:Account/b",
       "level": "warning",
@@ -502,6 +508,12 @@
       "key": "x:DsnReportSettings",
       "level": "info",
       "path": "fromName"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "encryptOnAppend"
     },
     {
       "change": "transformed",
@@ -1546,8 +1558,6 @@
             "name": "s7"
           }
         },
-        "encryptAtRest": true,
-        "encryptOnAppend": true,
         "maxAttachmentSize": 1002,
         "maxMailboxDepth": 10,
         "maxMailboxNameLength": 1,
@@ -1556,6 +1566,13 @@
         "maxMessageSize": 1,
         "maxPublicKeys": 5,
         "maxSubmissions": 500
+      }
+    },
+    {
+      "key": "x:Encryption",
+      "source": "x:Email",
+      "value": {
+        "atRestEnable": true
       }
     },
     {

@@ -12,8 +12,8 @@ use std::{
 #[cfg(feature = "enterprise")]
 use mapping::JmapId;
 use model::{
-    Collection, GlobalBatch, GlobalCategory, LogCollection, LogRange, RecordBatch, ReportKind,
-    Source,
+    Collection, GlobalBatch, GlobalCategory, LogCollection, LogRange, RecordBatch, RegistryId,
+    ReportKind, Source,
 };
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
@@ -269,6 +269,8 @@ fn answers() -> String {
          [global.changed_defaults]\n\
          policy = \"recommended\"\n\
          overrides = {{}}\n\
+         [global.encryption_at_rest]\n\
+         header_protection = \"noConfidentiality\"\n\
          {enterprise_on_oss}"
     )
 }
@@ -530,6 +532,225 @@ async fn encryption_at_rest_survives_every_batch_size() {
             describe(&verified.rows)
         );
     }
+}
+
+// v0.16 encryption at rest stays on in v1.0.2: the AES-256 account becomes Enabled with header protection, the global switches move to Encryption and the per-account append setting, the key is usable, and rollback restores the v0.16 shape.
+#[tokio::test(flavor = "multi_thread")]
+async fn encryption_at_rest_is_enabled_in_v1_and_rolls_back() {
+    let scenario = Scenario::seeded(false).await;
+    seed_encryption_at_rest(&scenario.path("src"), PGP_KEY).await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "Email",
+        SINGLETON_ID,
+        &serde_json::json!({"encryptAtRest": false, "encryptOnAppend": true}),
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let final_run = ["run", "--final", "--yes", "--final-observation", "0"];
+    let (code, output) = scenario.cli(&final_run, true);
+    assert_eq!(code, EXIT_OK, "final run: {output}");
+    let warnings = scenario.run_rows("warning");
+    assert!(
+        !warnings.iter().any(|w| w.contains("cannot encrypt")),
+        "{warnings:?}"
+    );
+    let source = V1Source::from_store(open(&scenario.path("dst")).await);
+    let read = async |object: &str| {
+        source
+            .registry_page(object, None, 10)
+            .await
+            .expect(object)
+            .records
+    };
+    let accounts = read("x:Account").await;
+    let account = accounts
+        .iter()
+        .find(|record| record.key.id == RegistryId::Id(u64::from(ACCOUNT)))
+        .expect("account");
+    assert_eq!(
+        account.json["encryptionAtRest"],
+        serde_json::json!({
+            "@type": "Enabled",
+            "publicKey": types::id::Id::new(PUBLIC_KEY_ID).to_string(),
+            "headerProtection": "noConfidentiality",
+            "encryptOnAppend": true,
+            "allowSpamTraining": true,
+        }),
+        "{account:?}"
+    );
+    let encryption = read("x:Encryption").await;
+    assert_eq!(encryption.len(), 1, "{encryption:?}");
+    assert_eq!(encryption[0].json["atRestEnable"], Value::Bool(false));
+    let email = read("x:Email").await;
+    assert!(
+        email
+            .iter()
+            .all(|record| record.json.get("encryptAtRest").is_none()),
+        "{email:?}"
+    );
+
+    let back = scenario.path("back.json");
+    std::fs::write(
+        &back,
+        serde_json::json!({"@type": "RocksDb", "path": scenario.path("back")}).to_string(),
+    )
+    .expect("config");
+    let v1 = scenario.path("v1.json");
+    std::fs::write(
+        &v1,
+        serde_json::json!({"@type": "RocksDb", "path": scenario.path("dst")}).to_string(),
+    )
+    .expect("config");
+    drop(source);
+    let output = Command::new(BINARY)
+        .arg("rollback")
+        .arg("--yes")
+        .arg("--source")
+        .arg(&v1)
+        .arg("--target")
+        .arg(&back)
+        .arg("--state")
+        .arg(scenario.path("rollback-state"))
+        .args(["--final-observation", "0"])
+        .output()
+        .expect("run stalwart-migrate");
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "rollback: {}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rolled_back = V016Source::open(SourceConfig::from_file(&back).expect("config"))
+        .await
+        .expect("open rolled back store");
+    let accounts = rolled_back
+        .registry_page("Account", None, 10)
+        .await
+        .expect("accounts")
+        .records;
+    let account = accounts
+        .iter()
+        .find(|record| record.key.id == RegistryId::Id(u64::from(ACCOUNT)))
+        .expect("rolled back account");
+    assert_eq!(
+        account.json["encryptionAtRest"]["@type"],
+        Value::from("Aes256"),
+        "{account:?}"
+    );
+    let email = rolled_back
+        .registry_page("Email", None, 10)
+        .await
+        .expect("email")
+        .records;
+    assert_eq!(email.len(), 1, "{email:?}");
+    assert_eq!(
+        email[0].json["encryptAtRest"],
+        Value::Bool(false),
+        "{email:?}"
+    );
+    assert_eq!(
+        email[0].json["encryptOnAppend"],
+        Value::Bool(true),
+        "{email:?}"
+    );
+}
+
+// Default roles seeded by v0.16.0 (System Administrator without scimAccess, User without jmapFileNodeCopy) are stored in v1 with the v1.0.2 defaults, and a custom sign-in role gets the OAuth consent permissions, with the new permissions declined.
+#[tokio::test(flavor = "multi_thread")]
+async fn default_roles_are_stored_with_the_v1_defaults() {
+    const USER_ROLE: u64 = 11;
+    const ADMIN_ROLE: u64 = 12;
+    const CUSTOM_ROLE: u64 = 13;
+    let scenario = Scenario::seeded(false).await;
+    let v016 = common_v016::auth::permissions::DefaultPermissions::default();
+    let v1 = common_v1::auth::permissions::DefaultPermissions::default();
+    let names = |permissions: &[_]| -> serde_json::Map<String, Value> {
+        serde_json::to_value(permissions)
+            .expect("permissions")
+            .as_array()
+            .expect("list")
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|name| !["scimAccess", "jmapFileNodeCopy"].contains(name))
+            .map(|name| (name.to_string(), Value::Bool(true)))
+            .collect()
+    };
+    let id = |n: u64| types::id::Id::new(n).to_string();
+    for (role_id, description, enabled) in [
+        (USER_ROLE, "User", names(&v016.user)),
+        (ADMIN_ROLE, "System Administrator", names(&v016.superuser)),
+        (
+            CUSTOM_ROLE,
+            "Support",
+            serde_json::Map::from_iter([("authenticate".to_string(), Value::Bool(true))]),
+        ),
+    ] {
+        seed_registry_object(
+            &scenario.path("src"),
+            "Role",
+            role_id,
+            &serde_json::json!({"description": description, "enabledPermissions": enabled}),
+        )
+        .await;
+    }
+    seed_registry_object(
+        &scenario.path("src"),
+        "Authentication",
+        SINGLETON_ID,
+        &serde_json::json!({
+            "defaultUserRoleIds": {id(USER_ROLE): true},
+            "defaultAdminRoleIds": {id(ADMIN_ROLE): true, id(USER_ROLE): true},
+        }),
+    )
+    .await;
+    let mut answers =
+        std::fs::read_to_string(scenario.path("state/answers.toml")).expect("answers");
+    answers.push_str("[global.new_permissions]\naction = \"none\"\n");
+    std::fs::write(scenario.path("state/answers.toml"), answers).expect("answers");
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let final_run = ["run", "--final", "--yes", "--final-observation", "0"];
+    let (code, output) = scenario.cli(&final_run, true);
+    assert_eq!(code, EXIT_OK, "final run: {output}");
+    let roles = V1Source::from_store(open(&scenario.path("dst")).await)
+        .registry_page("x:Role", None, 10)
+        .await
+        .expect("roles")
+        .records;
+    let enabled = |role_id: u64| -> Vec<String> {
+        let role = roles
+            .iter()
+            .find(|record| record.key.id == RegistryId::Id(role_id))
+            .expect("role");
+        let mut names: Vec<String> = role.json["enabledPermissions"]
+            .as_object()
+            .expect("permissions")
+            .keys()
+            .cloned()
+            .collect();
+        names.sort_unstable();
+        names
+    };
+    let expected = |permissions: &[_]| -> Vec<String> {
+        let mut names: Vec<String> =
+            serde_json::from_value(serde_json::to_value(permissions).expect("v1")).expect("names");
+        names.sort_unstable();
+        names
+    };
+    assert_eq!(enabled(USER_ROLE), expected(&v1.user));
+    assert_eq!(enabled(ADMIN_ROLE), expected(&v1.superuser));
+    assert_eq!(
+        enabled(CUSTOM_ROLE),
+        [
+            "authenticate",
+            "sysOAuthGrantDestroy",
+            "sysOAuthGrantGet",
+            "sysOAuthGrantQuery"
+        ]
+    );
 }
 
 // An account and the public key it encrypts with link to each other; when both leave the source, the next run unlinks the account and deletes the key before it, which v1 accepts only in that order.

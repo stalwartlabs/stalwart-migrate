@@ -120,7 +120,14 @@ fn events(queue_id: u64, message: &Message) -> impl Iterator<Item = ValueClass> 
     events
 }
 
-fn size_delta(size: u64) -> i64 {
+fn size_delta(message: &Message) -> i64 {
+    let size = message
+        .metadata
+        .iter()
+        .fold(message.size, |size, metadata| match metadata {
+            Metadata::Blob(blob) => size.saturating_add(blob.size),
+            _ => size,
+        });
     i64::try_from(size).unwrap_or(i64::MAX)
 }
 
@@ -136,10 +143,10 @@ fn reserve(batch: &mut BatchBuilder, queue_id: u64, message: &Message) {
             Metadata::QueueSize { key, .. } => {
                 batch.add(
                     ValueClass::Queue(QueueClass::QuotaSize((*key).into())),
-                    size_delta(message.size),
+                    size_delta(message),
                 );
             }
-            Metadata::Headers { .. } | Metadata::Submission { .. } => {}
+            Metadata::Headers { .. } | Metadata::Submission { .. } | Metadata::Blob(_) => {}
         }
     }
     batch
@@ -170,8 +177,14 @@ fn release(batch: &mut BatchBuilder, queue_id: u64, message: &Message) {
             Metadata::QueueSize { key, .. } => {
                 batch.add(
                     ValueClass::Queue(QueueClass::QuotaSize((*key).into())),
-                    -size_delta(message.size),
+                    -size_delta(message),
                 );
+            }
+            Metadata::Blob(blob) => {
+                batch.clear(BlobOp::Link {
+                    hash: blob.hash.clone(),
+                    to: BlobLink::Id { id: queue_id },
+                });
             }
             Metadata::Headers { .. } | Metadata::Submission { .. } => {}
         }
@@ -267,6 +280,7 @@ fn failure(failure: &DeliveryFailure) -> Box<ErrorDetails> {
             DeliveryError::RateLimited => Error::RateLimited,
             DeliveryError::ConcurrencyLimited => Error::ConcurrencyLimited,
             DeliveryError::Io(err) => Error::Io(err.clone()),
+            DeliveryError::Encryption(err) => Error::EncryptionError(err.clone()),
         },
     })
 }
