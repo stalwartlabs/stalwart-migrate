@@ -26,7 +26,7 @@ use model::{
     WriteMode, WriteOutcome,
 };
 use store::{
-    BlobStore, ValueKey,
+    ValueKey,
     write::{Archive, ArchiveBytes, SlotRange},
 };
 use types::{
@@ -283,7 +283,6 @@ impl V1Target {
     ) -> model::Result<()> {
         for record in records {
             let Some(blob) = server
-                .blob_store()
                 .get_blob(record.blob_hash.as_bytes(), 0..usize::MAX)
                 .await
                 .map_err(trc_error)?
@@ -324,7 +323,13 @@ impl V1Target {
                 });
             }
             let (blob_hash, hold) = server
-                .hold_blob(account_id, BlobHash::generate(raw), raw, 60)
+                .hold_blob(
+                    account_id,
+                    BlobHash::generate(raw),
+                    raw,
+                    60,
+                    &server.core.blob.email,
+                )
                 .await
                 .map_err(trc_error)?;
             script = script.with_blob_hash(blob_hash);
@@ -364,10 +369,9 @@ impl V1Target {
     ) -> model::Result<()> {
         let server = self.server()?;
         let limits = &server.core.email.limits;
-        let blob_store = server.blob_store();
         let mut batch = self.import_batch(account_id);
         let fetches = stream::iter(records.iter().map(email_blob_hash))
-            .map(|hash| email_body(blob_store, blobs, hash))
+            .map(|hash| email_body(server, blobs, hash))
             .buffered(BLOB_CONCURRENCY);
         let mut prefetched = match mode {
             WriteMode::Create => Some(fetches.left_stream()),
@@ -420,7 +424,7 @@ impl V1Target {
 
             let raw = match prefetched {
                 Some(raw) => raw,
-                None => email_body(blob_store, blobs, record.blob_hash).await,
+                None => email_body(server, blobs, record.blob_hash).await,
             };
             let Some(raw) = raw.map_err(trc_error)? else {
                 outcome.issues.push(issue(
@@ -607,13 +611,13 @@ fn email_blob_hash(record: &EmailRecord) -> model::BlobHash {
 }
 
 async fn email_body<'x>(
-    blob_store: &BlobStore,
+    server: &Server,
     blobs: &'x BlobCache,
     hash: model::BlobHash,
 ) -> trc::Result<Option<Cow<'x, [u8]>>> {
     match blobs.get(&hash) {
         Some(data) => Ok(Some(Cow::Borrowed(data))),
-        None => blob_store
+        None => server
             .get_blob(hash.as_bytes(), 0..usize::MAX)
             .await
             .map(|data| data.map(Cow::Owned)),

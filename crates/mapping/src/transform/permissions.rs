@@ -73,6 +73,7 @@ impl RoleKind {
             "liveTracing" => SUPERUSER,
             "fetchAnyBlob" => SUPERUSER | TENANT,
             "liveDeliveryTest" => SUPERUSER | TENANT,
+            "sysSymmetricKeyDestroy" => 0,
         ) {
             return *kinds;
         }

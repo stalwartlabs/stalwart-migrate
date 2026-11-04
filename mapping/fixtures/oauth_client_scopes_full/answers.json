@@ -1,0 +1,7 @@
+{
+  "global": {
+    "oauth_client_scopes": {
+      "scopes": "full"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "aborted": false,
+  "changes": [],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:OAuthClient/b",
+      "source": "x:OAuthClient/b",
+      "value": {
+        "clientId": "app",
+        "description": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "oauth_client_scopes"
+    }
+  ]
+}

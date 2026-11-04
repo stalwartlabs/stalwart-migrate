@@ -313,6 +313,16 @@ isEnabled = "enable"
 [properties."x:Email"]
 encryptAtRest = { move = "x:Encryption.atRestEnable" }
 encryptOnAppend = { transform = "email_encrypt_on_append" }
+compressionAlgorithm = { transform = "email_compression" }
+
+# v0.16 OAuth clients had no scopes, and their tokens carried every permission
+# of the account. v1 lets a registered client request only the scopes listed in
+# OAuthClient.scopes (sign-in alone when empty); v1.0.3 adds the Stalwart
+# scopes security, settings and full, and replaced the v1.0.0 firstParty flag
+# with them. Transform oauth_client_scopes fills scopes from the
+# oauth_client_scopes answer.
+[properties."x:OAuthClient"]
+clientId = { transform = "oauth_client_scopes" }
 
 [properties."x:UserAccount"]
 encryptionAtRest = { transform = "encryption_at_rest" }

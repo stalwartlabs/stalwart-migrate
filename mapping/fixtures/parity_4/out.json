@@ -496,6 +496,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -684,6 +690,12 @@
       "change": "transformed",
       "key": "x:Email",
       "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
       "path": "encryptOnAppend"
     },
     {
@@ -787,6 +799,12 @@
       "key": "x:MtaStageRcpt",
       "level": "warning",
       "path": "allowRelaying"
+    },
+    {
+      "change": "transformed",
+      "key": "x:OAuthClient/c",
+      "level": "info",
+      "path": "scopes"
     },
     {
       "change": "transformed",
@@ -1902,6 +1920,7 @@
       "key": "x:FileStorage",
       "source": "x:FileStorage",
       "value": {
+        "compressionAlgorithm": "none",
         "maxFiles": null,
         "maxFolders": 100,
         "maxSize": 26214400
@@ -2600,6 +2619,12 @@
         "redirectUris": {
           "a0": true,
           "a1": true
+        },
+        "scopes": {
+          "calendars": true,
+          "contacts": true,
+          "files": true,
+          "mail": true
         },
         "secret": null
       }
@@ -3355,6 +3380,11 @@
       "answered": false,
       "key": null,
       "prompt": "new_permissions"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "oauth_client_scopes"
     }
   ]
 }

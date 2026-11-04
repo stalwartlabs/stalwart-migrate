@@ -271,6 +271,8 @@ fn answers() -> String {
          overrides = {{}}\n\
          [global.encryption_at_rest]\n\
          header_protection = \"noConfidentiality\"\n\
+         [global.oauth_client_scopes]\n\
+         scopes = \"interoperable\"\n\
          {enterprise_on_oss}"
     )
 }
@@ -655,6 +657,43 @@ async fn encryption_at_rest_is_enabled_in_v1_and_rolls_back() {
         email[0].json["encryptOnAppend"],
         Value::Bool(true),
         "{email:?}"
+    );
+}
+
+// A v0.16 OAuth client, which had no scopes, is stored in v1 with the interoperable scopes the operator chose, so its users keep mail, contacts, calendars and files access.
+#[tokio::test(flavor = "multi_thread")]
+async fn oauth_clients_get_the_chosen_scopes() {
+    const CLIENT_ID: u64 = 14;
+    let scenario = Scenario::seeded(false).await;
+    seed_registry_object(
+        &scenario.path("src"),
+        "OAuthClient",
+        CLIENT_ID,
+        &serde_json::json!({
+            "clientId": "mail-app",
+            "redirectUris": {"https://mail.example.org/callback": true},
+            "createdAt": "2024-01-01T00:00:00Z",
+        }),
+    )
+    .await;
+    let (code, output) = scenario.cli(&["prepare", "--non-interactive"], false);
+    assert_eq!(code, EXIT_OK, "prepare: {output}");
+    let final_run = ["run", "--final", "--yes", "--final-observation", "0"];
+    let (code, output) = scenario.cli(&final_run, true);
+    assert_eq!(code, EXIT_OK, "final run: {output}");
+    let clients = V1Source::from_store(open(&scenario.path("dst")).await)
+        .registry_page("x:OAuthClient", None, 10)
+        .await
+        .expect("clients")
+        .records;
+    let client = clients
+        .iter()
+        .find(|record| record.key.id == RegistryId::Id(CLIENT_ID))
+        .expect("client");
+    assert_eq!(
+        client.json["scopes"],
+        serde_json::json!({"mail": true, "contacts": true, "calendars": true, "files": true}),
+        "{client:?}"
     );
 }
 

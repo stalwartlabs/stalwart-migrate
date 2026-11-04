@@ -98,7 +98,7 @@ RETIRED_PROMPT_IDS = {"target_store"}
 PROMPT_IDS = [
     "blob_store", "edition", "categories", "oidc_directory", "oidc_token_lifetimes", "oauth_registration", "counter_read",
     "http_forwarded", "spam_ai", "ai_model_provider", "dns_sig0", "azure_auth", "in_memory_cluster",
-    "enterprise_on_oss", "new_permissions", "encryption_at_rest", "changed_defaults",
+    "enterprise_on_oss", "new_permissions", "encryption_at_rest", "oauth_client_scopes", "changed_defaults",
 ]
 
 
@@ -1772,6 +1772,7 @@ ROLE_EXACT = {
     "liveTracing": {"superuser"},
     "fetchAnyBlob": {"superuser", "tenant"},
     "liveDeliveryTest": {"superuser", "tenant"},
+    "sysSymmetricKeyDestroy": set(),
 }
 MEMBER_PREFIXES = ("jmap", "imap", "pop3", "calendar", "email", "dav", "sieve")
 SELF_SERVICE_PREFIXES = ("sysMaskedEmail", "sysArchivedItem", "sysAccountSettings", "sysPublicKey")
@@ -2020,6 +2021,28 @@ def webui_release(url):
     return tag[1:].partition(".")[0]
 
 
+INTEROPERABLE_SCOPES = ["mail", "contacts", "calendars", "files"]
+
+
+def t_oauth_client_scopes(w, src, out):
+    if "scopes" in src:
+        return KEEP
+    answer = w.ask_global("oauth_client_scopes")
+    choice = answer_str(answer, "scopes")
+    scopes = ["full"] if choice == "full" else [] if choice == "none" else INTEROPERABLE_SCOPES
+    if scopes:
+        out["scopes"] = {scope: True for scope in scopes}
+        w.transformed("oauth_client_scopes", "scopes", "allowed " + ", ".join(scopes))
+    return KEEP
+
+
+def t_email_compression(w, name, ty, value, out):
+    w.moves.append((w.key, "x:FileStorage", name, copy.deepcopy(value)))
+    w.transformed("email_compression", "", "also applied to FileStorage, which v1 configures separately")
+    out[name] = value
+    return KEEP
+
+
 def t_webui_bundle(w, name, ty, value, out):
     if isinstance(value, str):
         release = webui_release(value)
@@ -2095,6 +2118,8 @@ TRANSFORMS = {
     "encryption_at_rest": Transform("group", group=t_encryption_at_rest_forward),
     "email_encrypt_on_append": Transform("property", prop=t_email_encrypt_on_append),
     "public_key_encryption": Transform("group", group=t_public_key_encryption_forward),
+    "oauth_client_scopes": Transform("group", always=True, group=t_oauth_client_scopes),
+    "email_compression": Transform("property", prop=t_email_compression),
 }
 
 

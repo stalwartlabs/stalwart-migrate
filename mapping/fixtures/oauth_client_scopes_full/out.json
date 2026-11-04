@@ -1,0 +1,56 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "transformed",
+      "key": "x:OAuthClient/b",
+      "level": "info",
+      "path": "scopes"
+    },
+    {
+      "change": "transformed",
+      "key": "x:OAuthClient/c",
+      "level": "info",
+      "path": "scopes"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:OAuthClient/b",
+      "source": "x:OAuthClient/b",
+      "value": {
+        "clientId": "app",
+        "description": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "scopes": {
+          "full": true
+        }
+      }
+    },
+    {
+      "key": "x:OAuthClient/c",
+      "source": "x:OAuthClient/c",
+      "value": {
+        "clientId": "admin-tool",
+        "description": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "scopes": {
+          "full": true
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "answered": true,
+      "key": null,
+      "prompt": "oauth_client_scopes"
+    }
+  ]
+}

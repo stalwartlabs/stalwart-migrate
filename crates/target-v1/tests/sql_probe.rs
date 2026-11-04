@@ -402,7 +402,6 @@ async fn read_replicas_are_not_used_by_the_target() {
         target
             .server()
             .expect("server")
-            .blob_store()
             .get_blob(hash.as_bytes(), 0..usize::MAX)
             .await
             .expect("read blob")

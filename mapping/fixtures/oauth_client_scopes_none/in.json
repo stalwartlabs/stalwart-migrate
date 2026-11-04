@@ -1,0 +1,14 @@
+{
+  "objects": [
+    {
+      "key": "x:OAuthClient/b",
+      "value": {
+        "clientId": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "description": "app"
+      }
+    }
+  ]
+}

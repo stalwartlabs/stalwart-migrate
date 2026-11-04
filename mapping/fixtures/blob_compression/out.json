@@ -1,0 +1,38 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    }
+  ],
+  "deferred": [],
+  "dropped": [],
+  "objects": [
+    {
+      "key": "x:Email",
+      "source": "x:Email",
+      "value": {
+        "compressionAlgorithm": "none",
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:FileStorage",
+      "source": "x:FileStorage",
+      "value": {
+        "compressionAlgorithm": "none",
+        "maxFiles": 10
+      }
+    }
+  ],
+  "questions": []
+}

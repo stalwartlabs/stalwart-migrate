@@ -21,7 +21,7 @@ use model::{
 };
 use registry::{
     schema::{
-        enums::{DmarcActionDisposition, TaskType, TlsPolicyType, TlsResultType},
+        enums::{CompressionAlgo, DmarcActionDisposition, TaskType, TlsPolicyType, TlsResultType},
         structs::{
             DmarcInternalReport, DmarcReportRecord, Task, TaskAccountMaintenance,
             TaskDestroyAccount, TaskStatus, TlsFailureDetails, TlsInternalReport, TlsReportPolicy,
@@ -33,7 +33,10 @@ use serde_json::json;
 use source_v1::V1Source;
 use store::{
     Store, ValueKey, blake3,
-    write::{BlobLink, BlobOp, QueueClass, QueueEvent, TaskId, TaskQueueClass, ValueClass},
+    write::{
+        BlobLink, BlobOp, QueueClass, QueueEvent, TaskId, TaskQueueClass, ValueClass,
+        blob_codec::{BlobKeyring, BlobOpts},
+    },
 };
 use target_v1::{TargetConfig, V1Target};
 use types::{blob::BlobId, blob_hash::BlobHash as V1BlobHash};
@@ -1206,7 +1209,11 @@ async fn omitted_spam_kind_is_left_untouched() {
     let blob_store = target.server().expect("server").blob_store().clone();
     let foreign = b"not a spam trainer".to_vec();
     blob_store
-        .put_blob(SpamBlob::Trainer.key(), &foreign, Default::default())
+        .put_blob(
+            SpamBlob::Trainer.key(),
+            &foreign,
+            &BlobOpts::compressed(CompressionAlgo::Lz4),
+        )
         .await
         .expect("foreign trainer");
     let classifier = spam
@@ -1222,7 +1229,11 @@ async fn omitted_spam_kind_is_left_untouched() {
         assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
         assert_eq!(
             blob_store
-                .get_blob(SpamBlob::Trainer.key(), 0..usize::MAX)
+                .get_blob(
+                    SpamBlob::Trainer.key(),
+                    0..usize::MAX,
+                    &BlobKeyring::default()
+                )
                 .await
                 .expect("read trainer"),
             Some(foreign.clone())

@@ -25,7 +25,7 @@ use model::{
     QuotaUsage, RecordPage, RegistryCounter, RegistryEntries, RegistryKey, RegistryRecord,
     ShareNotificationRecord, Source,
 };
-use store::{BlobStore, Store};
+use store::{BlobStore, Store, write::blob_codec::BlobKeyring};
 use tokio::sync::OnceCell;
 
 pub use error::{OpenError, trc_error};
@@ -66,6 +66,7 @@ impl SourceConfig {
 pub struct V1Source {
     data: Store,
     blob: OnceCell<BlobStore>,
+    blob_keys: OnceCell<BlobKeyring>,
     #[cfg(feature = "enterprise")]
     telemetry: OnceCell<global::TelemetryStores>,
     rewrite: Option<PathRewrite>,
@@ -108,6 +109,7 @@ impl V1Source {
         V1Source {
             data,
             blob: OnceCell::new(),
+            blob_keys: OnceCell::new(),
             #[cfg(feature = "enterprise")]
             telemetry: OnceCell::new(),
             rewrite,
@@ -116,6 +118,12 @@ impl V1Source {
 
     pub fn data(&self) -> &Store {
         &self.data
+    }
+
+    async fn blob_keys(&self) -> model::Result<&BlobKeyring> {
+        self.blob_keys
+            .get_or_try_init(|| blob::keyring(&self.data, self.rewrite.as_ref()))
+            .await
     }
 
     async fn blob_store(&self) -> model::Result<&BlobStore> {
@@ -292,7 +300,7 @@ impl Source for V1Source {
     }
 
     async fn read_blob(&self, hash: &BlobHash) -> model::Result<Option<Bytes>> {
-        blob::read(self.blob_store().await?, hash).await
+        blob::read(self.blob_store().await?, self.blob_keys().await?, hash).await
     }
 
     async fn blobs_exist(&self, hashes: &[BlobHash]) -> model::Result<Vec<bool>> {
@@ -328,6 +336,8 @@ impl Source for V1Source {
     }
 }
 
+#[cfg(all(test, feature = "rocks"))]
+mod blob_tests;
 #[cfg(all(test, feature = "rocks"))]
 mod global_tests;
 #[cfg(all(test, feature = "rocks"))]

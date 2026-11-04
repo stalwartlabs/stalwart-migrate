@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt, stream};
 use model::BlobHash;
@@ -15,13 +17,20 @@ use registry::{
     types::EnumImpl,
 };
 use store::{
-    BlobStore, Store, ValueKey,
+    BlobStore, Deserialize, IterateParams, Store, U16_LEN, ValueKey,
     backend::fs::FsStore,
-    write::{RegistryClass, ValueClass},
+    write::{
+        RegistryClass, ValueClass,
+        blob_codec::{BlobKey, BlobKeyring},
+        key::DeserializeBigEndian,
+    },
 };
 use types::id::Id;
 
-use super::error::{OpenError, trc_error};
+use super::{
+    PathRewrite,
+    error::{OpenError, trc_error},
+};
 
 const BLOB_CONCURRENCY: usize = 16;
 
@@ -112,8 +121,59 @@ pub(super) async fn open_blob_store(
     result.map_err(OpenError)
 }
 
-pub(super) async fn read(blob: &BlobStore, hash: &BlobHash) -> model::Result<Option<Bytes>> {
-    blob.get_blob(hash.as_bytes(), 0..usize::MAX)
+pub(super) async fn keyring(
+    data: &Store,
+    rewrite: Option<&PathRewrite>,
+) -> model::Result<BlobKeyring> {
+    let key = |item_id| {
+        ValueKey::from(ValueClass::Registry(RegistryClass::Item {
+            object_id: ObjectType::SymmetricKey.to_id(),
+            item_id,
+        }))
+    };
+    let mut stored = Vec::new();
+    data.iterate(
+        IterateParams::new(key(0), key(u64::MAX)).ascending(),
+        |key, value| {
+            let item_id = key.deserialize_be_u64(U16_LEN)?;
+            let object = <Object as Deserialize>::deserialize_with_key(key, value)?;
+            if let ObjectInner::SymmetricKey(symmetric) = object.inner {
+                stored.push((item_id, symmetric));
+            }
+            Ok(true)
+        },
+    )
+    .await
+    .map_err(trc_error)?;
+    let mut keys = Vec::with_capacity(stored.len());
+    for (item_id, mut symmetric) in stored {
+        let unusable = |reason: &str| {
+            model::Error::fatal(format!(
+                "v1 blob encryption key SymmetricKey/{item_id} ({}) cannot be loaded: {reason}",
+                symmetric.description
+            ))
+        };
+        if let (structs::SecretKey::File(file), Some(rewrite)) = (&mut symmetric.key, rewrite) {
+            file.file_path = rewrite(&file.file_path);
+        }
+        let id = u32::try_from(item_id).map_err(|_| unusable("its id exceeds 32 bits"))?;
+        let secret = symmetric.key.secret().await.map_err(|err| unusable(&err))?;
+        let key = BlobKey::from_base64(id, symmetric.cipher, &secret)
+            .map_err(|err| unusable(err.message()))?;
+        if !symmetric.fingerprint.is_empty() && symmetric.fingerprint != key.fingerprint() {
+            return Err(unusable("the secret does not match its stored fingerprint"));
+        }
+        keys.push(Arc::new(key));
+    }
+    Ok(BlobKeyring::new(keys))
+}
+
+pub(super) async fn read(
+    blob: &BlobStore,
+    keys: &BlobKeyring,
+    hash: &BlobHash,
+) -> model::Result<Option<Bytes>> {
+    blob.get_blob(hash.as_bytes(), 0..usize::MAX, keys)
         .await
         .map(|data| data.map(Bytes::from))
         .map_err(trc_error)

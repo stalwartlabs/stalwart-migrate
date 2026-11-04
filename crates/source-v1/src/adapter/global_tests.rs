@@ -25,7 +25,6 @@ use nlp::classifier::{
 };
 use registry::{
     schema::{
-        enums::CompressionAlgo,
         prelude::{ObjectInner, ObjectType},
         structs::{DataStore, RocksDbStore},
     },
@@ -36,7 +35,7 @@ use spam_filter::modules::classifier::{SpamTrainer, SpamTrainerClass, TrainingSa
 use store::{
     BlobStore, Serialize, Store,
     rkyv::{self, rancor},
-    write::{Archiver, BatchBuilder, QueueClass, RegistryClass, ValueClass},
+    write::{Archiver, BatchBuilder, QueueClass, RegistryClass, ValueClass, blob_codec::BlobOpts},
 };
 use types::blob_hash::BlobHash as V1BlobHash;
 
@@ -171,11 +170,11 @@ async fn spam_model_is_read_from_the_blob_store() {
     blob.put_blob(
         SPAM_CLASSIFIER_KEY,
         &spam_archive::encode(&classifier).expect("encode"),
-        CompressionAlgo::None,
+        &BlobOpts::PLAIN,
     )
     .await
     .expect("put");
-    blob.put_blob(SPAM_TRAINER_KEY, b"garbage", CompressionAlgo::None)
+    blob.put_blob(SPAM_TRAINER_KEY, b"garbage", &BlobOpts::PLAIN)
         .await
         .expect("put");
     let source = V1Source::from_store(store);

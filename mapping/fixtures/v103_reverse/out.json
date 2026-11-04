@@ -1,0 +1,76 @@
+{
+  "aborted": false,
+  "changes": [
+    {
+      "change": "dropped",
+      "key": "x:Email",
+      "level": "warning",
+      "path": "blobEncryptionKey",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:Email",
+      "level": "warning",
+      "path": "compressionAlgorithm",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:FileStorage",
+      "level": "warning",
+      "path": "blobEncryptionKey",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:FileStorage",
+      "level": "warning",
+      "path": "compressionAlgorithm",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:OAuthClient/c",
+      "level": "warning",
+      "path": "scopes",
+      "reason": "not part of the target schema"
+    },
+    {
+      "change": "dropped",
+      "key": "x:SymmetricKey/b",
+      "level": "warning",
+      "path": "",
+      "reason": "not part of the target schema"
+    }
+  ],
+  "deferred": [],
+  "dropped": [
+    "x:SymmetricKey/b"
+  ],
+  "objects": [
+    {
+      "key": "x:Email",
+      "source": "x:Email",
+      "value": {}
+    },
+    {
+      "key": "x:FileStorage",
+      "source": "x:FileStorage",
+      "value": {
+        "maxFiles": 10
+      }
+    },
+    {
+      "key": "x:OAuthClient/c",
+      "source": "x:OAuthClient/c",
+      "value": {
+        "clientId": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        }
+      }
+    }
+  ],
+  "questions": []
+}

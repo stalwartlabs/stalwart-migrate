@@ -13,6 +13,7 @@ use registry::schema::{
     structs::BlobStore,
 };
 use source_v1::spam_archive::{self, SpamBlob};
+use store::write::blob_codec::BlobOpts;
 
 use super::skipped;
 use crate::{error::trc_error, target::V1Target};
@@ -114,7 +115,11 @@ impl V1Target {
                         .await
                         .map_err(trc_error)?;
                     blob_store
-                        .put_blob(blob.key(), &data, server.core.email.compression)
+                        .put_blob(
+                            blob.key(),
+                            &data,
+                            &BlobOpts::compressed(server.core.blob.email.compression),
+                        )
                         .await
                         .map_err(trc_error)?;
                     if let Some(backend) = backend {

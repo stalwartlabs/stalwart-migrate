@@ -18,7 +18,7 @@ use ahash::AHashMap;
 use arc_swap::ArcSwap;
 use bytes::Bytes;
 use compact_str::{CompactString, format_compact};
-use registry::schema::{enums::CompressionAlgo, structs::Application};
+use registry::schema::structs::Application;
 use serde::Deserialize;
 use std::{
     borrow::Cow,
@@ -30,6 +30,7 @@ use std::{
     },
     time::Duration,
 };
+use store::write::blob_codec::{BlobKeyring, BlobOpts};
 use store::{
     registry::{RegistryObject, bootstrap::Bootstrap},
     write::{BatchBuilder, BlobLink, BlobOp, blob::BlobLinkValue, now},
@@ -376,7 +377,11 @@ impl WebApplicationManager {
         } else {
             match server
                 .blob_store()
-                .get_blob(self.blob_key.as_slice(), 0..usize::MAX)
+                .get_blob(
+                    self.blob_key.as_slice(),
+                    0..usize::MAX,
+                    &BlobKeyring::default(),
+                )
                 .await
             {
                 Ok(cached) => cached,
@@ -572,7 +577,7 @@ impl WebApplicationManager {
     async fn cache(&self, server: &Server, bundle: &[u8]) -> trc::Result<()> {
         server
             .blob_store()
-            .put_blob(self.blob_key.as_slice(), bundle, CompressionAlgo::None)
+            .put_blob(self.blob_key.as_slice(), bundle, &BlobOpts::PLAIN)
             .await
             .caused_by(trc::location!())?;
 

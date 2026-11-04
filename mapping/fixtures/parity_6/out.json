@@ -363,6 +363,12 @@
     },
     {
       "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "moved",
       "key": "x:SenderAuth",
       "level": "info",
       "path": "dkimSignDomain"
@@ -459,6 +465,12 @@
     },
     {
       "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "transformed",
       "key": "x:Http",
       "level": "info",
       "path": "clientIpSource"
@@ -534,6 +546,12 @@
       "key": "x:MtaStageRcpt",
       "level": "info",
       "path": "rewrite"
+    },
+    {
+      "change": "transformed",
+      "key": "x:OAuthClient/c",
+      "level": "info",
+      "path": "scopes"
     },
     {
       "change": "transformed",
@@ -1422,6 +1440,7 @@
       "key": "x:FileStorage",
       "source": "x:FileStorage",
       "value": {
+        "compressionAlgorithm": "none",
         "maxFiles": 100
       }
     },
@@ -2148,6 +2167,12 @@
           "a0": true,
           "a1": true
         },
+        "scopes": {
+          "calendars": true,
+          "contacts": true,
+          "files": true,
+          "mail": true
+        },
         "secret": null
       }
     },
@@ -2851,6 +2876,11 @@
       "answered": false,
       "key": null,
       "prompt": "encryption_at_rest"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "oauth_client_scopes"
     }
   ]
 }

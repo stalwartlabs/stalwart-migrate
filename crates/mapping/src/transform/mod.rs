@@ -92,6 +92,8 @@ transforms! {
     EncryptionAtRest => "encryption_at_rest", Group, always: false, reverse: true, triggers: ["encryptionAtRest"];
     EmailEncryptOnAppend => "email_encrypt_on_append", Property, always: false, reverse: false, triggers: [];
     PublicKeyEncryption => "public_key_encryption", Group, always: false, reverse: true, triggers: ["authenticatedEncryption", "strictKeyWrapEncoding"];
+    OauthClientScopes => "oauth_client_scopes", Group, always: true, reverse: false, triggers: [];
+    EmailCompression => "email_compression", Property, always: false, reverse: false, triggers: [];
 }
 
 impl Transform {
@@ -128,6 +130,9 @@ impl Transform {
             }
             (Transform::OauthRegistration, Direction::Forward) => {
                 auth::oauth_registration(w, src, out)
+            }
+            (Transform::OauthClientScopes, Direction::Forward) => {
+                auth::oauth_client_scopes(w, src, out)
             }
             (Transform::OidcTokenLifetimes, Direction::Forward) => {
                 auth::oidc_token_lifetimes(w, src, out)
@@ -183,6 +188,9 @@ impl Transform {
             }
             (Transform::EmailEncryptOnAppend, Direction::Forward) => {
                 encryption::email_encrypt_on_append(w, name, ty, value, out)
+            }
+            (Transform::EmailCompression, Direction::Forward) => {
+                misc::email_compression(w, name, ty, value, out)
             }
             _ => {
                 let mut value = value;

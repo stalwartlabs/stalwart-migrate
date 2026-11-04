@@ -2,13 +2,14 @@ use serde_json::{Map, Value};
 
 use super::string;
 use crate::{
-    engine::{Flow, Walker, expression_mentions},
+    engine::{Flow, Move, Walker, expression_mentions},
     prompts::PromptId,
     report::{Change, DropReason, WEBUI_CUSTOM_BUNDLE},
     schema::{Type, TypeDef},
     transform::Transform,
 };
 
+const FILE_STORAGE: &str = "x:FileStorage";
 const PEER: &str = "peer";
 const SPAM_TAG: &str = "tag";
 const ACME_DESCRIPTION: &str = "description";
@@ -404,5 +405,27 @@ pub(crate) fn report_strings(w: &mut Walker, fields: &str, map: &mut Map<String,
             members.remove("");
         }
     }
+    Flow::Keep
+}
+
+pub(super) fn email_compression(
+    w: &mut Walker,
+    name: &str,
+    _ty: &TypeDef,
+    value: Value,
+    out: &mut Map<String, Value>,
+) -> Flow {
+    w.moves.push(Move {
+        source: w.key.clone(),
+        object: FILE_STORAGE.into(),
+        property: name.into(),
+        value: value.clone(),
+    });
+    w.transformed(
+        Transform::EmailCompression,
+        "",
+        "also applied to FileStorage, which v1 configures separately",
+    );
+    out.insert(name.to_string(), value);
     Flow::Keep
 }

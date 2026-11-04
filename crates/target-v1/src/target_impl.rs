@@ -280,7 +280,7 @@ impl Target for V1Target {
         let server = self.server()?;
         server
             .blob_store()
-            .put_blob(hash.as_bytes(), &data, server.core.email.compression)
+            .put_blob(hash.as_bytes(), &data, &server.core.blob.email)
             .await
             .map_err(trc_error)?;
         failpoint!("blob.put");

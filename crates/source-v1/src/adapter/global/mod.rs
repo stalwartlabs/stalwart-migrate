@@ -46,11 +46,12 @@ pub(super) async fn page(
 
 async fn spam_model(source: &V1Source) -> model::Result<GlobalPage> {
     let blob = source.blob_store().await?;
+    let keys = source.blob_keys().await?;
     let mut records = Vec::with_capacity(SpamBlob::ALL.len());
     let mut issues = Vec::new();
     for kind in SpamBlob::ALL {
         let Some(data) = blob
-            .get_blob(kind.key(), 0..usize::MAX)
+            .get_blob(kind.key(), 0..usize::MAX, keys)
             .await
             .map_err(trc_error)?
         else {

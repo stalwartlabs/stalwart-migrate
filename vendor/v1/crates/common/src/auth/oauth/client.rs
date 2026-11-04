@@ -297,18 +297,16 @@ impl ResolvedClient {
     pub fn kind(&self) -> OAuthClientKind {
         match self {
             ResolvedClient::Stateless(_) => OAuthClientKind::Dynamic,
-            ResolvedClient::Registered(client) if client.first_party => OAuthClientKind::FirstParty,
             ResolvedClient::Registered(_) => OAuthClientKind::Registered,
             ResolvedClient::Application(_) => OAuthClientKind::FirstParty,
             ResolvedClient::Cimd(_) => OAuthClientKind::MetadataDocument,
         }
     }
 
-    pub fn is_first_party(&self) -> bool {
+    pub fn granted_scopes(&self, requested: OAuthScopes) -> OAuthScopes {
         match self {
-            ResolvedClient::Application(_) => true,
-            ResolvedClient::Registered(client) => client.first_party,
-            ResolvedClient::Stateless(_) | ResolvedClient::Cimd(_) => false,
+            ResolvedClient::Application(_) => requested | OAuthScopes::FULL,
+            _ => requested,
         }
     }
 
@@ -393,14 +391,17 @@ impl ResolvedClient {
     }
 
     pub fn allowed_scopes(&self) -> Option<OAuthScopes> {
-        if self.is_first_party() {
-            return None;
-        }
         let scopes = match self {
+            ResolvedClient::Application(_) => return None,
             ResolvedClient::Stateless(meta) => meta.scopes,
             ResolvedClient::Registered(client) => OAuthScopes::from_registry(client.scopes.iter()),
             ResolvedClient::Cimd(Some(client)) => client.scopes,
-            ResolvedClient::Cimd(None) | ResolvedClient::Application(_) => OAuthScopes::NONE,
+            ResolvedClient::Cimd(None) => OAuthScopes::NONE,
+        };
+        let scopes = if self.is_verified() {
+            scopes
+        } else {
+            scopes.without(OAuthScopes::FULL)
         };
         Some(scopes | OAuthScopes::ALWAYS_ALLOWED)
     }

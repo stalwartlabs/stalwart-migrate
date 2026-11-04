@@ -325,6 +325,22 @@ fields = [
   ] },
 ]
 
+[prompt.oauth_client_scopes]
+section = "authentication"
+scope = "global"
+trigger = "an OAuthClient is migrated (transform oauth_client_scopes)"
+title = "OAuth client scopes"
+v016 = "Registered OAuth clients had no scopes: their tokens carried every permission of the account."
+v1 = "A registered client may only request the scopes listed in its scopes setting, and gets sign-in only when the list is empty. The interoperable scopes cover mail, contacts, calendars and files (IMAP, SMTP, POP3, JMAP and DAV); full also covers account settings, credentials and administration, within the account's own permissions. Clients must request the scopes they need."
+recommendation = "Allow the interoperable scopes; give full only to clients that manage accounts, after the migration."
+fields = [
+  { name = "scopes", label = "Scopes for migrated OAuth clients", kind = "choice", default = "interoperable", options = [
+    { value = "interoperable", label = "Mail, contacts, calendars and files (recommended)" },
+    { value = "full", label = "Full access, like v0.16" },
+    { value = "none", label = "Sign-in only; set the scopes of each client after the migration" },
+  ] },
+]
+
 [prompt.encryption_at_rest]
 section = "other"
 scope = "global"

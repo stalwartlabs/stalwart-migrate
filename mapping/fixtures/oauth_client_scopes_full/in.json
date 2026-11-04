@@ -1,0 +1,24 @@
+{
+  "objects": [
+    {
+      "key": "x:OAuthClient/b",
+      "value": {
+        "clientId": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "description": "app"
+      }
+    },
+    {
+      "key": "x:OAuthClient/c",
+      "value": {
+        "clientId": "admin-tool",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "description": "app"
+      }
+    }
+  ]
+}

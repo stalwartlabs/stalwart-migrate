@@ -1,14 +1,14 @@
-# Schema changes: v0.16 to v1.0.2
+# Schema changes: v0.16 to v1.0.3
 
 Scope: structural differences between the Stalwart v0.16.27 and v1 configuration schemas. For the meaning of each setting, see the Stalwart documentation.
 
 ## 0. Method and legend
 
-- Baseline: the v0.16.27 schema. Target: the v1.0.2 schema (Enterprise edition; the open-source edition omits the enterprise items listed in 1.3). The changes v1.0.1 and v1.0.2 made to v1.0.0 are summarized in 1.7 and included in the tables below.
+- Baseline: the v0.16.27 schema. Target: the v1.0.3 schema (Enterprise edition; the open-source edition omits the enterprise items listed in 1.3). The changes v1.0.1, v1.0.2 and v1.0.3 made to v1.0.0 are summarized in 1.7 and 1.8 and included in the tables below.
 - Both schemas were compared structurally (objects, properties, flags, variants and group variants), together with the numeric id lists, the permissions and the telemetry definitions. Every rename was confirmed against the history of the schema.
 - The compiled v0.16.27 schema omits the 14 `_reserved_*` `Locale` placeholders that the v0.16 source schema still defines; the `Locale` counts in this document include them (see section 4).
 - Most renames keep the same description text. The following 18 were matched even though the description changed: `address->host`, `addresses->hosts`, `brokers->hosts`, `apiKey->apiKeyId`, `apiUser->username`, `secretId->accessKeyId`, `secretApiKey->secret`, `autoUpdateFrequency->autoUpdateInterval`, `trainFrequency->trainInterval`, `concurrency->maxConcurrentRequests`, `maxConcurrent->maxConcurrentConnections`, `maxRequestRate->rateLimit`, `maxRetries->maxPolls`, `timeout->connectTimeout`, `dnsRbl->spamLookup`, `logoUrl->logo`, `requireAudience->acceptedAudiences`, `SenderAuth.dkimSignDomain` (moved). Removals that have no rename (`accessKey`/`sasToken` of Azure, `email`, `secret`, `threadPoolSize`, `useXForwarded`, OIDC provider fields, ...) are classified as restructured or removed in 3.2 and 3.4.
-- Schema snapshots: `mapping/schema/v0.16.27.json.gz` (v0.16.27) and `mapping/schema/v1.json.gz` / `v1_oss.json.gz` (v1.0.2 Enterprise and open-source editions, `resources/schema` of the v1.0.2 release). The schema comparison over the snapshots gives 173 removed and 255 added properties in schemas present in both versions and 7 type changes in shared property names; a completeness check verifies that `mapping/v016_to_v1.toml` covers every removal, type change and changed default.
+- Schema snapshots: `mapping/schema/v0.16.27.json.gz` (v0.16.27) and `mapping/schema/v1.json.gz` / `v1_oss.json.gz` (v1.0.3 Enterprise and open-source editions, `resources/schema` of the v1.0.3 sources). The schema comparison over the snapshots gives 173 removed and 257 added properties in schemas present in both versions and 7 type changes in shared property names; a completeness check verifies that `mapping/v016_to_v1.toml` covers every removal, type change and changed default.
 - Names are JMAP/registry property names (camelCase). Rust struct fields are snake_case of the same name.
 - Rename confidence: **[C]** confirmed (the old field was removed and the new one added in the same change with identical type/flags/default, or the change is explicit); **[L]** likely (shape matches, semantics shifted or only inferred); **[U]** uncertain (do not map automatically without review).
 - `T|null` = nullable, `T[]` = list, `K[V]` = map. `(E)` = enterprise-only.
@@ -21,9 +21,9 @@ All numeric id spaces were re-sorted/renumbered, not only appended to:
 
 | Id space | Old entries | New entries | Shared names | Shared names with a different id |
 |---|---|---|---|---|
-| Server objects | 117 | 123 | 116 | 68 |
-| Server properties | 935 | 1056 | 853 | 836 |
-| Server permissions | 661 | 656 | 624 | 561 |
+| Server objects | 117 | 124 | 116 | 68 |
+| Server properties | 935 | 1061 | 853 | 836 |
+| Server permissions | 661 | 662 | 624 | 561 |
 | User properties | 47 | 48 | 47 | 33 |
 
 - Event ids: 558 of the 585 shared events changed id; metric ids: 290 events changed `metric-id`. See section 6.
@@ -97,6 +97,15 @@ v1.0.1 changed no stored schema. v1.0.2 appended ids only (objects 120 -> 123, p
 - Appended enum values: `DeliveryErrorType.encryptionError`, `ExpressionConstant` `opportunistic`, `required`, `manual`, `verified`, `discovered`, `harvested`, `unverified`, `ExpressionVariable.is_signed`; new enums `HeaderProtection`, `PublicKeyKind`, `PublicKeyCapability`, `PublicKeyWarning`, `ExternalPublicKeyStatus`, `KeyDiscoverySource`, `KeySourceType`, `KeyTrust`, `SmimeCipher`.
 - The snapshots write expression, rate and list defaults in the wire form (`{"else": ...}`, milliseconds, sets); the default comparison treats both forms alike.
 
+### 1.8 Changes in v1.0.3
+
+v1.0.3 appended ids only (objects 123 -> 124, properties +5, permissions 656 -> 662, events +2, metrics +1). Its schema changes:
+
+- Blob storage: new `SymmetricKey` object (`description`, `cipher: SymmetricCipher` {aes256Gcm, chacha20Poly1305}, `key: SecretKey`, server-set `fingerprint`) with permissions `sysSymmetricKeyGet/Create/Update/Destroy/Query`; `Email.blobEncryptionKey` and `FileStorage.blobEncryptionKey` (`@SymmetricKey|null`) select the key that encrypts new blobs; `FileStorage.compressionAlgorithm` (default `lz4`) is new, so mail and file blobs are configured separately; `CompressionAlgo` gains `zstd`; new task `BlobRecode@TaskBlobRecode` (`compression: TaskBlobRecodeCompression`, `encryption: TaskBlobRecodeEncryption` {`Keep`, `Disable`, `Encrypt@TaskBlobRecodeKey{keyId}`}, `shardIndex`) with permission `taskBlobRecode`. The blob format gains a flag byte for encryption and zstd; v1.0.3 still reads blobs written by v0.16 and v1.0.2, so a reused blob store needs no rewrite. Conversion: v0.16 had a single `Email.compressionAlgorithm` for every blob, so its value is also written to `FileStorage.compressionAlgorithm` (transform `email_compression`); v0.16 had no blob encryption. Reverse: `zstd`, the encryption keys and `FileStorage.compressionAlgorithm` drop as v1-only; rollback reads blobs through the v1 keys and writes them back in the v0.16 format.
+- OAuth: `OAuthClient.firstParty` (v1.0.0 to v1.0.2) is removed; `OAuthScope` gains `full`, `security`, `settings`, which a client must list in `scopes` and request. v0.16 clients had neither, and their tokens carried every permission of the account; transform `oauth_client_scopes` sets `scopes` from the question `oauth_client_scopes` (`mail`, `contacts`, `calendars`, `files` by default, `full`, or none).
+- Permissions: `sysSymmetricKeyGet/Create/Update/Query` and `taskBlobRecode` are superuser defaults; `sysSymmetricKeyDestroy` is in no default role.
+- Events `Store.DecryptError`, `Store.BlobStoreRecoded`; metric `Store.DecryptError`.
+
 ## 2. Objects
 
 ### 2.1 New objects (registry objects/singletons)
@@ -108,6 +117,7 @@ v1.0.1 changed no stored schema. v1.0.2 appended ids only (objects 120 -> 123, p
 | `OAuthGrant` | object (`filter-account`, `sequential-id`, plural "connected applications") | `accountId: @Account`, `clientId: String`, `clientName: String\|null`, `clientKind: OAuthClientKind`, `scopes: OAuthScope[]`, `remoteIp: IpAddr\|null`, `createdAt`, `lastUsedAt: UTCDateTime`, `generation: UnsignedInt` (0), `pending: Boolean` (false) |
 | `Encryption` | singleton (v1.0.2) | `atRestEnable` (true), encryption gateway (`gatewayEnable` false, `gatewayOutbound`, `gatewayMinTrust`, `gatewayMethods`, `gatewayHeaderProtection`, `gatewayEncryptSigned`), key discovery (`harvestKeys`, `hkpServers`, `discoveryProxy`, `sourceTimeout`, `keyRefreshInterval`, `negativeCacheTtl`), S/MIME trust (`useBundledRoots`, `maxCrlSize`); receives `Email.encryptAtRest` (3.2) |
 | `ExternalPublicKey` | object (v1.0.2) | superuser-managed OpenPGP keys and S/MIME certificates of remote recipients for the encryption gateway |
+| `SymmetricKey` | object (v1.0.3) | `description`, `cipher` (`aes256Gcm`), `key: SecretKey`, server-set `fingerprint`; blob encryption keys (1.8) |
 | `SmimeTrustAnchor` | object (v1.0.2) | `certificate`, `description`, `enable`, server-set `subject`, `expiresAt` |
 | `IndexQueueStatus` | object, serialization none | `index: IndexType`, `partition: UnsignedInt` (0), `queuedUpdates: UnsignedInt` (0), `queuedDeletions: UnsignedInt` (0), `status: IndexStatus` (group `Running` / `Failed@IndexStatusFailed{reason: Text, nextRetry: UTCDateTime}`) |
 
@@ -134,7 +144,7 @@ v1.0.1 changed no stored schema. v1.0.2 appended ids only (objects 120 -> 123, p
 
 ### 2.4 New sub-objects and enums (no standalone registry id)
 
-- Authentication / OAuth: `OAuthClientKind` {registered, dynamic, metadataDocument, firstParty}, `OAuthClientMetadataPolicy` {disabled, sameDomain, any}, `OAuthScope` {mail, contacts, calendars, files}, `OAuthGrantType` {authorizationCode, refreshToken, deviceCode}.
+- Authentication / OAuth: `OAuthClientKind` {registered, dynamic, metadataDocument, firstParty}, `OAuthClientMetadataPolicy` {disabled, sameDomain, any}, `OAuthScope` {mail, contacts, calendars, files; full, security, settings since v1.0.3}, `OAuthGrantType` {authorizationCode, refreshToken, deviceCode}.
 - OIDC directory: `OidcOpaqueTokenValidation` {none, userInfo, introspection}, `OidcIntrospectionAuth` {clientSecretBasic, clientSecretPost, none}, `OidcUnscopedTokenPolicy` {reject, interoperable, full}.
 - Azure blob store: group `AzureAuth` {`SharedKey@AzureAuthSharedKey{accountKey}`, `SasToken@AzureAuthSasToken{sasToken}`, `ClientSecret@AzureAuthClientSecret{tenantId, clientId, clientSecret}`, `ManagedIdentity@AzureAuthManagedIdentity{clientId: String\|null}`, `WorkloadIdentity@AzureAuthWorkloadIdentity{tenantId, clientId, tokenFile}`}; `AzureStore.environment` reuses the existing enum `AzureEnvironment` (already defined in v0.16).
 - Cache swap: group `CacheSwap` {`Disabled`, `LocalFile@LocalFileSwap{path}`, `Redis@RedisSwap{store: RedisSwapStore, chunkSize 1mb, retention 7d}`, `BlobStore@BlobStoreSwap{store: BlobSwapStore, retention 7d}`}; base `CacheSwapBase{flushChanges 2000, flushInterval "10m", maxAccountSize "1gb", minAccountSize "1mb"}`; `RedisSwapStore` (group `Default`), `BlobSwapStore` (group `Default`).
@@ -271,7 +281,7 @@ Pattern notes: the DNS provider key renames apply to the matching `DnsServer*` g
 | `S3Store` | `accessKey`, `securityToken`, `sessionToken` | `accessKeyId`, `sessionToken`; `securityToken` removed (fold into `sessionToken` when that is empty); `maxRetries` min-value 1 -> 0 | C / L |
 | `OidcDirectory` | `requireAudience: String\|null`, `requireScopes: String[]` (default `["openid","email"]`), `claimName` default `"name"` | `acceptedAudiences: String[]`; `requireScopes` removed; `claimName` default removed (null); new `allowInvalidCerts`, `opaqueTokenValidation`, `introspection*`, `unscopedTokens`, `skipAudienceValidation`, `allowIdTokenClaims`, `lenientIssuerMatch` | L / removed |
 | `OidcProvider` | `authCodeMaxAttempts`, `anonymousClientRegistration`, `requireClientRegistration`, `refreshTokenRenewal` | all removed; `clientMetadataDocuments: OAuthClientMetadataPolicy` added; `authCodeExpiry`, `accessTokenExpiry` min 600000 ms, `refreshTokenExpiry` min 86400000 ms | removed |
-| `OAuthClient` | `memberTenantId` (not gated) | + `postLogoutRedirectUris`, `firstParty`, `scopes: OAuthScope[]`, `grantTypes: OAuthGrantType[]`; `memberTenantId` enterprise | added |
+| `OAuthClient` | `memberTenantId` (not gated) | + `postLogoutRedirectUris`, `scopes: OAuthScope[]` (filled from the `oauth_client_scopes` answer, see 1.8), `grantTypes: OAuthGrantType[]`; `firstParty` existed from v1.0.0 to v1.0.2 only; `memberTenantId` enterprise | added |
 | `LdapDirectory` | `filterMailbox` | `filterRecipient` (same default), + `urlFailover: Uri[]` (E) | C |
 | `Search` | `indexTracingFields: SearchTracingField[]` (E); `indexEmailFields`/`indexCalendarFields`/`indexContactFields` could contain `receivedAt, sentAt, size, hasAttachment` / `start, uid` / `uid` | `indexTracingFields` removed; those variants removed from the three enums (defaults shortened accordingly) | removed |
 | `AcmeProvider` | `description`: `server-set`, `no-store`, `hide:ui` (computed, not stored) | `description`: stored, trimmed, text-indexed (`index-text-as-text`); new server-set `accountHashPrefix: Uri\|null`, `issuerDomainNames: String[]`, `caaIdentities: String[]` | C |
@@ -313,6 +323,9 @@ Fields added to objects that existed in v0.16 (new objects are in 2.1). Renamed 
 | Email | maxFlagLength | `UnsignedInt`, default `128`, min-value:1, max-value:1024 |  |
 | Email | maxHeaderSize | `Size`, default `524288`, min-value:1024 |  |
 | Email | maxHeaderCount | `UnsignedInt`, default `5000`, min-value:100 |  |
+| Email | blobEncryptionKey | `@SymmetricKey\|null` | v1.0.3: key for new blobs (1.8) |
+| FileStorage | compressionAlgorithm | `CompressionAlgo`, default `"lz4"` | v1.0.3; set from `Email.compressionAlgorithm` (1.8) |
+| FileStorage | blobEncryptionKey | `@SymmetricKey\|null` | v1.0.3 (1.8) |
 | Http | clientIpSource | `ClientIpSource`, default `"peer"` | replaces `useXForwarded` (see 3.2) |
 | Http | forwardedHops | `UnsignedInt`, default `1`, min-value:1, max-value:16 |  |
 | KafkaCoordinator | useTls | `Boolean`, default `false` |  |
@@ -321,7 +334,7 @@ Fields added to objects that existed in v0.16 (new objects are in 2.1). Renamed 
 | MetricBase | nodeId | `UnsignedInt`, default `0` | on `Metric` (packed); also in list filters |
 | NatsCoordinator | allowInvalidCerts | `Boolean`, default `false` |  |
 | OAuthClient | postLogoutRedirectUris | `Uri[]` |  |
-| OAuthClient | firstParty | `Boolean`, default `false` |  |
+| OAuthClient | firstParty | `Boolean`, default `false` | removed again in v1.0.3, replaced by the `full` scope (1.8) |
 | OAuthClient | scopes | `OAuthScope[]` |  |
 | OAuthClient | grantTypes | `OAuthGrantType[]`, default `["authorizationCode","refreshToken"]` |  |
 | OidcDirectory | allowInvalidCerts | `Boolean`, default `false` |  |
@@ -559,7 +572,7 @@ Other enum additions listed in 2.4 (`OAuth*`, `Oidc*`, `ClientIpSource`, `Metada
 
 ## 5. Permissions
 
-Declared (non-`sys*`) permissions and the per-object `sys*` permissions. 37 names removed, 32 added, 561 of 624 shared names changed numeric id.
+Declared (non-`sys*`) permissions and the per-object `sys*` permissions. 37 names removed, 38 added, 561 of 624 shared names changed numeric id.
 
 Removed (37):
 - Category `OAuth` deleted: `oAuthClientRegistration`, `oAuthClientOverride`.
@@ -568,9 +581,9 @@ Removed (37):
 - `sysSpamLlmGet`, `sysSpamLlmUpdate` (object renamed: now `sysSpamAiGet`, `sysSpamAiUpdate`) [C].
 - Task permissions: `taskIndexDocument`, `taskUnindexDocument`, `taskIndexTrace`.
 
-Added (19): `imapMetadataGet`, `imapMetadataSet`, `imapMetadataPrivate`, `jmapMetadataGet`, `jmapMetadataSet`, `jmapMetadataPrivate` (new categories `ImapMetadata`, `JmapMetadata`), `sysMetadataGet`, `sysMetadataUpdate`, `sysSpamAiGet`, `sysSpamAiUpdate`, `sysOAuthGrantGet`, `sysOAuthGrantQuery`, `sysOAuthGrantDestroy`, `sysIndexQueueStatusGet`, `sysIndexQueueStatusUpdate`, `sysIndexQueueStatusQuery`, `taskShareRevokeCleanup`, `taskDmarcReportWindow`, `taskTlsReportWindow`; in v1.0.2 `sysEncryptionGet`, `sysEncryptionUpdate`, `sysExternalPublicKeyGet/Create/Update/Destroy/Query`, `sysSmimeTrustAnchorGet/Create/Update/Destroy/Query`, `taskExternalPublicKeyMaintenance` (ids 643-655, superuser defaults only).
+Added (38): `imapMetadataGet`, `imapMetadataSet`, `imapMetadataPrivate`, `jmapMetadataGet`, `jmapMetadataSet`, `jmapMetadataPrivate` (new categories `ImapMetadata`, `JmapMetadata`), `sysMetadataGet`, `sysMetadataUpdate`, `sysSpamAiGet`, `sysSpamAiUpdate`, `sysOAuthGrantGet`, `sysOAuthGrantQuery`, `sysOAuthGrantDestroy`, `sysIndexQueueStatusGet`, `sysIndexQueueStatusUpdate`, `sysIndexQueueStatusQuery`, `taskShareRevokeCleanup`, `taskDmarcReportWindow`, `taskTlsReportWindow`; in v1.0.2 `sysEncryptionGet`, `sysEncryptionUpdate`, `sysExternalPublicKeyGet/Create/Update/Destroy/Query`, `sysSmimeTrustAnchorGet/Create/Update/Destroy/Query`, `taskExternalPublicKeyMaintenance` (ids 643-655, superuser defaults only); in v1.0.3 `sysSymmetricKeyGet/Create/Update/Destroy/Query`, `taskBlobRecode` (ids 656-661, superuser defaults except `sysSymmetricKeyDestroy`, which no default role holds).
 
-The conversion grants new permissions in three ways (transform `permissions`, see `mapping/v016_to_v1.toml`): the roles listed in `Authentication.default{User,Group,Tenant,Admin}RoleIds` are completed to the v1.0.2 defaults of their kind with the permissions a role seeded by v0.16.0 lacks (the new ones plus `jmapFileNodeCopy` and `scimAccess`, added in v0.16.6 and v0.16.20); every role or permission list that enables `authenticate` gets `sysOAuthGrantGet/Query/Destroy`; and, when the `new_permissions` question is answered `grant`, the `[permission_grants]` rules add a new permission next to the v0.16 one it extends.
+The conversion grants new permissions in three ways (transform `permissions`, see `mapping/v016_to_v1.toml`): the roles listed in `Authentication.default{User,Group,Tenant,Admin}RoleIds` are completed to the v1.0.3 defaults of their kind with the permissions a role seeded by v0.16.0 lacks (the new ones plus `jmapFileNodeCopy` and `scimAccess`, added in v0.16.6 and v0.16.20); every role or permission list that enables `authenticate` gets `sysOAuthGrantGet/Query/Destroy`; and, when the `new_permissions` question is answered `grant`, the `[permission_grants]` rules add a new permission next to the v0.16 one it extends.
 
 Enterprise flag added: `interactAi`, `Live.tracing`, `Live.metrics`, `Scim.access`. Roles that stored a removed permission lose it; roles carry permission names/ids that must be translated through names (ids in 1.1).
 

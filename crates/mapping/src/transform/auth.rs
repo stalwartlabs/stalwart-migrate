@@ -8,6 +8,9 @@ use crate::{
     transform::Transform,
 };
 
+const SCOPES: &str = "scopes";
+const SCOPE_FULL: &str = "full";
+const INTEROPERABLE_SCOPES: &[&str] = &["mail", "contacts", "calendars", "files"];
 const LIFETIMES: &[(&str, &str, u64)] = &[
     ("authCodeExpiry", "auth_code_expiry", 600_000),
     ("accessTokenExpiry", "access_token_expiry", 600_000),
@@ -213,6 +216,31 @@ pub(super) fn oauth_registration(
     let answer = w.ask(PromptId::OauthRegistration, defaults, context);
     if answer.str("action") == Some("abort") {
         w.abort = true;
+    }
+    Flow::Keep
+}
+
+pub(super) fn oauth_client_scopes(
+    w: &mut Walker,
+    src: &mut Map<String, Value>,
+    out: &mut Map<String, Value>,
+) -> Flow {
+    if src.contains_key(SCOPES) {
+        return Flow::Keep;
+    }
+    let answer = w.ask_global(PromptId::OauthClientScopes);
+    let scopes: &[&str] = match answer.str("scopes") {
+        Some("full") => &[SCOPE_FULL],
+        Some("none") => &[],
+        _ => INTEROPERABLE_SCOPES,
+    };
+    if !scopes.is_empty() {
+        out.insert(SCOPES.into(), string_set(scopes.iter().copied()));
+        w.transformed(
+            Transform::OauthClientScopes,
+            SCOPES,
+            format!("allowed {}", scopes.join(", ")),
+        );
     }
     Flow::Keep
 }

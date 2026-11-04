@@ -1,0 +1,17 @@
+{
+  "objects": [
+    {
+      "key": "x:Email",
+      "value": {
+        "compressionAlgorithm": "none",
+        "maxMessageSize": 1000
+      }
+    },
+    {
+      "key": "x:FileStorage",
+      "value": {
+        "maxFiles": 10
+      }
+    }
+  ]
+}

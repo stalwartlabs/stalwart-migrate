@@ -420,6 +420,12 @@
       "path": "atRestEnable"
     },
     {
+      "change": "moved",
+      "key": "x:Email",
+      "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
       "change": "reference_cleared",
       "key": "x:Account/b",
       "level": "warning",
@@ -519,6 +525,12 @@
       "change": "transformed",
       "key": "x:Email",
       "level": "info",
+      "path": "compressionAlgorithm"
+    },
+    {
+      "change": "transformed",
+      "key": "x:Email",
+      "level": "info",
       "path": "encryptOnAppend"
     },
     {
@@ -598,6 +610,12 @@
       "key": "x:MtaStageRcpt",
       "level": "warning",
       "path": "waitOnFail"
+    },
+    {
+      "change": "transformed",
+      "key": "x:OAuthClient/c",
+      "level": "info",
+      "path": "scopes"
     },
     {
       "change": "transformed",
@@ -1604,6 +1622,7 @@
       "key": "x:FileStorage",
       "source": "x:FileStorage",
       "value": {
+        "compressionAlgorithm": "lz4",
         "maxFiles": 1001,
         "maxFolders": 1002,
         "maxSize": 26214400
@@ -2251,6 +2270,12 @@
         "logo": "s7",
         "memberTenantId": null,
         "redirectUris": {},
+        "scopes": {
+          "calendars": true,
+          "contacts": true,
+          "files": true,
+          "mail": true
+        },
         "secret": "s7"
       }
     },
@@ -2969,6 +2994,11 @@
       "answered": false,
       "key": null,
       "prompt": "changed_defaults"
+    },
+    {
+      "answered": false,
+      "key": null,
+      "prompt": "oauth_client_scopes"
     }
   ]
 }

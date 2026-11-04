@@ -1,0 +1,45 @@
+{
+  "direction": "reverse",
+  "objects": [
+    {
+      "key": "x:Email",
+      "value": {
+        "compressionAlgorithm": "zstd",
+        "blobEncryptionKey": "b"
+      }
+    },
+    {
+      "key": "x:FileStorage",
+      "value": {
+        "compressionAlgorithm": "zstd",
+        "blobEncryptionKey": "b",
+        "maxFiles": 10
+      }
+    },
+    {
+      "key": "x:SymmetricKey/b",
+      "value": {
+        "description": "blobs",
+        "cipher": "aes256Gcm",
+        "key": {
+          "@type": "Value",
+          "secret": "c2VjcmV0"
+        },
+        "fingerprint": "00"
+      }
+    },
+    {
+      "key": "x:OAuthClient/c",
+      "value": {
+        "clientId": "app",
+        "redirectUris": {
+          "https://app.example.com/cb": true
+        },
+        "scopes": {
+          "full": true,
+          "mail": true
+        }
+      }
+    }
+  ]
+}

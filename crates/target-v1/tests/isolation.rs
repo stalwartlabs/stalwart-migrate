@@ -20,9 +20,9 @@ use model::{
     SpamClassifierModel, SpamModelChange, SpamModelKind, SpamModelRecord, SpamOptimizer,
     SpamTrainerModel, Target, WriteMode,
 };
-use registry::schema::enums::CompressionAlgo;
 use serde_json::{Value, json};
 use source_v1::spam_archive::{self, SpamBlob};
+use store::write::blob_codec::{BlobKeyring, BlobOpts};
 use store::{blake3, dispatch::lookup::KeyValue};
 use target_v1::{TargetConfig, V1Target};
 use types::{blob_hash::BlobHash as AppBlobHash, id::Id};
@@ -457,7 +457,7 @@ async fn final_spam_model_overwrites_shared_blob_store() {
     for model in &models {
         let blob = SpamBlob::of(model);
         let data = blob_store
-            .get_blob(blob.key(), 0..usize::MAX)
+            .get_blob(blob.key(), 0..usize::MAX, &BlobKeyring::default())
             .await
             .expect("read model")
             .expect("model present");
@@ -504,7 +504,7 @@ async fn final_step_discards_cached_app_bundles_in_shared_blob_store() {
     let other = AppBlobHash::generate(b"STALWART_APP_unrelated");
     for key in [&bundle, &other] {
         blob_store
-            .put_blob(key.as_slice(), b"stale bundle", CompressionAlgo::None)
+            .put_blob(key.as_slice(), b"stale bundle", &BlobOpts::PLAIN)
             .await
             .expect("cached bundle");
     }

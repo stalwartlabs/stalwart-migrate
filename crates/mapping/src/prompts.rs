@@ -48,6 +48,7 @@ prompt_ids! {
     EnterpriseOnOss => "enterprise_on_oss",
     NewPermissions => "new_permissions",
     EncryptionAtRest => "encryption_at_rest",
+    OauthClientScopes => "oauth_client_scopes",
     ChangedDefaults => "changed_defaults",
 }
 
