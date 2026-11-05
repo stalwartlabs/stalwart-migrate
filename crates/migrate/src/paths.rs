@@ -8,10 +8,13 @@ use std::{
     borrow::Cow,
     cmp::Reverse,
     fmt,
-    os::unix::fs::{chown, lchown},
+    io::{self, ErrorKind},
+    os::unix::fs::{MetadataExt, chown, lchown},
     path::{Path, PathBuf},
     str::FromStr,
 };
+
+const LOST_FOUND: &str = "lost+found";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathMapping {
@@ -136,6 +139,30 @@ impl Owner {
         }
         Ok(())
     }
+
+    fn adopt_created_by(&self, root: &Path, creator: u32) -> io::Result<()> {
+        let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+        while let Some(path) = pending.pop() {
+            let Some(metadata) = ignore_missing(std::fs::symlink_metadata(&path))? else {
+                continue;
+            };
+            if metadata.uid() == creator {
+                ignore_missing(lchown(&path, Some(self.uid), Some(self.gid)))?;
+            }
+            if metadata.is_dir() {
+                let Some(entries) = ignore_missing(std::fs::read_dir(&path))? else {
+                    continue;
+                };
+                for entry in entries {
+                    let entry = entry?;
+                    if entry.file_name() != LOST_FOUND {
+                        pending.push(entry.path());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub fn apply_owner<'x>(
@@ -153,8 +180,34 @@ pub fn apply_owner<'x>(
     Ok(())
 }
 
+pub fn adopt_created<'x>(
+    paths: impl IntoIterator<Item = &'x Path>,
+    owner: Owner,
+) -> io::Result<()> {
+    let creator = effective_uid();
+    if creator == owner.uid {
+        return Ok(());
+    }
+    for path in paths {
+        owner.adopt_created_by(path, creator)?;
+    }
+    Ok(())
+}
+
 pub fn running_as_root() -> bool {
-    unsafe { libc::geteuid() == 0 }
+    effective_uid() == 0
+}
+
+fn effective_uid() -> u32 {
+    unsafe { libc::geteuid() }
+}
+
+fn ignore_missing<T>(result: io::Result<T>) -> io::Result<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg(test)]
@@ -219,6 +272,50 @@ mod tests {
                 .uid(),
             owner.uid
         );
+    }
+
+    fn other_group(gid: u32) -> Option<u32> {
+        let mut groups = [0 as libc::gid_t; 64];
+        let count = unsafe { libc::getgroups(groups.len() as libc::c_int, groups.as_mut_ptr()) };
+        let count = usize::try_from(count).ok()?;
+        groups
+            .get(..count)?
+            .iter()
+            .copied()
+            .find(|group| *group != gid)
+    }
+
+    // Only entries owned by the creating user are handed to the owner; the walk skips vanished paths.
+    #[test]
+    fn adopt_created_changes_only_entries_of_the_creator() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let nested = dir.path().join("53/54");
+        std::fs::create_dir_all(&nested).expect("dirs");
+        std::fs::write(nested.join("blob"), b"x").expect("file");
+        let metadata = std::fs::metadata(dir.path()).expect("metadata");
+        let Some(gid) = other_group(metadata.gid()) else {
+            return;
+        };
+        let owner = Owner {
+            uid: metadata.uid(),
+            gid,
+        };
+        let gid_of = |path: &Path| std::fs::metadata(path).expect("metadata").gid();
+
+        owner
+            .adopt_created_by(dir.path(), metadata.uid().wrapping_add(1))
+            .expect("foreign creator");
+        assert_eq!(gid_of(&nested.join("blob")), metadata.gid());
+
+        owner
+            .adopt_created_by(dir.path(), metadata.uid())
+            .expect("own creator");
+        owner
+            .adopt_created_by(Path::new("/nonexistent/path"), metadata.uid())
+            .expect("missing root");
+        for path in [dir.path(), nested.as_path(), &nested.join("blob")] {
+            assert_eq!(gid_of(path), gid, "{}", path.display());
+        }
     }
 
     #[test]

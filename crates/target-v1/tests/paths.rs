@@ -56,6 +56,10 @@ async fn container_paths_are_rewritten() {
         .await
         .expect("registry");
     assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    assert_eq!(
+        target.blob_store_paths().await.expect("blob store paths"),
+        [dir.path().join("blobs")]
+    );
     target.start_server().await.expect("server");
     target
         .put_blob(

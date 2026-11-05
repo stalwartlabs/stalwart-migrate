@@ -33,11 +33,11 @@ use crate::{
     converter::{ForwardState, MappingConverter, Original, mapping_edition},
     orchestrator::{
         AfterFinal, BlobMode, ErrorPolicy, GlobalCheck, MIN_SAMPLE_ACCOUNTS, Orchestrator,
-        RegistryConverter, RemovalPolicy, RetryPolicy, RunDirection, RunKind, RunOptions,
+        RegistryConverter, RemovalPolicy, RetryPolicy, RunDirection, RunError, RunKind, RunOptions,
         RunSummary, StoreIdentity, VerifyOptions, VerifyScope, VerifySummary, read_registry,
         registry_categories,
     },
-    paths::{Owner, PathMap, apply_owner, running_as_root},
+    paths::{Owner, PathMap, adopt_created, apply_owner, running_as_root},
     prepare::{
         ANSWERS_FILE, Confirmation, Prepare, StdTerminal, TERMINAL_REQUIRED, has_terminal,
         load_answers, source_objects, summary, write_outputs,
@@ -127,6 +127,22 @@ pub fn answer_categories(answers: &Answers) -> Result<CategorySet, CommandError>
         );
     }
     Ok(set)
+}
+
+async fn apply_target_owner<T: Target>(
+    target: &T,
+    owner: Option<Owner>,
+) -> Result<(), CommandError> {
+    let Some(owner) = owner else {
+        return Ok(());
+    };
+    apply_owner(
+        target.created_paths().iter().map(PathBuf::as_path),
+        Some(owner),
+    )?;
+    let blob_stores = target.blob_store_paths().await.map_err(RunError::from)?;
+    adopt_created(blob_stores.iter().map(PathBuf::as_path), owner)?;
+    Ok(())
 }
 
 pub fn answer_blob_mode(answers: &Answers) -> Option<BlobMode> {
@@ -328,10 +344,7 @@ pub(super) async fn run(args: &RunArgs, shutdown: Shutdown) -> Result<ExitCode, 
     )
     .run()
     .await;
-    let owned = apply_owner(
-        target.created_paths().iter().map(PathBuf::as_path),
-        plan.adapters.owner,
-    );
+    let owned = apply_target_owner(target.as_ref(), plan.adapters.owner).await;
     let summary = result?;
     owned?;
     let mut header = Vec::new();
@@ -668,10 +681,7 @@ pub(super) async fn rollback(
     )
     .run()
     .await;
-    let owned = apply_owner(
-        target.created_paths().iter().map(PathBuf::as_path),
-        config.owner,
-    );
+    let owned = apply_target_owner(target.as_ref(), config.owner).await;
     let summary = result?;
     owned?;
     print_run(&summary, RunCommand::Rollback);

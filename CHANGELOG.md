@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.7] - 2026-11-05
+
+### Fixed
+- `--owner` now also applies to file system blob stores: the files and directories the tool creates there (the spam filter models, Sieve scripts, and every blob in copy mode or rollback) get the given owner, so v1 can replace them. Files already in a shared store keep their owner.
+
 ## [1.0.6] - 2026-11-04
 
 ### Changed

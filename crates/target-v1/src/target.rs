@@ -16,14 +16,20 @@ use common::{
     manager::boot::build_ipc,
 };
 use model::{TargetClaim, TargetProbe};
-use registry::schema::structs::DataStore;
+use registry::schema::{
+    prelude::{ObjectInner, ObjectType},
+    structs::DataStore,
+};
 use store::{RegistryStore, Store, registry::bootstrap::Bootstrap};
 
 use crate::{
     claim::recover_sqlite,
     error::fatal,
     owned::OwnedPaths,
-    paths::{PathRewrite, boot_rewrite, primary_only, rewrite_data_store},
+    paths::{
+        PathRewrite, boot_rewrite, file_system_paths, primary_only, rewrite_blob_store,
+        rewrite_data_store,
+    },
     precheck::{probe_definition, refuse_foreign_store},
 };
 
@@ -139,6 +145,17 @@ impl V1Target {
 
     pub(crate) fn paths(&self) -> Vec<PathBuf> {
         self.owned.list()
+    }
+
+    pub(crate) async fn file_system_blob_paths(&self) -> model::Result<Vec<PathBuf>> {
+        let Some(ObjectInner::BlobStore(mut store)) = self.singleton(ObjectType::BlobStore).await?
+        else {
+            return Ok(Vec::new());
+        };
+        if let Some(path_rewrite) = &self.path_rewrite {
+            rewrite_blob_store(path_rewrite, &mut store);
+        }
+        Ok(file_system_paths(&store))
     }
 
     pub(crate) async fn boot_server(&self) -> model::Result<()> {

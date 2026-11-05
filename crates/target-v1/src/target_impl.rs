@@ -42,6 +42,10 @@ impl Target for V1Target {
         self.paths()
     }
 
+    async fn blob_store_paths(&self) -> model::Result<Vec<PathBuf>> {
+        self.file_system_blob_paths().await
+    }
+
     async fn probe(&self) -> model::Result<TargetProbe> {
         self.probe_opened_store().await
     }

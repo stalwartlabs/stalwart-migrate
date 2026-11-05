@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 #[cfg(feature = "enterprise")]
 use registry::schema::structs::{BlobStoreBase, MetricsStore, TracingStore};
@@ -79,7 +79,7 @@ fn primary_blob_store(store: &mut BlobStore) {
 #[cfg(not(feature = "enterprise"))]
 fn primary_blob_store(_: &mut BlobStore) {}
 
-fn rewrite_blob_store(rewrite: &PathRewrite, store: &mut BlobStore) {
+pub(crate) fn rewrite_blob_store(rewrite: &PathRewrite, store: &mut BlobStore) {
     match store {
         BlobStore::FileSystem(store) => rewrite_path(rewrite, &mut store.path),
         BlobStore::FoundationDb(store) => rewrite_cluster_file(rewrite, store),
@@ -101,6 +101,31 @@ fn rewrite_blob_store(rewrite: &PathRewrite, store: &mut BlobStore) {
         | BlobStore::Azure(_)
         | BlobStore::PostgreSql(_)
         | BlobStore::MySql(_) => {}
+    }
+}
+
+pub(crate) fn file_system_paths(store: &BlobStore) -> Vec<PathBuf> {
+    match store {
+        BlobStore::FileSystem(store) => vec![PathBuf::from(&store.path)],
+        #[cfg(feature = "enterprise")]
+        BlobStore::Sharded(sharded) => sharded
+            .stores
+            .values()
+            .filter_map(|member| match member {
+                BlobStoreBase::FileSystem(store) => Some(PathBuf::from(&store.path)),
+                BlobStoreBase::S3(_)
+                | BlobStoreBase::Azure(_)
+                | BlobStoreBase::FoundationDb(_)
+                | BlobStoreBase::PostgreSql(_)
+                | BlobStoreBase::MySql(_) => None,
+            })
+            .collect(),
+        BlobStore::Default
+        | BlobStore::S3(_)
+        | BlobStore::Azure(_)
+        | BlobStore::FoundationDb(_)
+        | BlobStore::PostgreSql(_)
+        | BlobStore::MySql(_) => Vec::new(),
     }
 }
 

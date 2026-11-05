@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
+use std::path::PathBuf;
+
 use model::{
     RegistryId, RegistryRecord, SharedDeletion, SharedOverwrite, SharedPlan, SharedService,
 };
 use registry::{
     schema::{
         prelude::{ObjectInner, ObjectType},
-        structs::{BlobStore, SearchStore},
+        structs::{BlobStore, BlobStoreBase, SearchStore},
     },
     types::{EnumImpl, id::ObjectId},
 };
@@ -95,7 +97,32 @@ fn setting(settings: &[RegistryRecord], object: ObjectType) -> model::Result<Opt
         .transpose()
 }
 
+fn file_system_paths(inner: Option<ObjectInner>) -> Vec<PathBuf> {
+    match inner {
+        Some(ObjectInner::BlobStore(BlobStore::FileSystem(store))) => vec![store.path.into()],
+        Some(ObjectInner::BlobStore(BlobStore::Sharded(sharded))) => sharded
+            .stores
+            .values()
+            .filter_map(|member| match member {
+                BlobStoreBase::FileSystem(store) => Some(PathBuf::from(&store.path)),
+                BlobStoreBase::S3(_)
+                | BlobStoreBase::Azure(_)
+                | BlobStoreBase::FoundationDb(_)
+                | BlobStoreBase::PostgreSql(_)
+                | BlobStoreBase::MySql(_) => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 impl V016Target {
+    pub(crate) async fn file_system_blob_paths(&self) -> model::Result<Vec<PathBuf>> {
+        Ok(file_system_paths(
+            self.singleton(ObjectType::BlobStore).await?,
+        ))
+    }
+
     async fn singleton(&self, object: ObjectType) -> model::Result<Option<ObjectInner>> {
         Ok(self
             .registry

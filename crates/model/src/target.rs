@@ -70,6 +70,10 @@ pub trait Target: Send + Sync + 'static {
         Vec::new()
     }
 
+    fn blob_store_paths(&self) -> impl Future<Output = Result<Vec<PathBuf>>> + Send {
+        async { Ok(Vec::new()) }
+    }
+
     fn probe(&self) -> impl Future<Output = Result<TargetProbe>> + Send;
 
     fn holds_claim(&self) -> impl Future<Output = Result<bool>> + Send {

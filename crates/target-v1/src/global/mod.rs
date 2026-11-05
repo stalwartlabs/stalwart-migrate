@@ -35,7 +35,7 @@ fn skipped(object: &str, id: u64, message: impl Into<Box<str>>) -> Issue {
 }
 
 impl V1Target {
-    async fn singleton(&self, object: ObjectType) -> model::Result<Option<ObjectInner>> {
+    pub(crate) async fn singleton(&self, object: ObjectType) -> model::Result<Option<ObjectInner>> {
         self.registry
             .get(ObjectId::new(object, Id::singleton()))
             .await
